@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { join, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 function tryReadCert(envPath) {
@@ -31,8 +31,14 @@ const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
 
+const SEC_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
 function fail(res, err, extra = {}) {
-  res.writeHead(500, { "Content-Type": "application/json" });
+  res.writeHead(500, { "Content-Type": "application/json", ...SEC_HEADERS });
   res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err), ...extra }));
 }
 
@@ -45,7 +51,7 @@ function readBody(req, res) {
       body += c;
       if (Buffer.byteLength(body, "utf8") > 1024) {
         big = true;
-        res.writeHead(413, { "Content-Type": "application/json" });
+        res.writeHead(413, { "Content-Type": "application/json", ...SEC_HEADERS });
         res.end(JSON.stringify({ ok: false, error: "corpo grande demais" }));
       }
     });
@@ -156,8 +162,8 @@ export function makeApp(deps = {}) {
   };
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
-    const ok = body => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
-    if (url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
+    const ok = body => { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify(body)); };
+    if (url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
@@ -184,14 +190,14 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (req.method === "PUT") {
           const list = body?.apps ?? body?.pinned;
           if (!Array.isArray(list)) {
-            res.writeHead(400, { "Content-Type": "application/json" });
+            res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
             res.end(JSON.stringify({ ok: false, error: "apps deve ser array" }));
             return;
           }
@@ -206,7 +212,7 @@ export function makeApp(deps = {}) {
         }
         const app = typeof body?.app === "string" ? body.app.trim() : "";
         if (app === "") {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
           res.end(JSON.stringify({ ok: false, error: "app inválido" }));
           return;
         }
@@ -228,7 +234,7 @@ export function makeApp(deps = {}) {
       let app;
       try { app = decodeURIComponent(unpin[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -270,7 +276,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(activate[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -292,7 +298,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(icon[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -300,13 +306,14 @@ export function makeApp(deps = {}) {
         .then(() => iconService.getIconPng(name))
         .then(buf => {
           if (!buf) {
-            res.writeHead(404, { "Content-Type": "application/json" });
+            res.writeHead(404, { "Content-Type": "application/json", ...SEC_HEADERS });
             res.end(JSON.stringify({ ok: false, error: "app não encontrado" }));
             return;
           }
           res.writeHead(200, {
             "Content-Type": "image/png",
             "Cache-Control": "public, max-age=3600",
+            ...SEC_HEADERS,
           });
           res.end(buf);
         })
@@ -333,12 +340,12 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (!(typeof body?.scene === "string" && body.scene.trim() !== "")) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
           res.end(JSON.stringify({ ok: false, error: "cena inválida" }));
           return;
         }
@@ -351,13 +358,20 @@ export function makeApp(deps = {}) {
     }
     const file = url.pathname === "/" ? "/index.html" : url.pathname;
     const p = join(root, file);
+    /* path traversal guard: resolved path must stay inside root */
+    if (!resolve(p).startsWith(resolve(root))) {
+      res.writeHead(403, { "Content-Type": "application/json", ...SEC_HEADERS });
+      res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+      return;
+    }
     const isUi = url.pathname === "/" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/sw.js");
     readFile(p).then(b => {
       res.writeHead(200, {
         "Content-Type": `${MIME[extname(p)] || "text/plain"}; charset=utf-8`,
-        // HTML/SW nunca em cache: o kiosk (J5) sempre pega a versão nova;
-        // demais assets estáticos podem usar cache curto (ícones, manifest)
         "Cache-Control": isUi ? "no-cache, no-store, must-revalidate" : "public, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
       });
       res.end(b);
     })
