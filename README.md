@@ -1,109 +1,116 @@
 # Dokke
 
-Dashboard touch para o mini PC J5: apps fixados, atalhos e controle do OBS (cenas, gravação, streaming) via WebSocket.
+Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositivo.
 
-## Setup
+A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (Android, iOS, outro Mac).
 
-Requisitos: Node 24.
+## Como funciona
 
 ```
+┌─────────────┐      WebSocket       ┌─────────────┐
+│  Mac (Dokke) │ ◄──────────────────► │  J5 / Phone  │
+│  SwiftUI app │      HTTP API       │  PWA no Chrome│
+└──────┬──────┘                      └──────────────┘
+       │
+       ▼
+  Node.js server (porta 3000)
+  - serve a PWA (index.html)
+  - gerencia config (pinned apps)
+  - WebSocket push em tempo real
+  - ícones de apps do macOS
+```
+
+1. O **Mac app** (Dokke) gerencia seus apps — fixa, remove, reordena
+2. O **server Node.js** sincroniza tudo via WebSocket
+3. O **device** (J5, qualquer Android, iPhone) recebe as mudanças em tempo real
+4. Um toque no device ativa o app no Mac
+
+## Stacks
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Mac app | Swift, SwiftUI, MenuBarExtra, Liquid Glass (macOS 26+) |
+| Server | Node.js, `ws` (WebSocket), HTTP puro (zero deps) |
+| PWA | HTML/CSS/JS vanilla, CSS Grid, backdrop-filter blur |
+| Android | Kotlin, WebView wrapper |
+| Sync | WebSocket (push em tempo real, sem polling) |
+
+## Quick start
+
+### Mac app (recomendado)
+
+```sh
+# Pré-requisitos: macOS 14+, Xcode CLT
+git clone https://github.com/felipenalves/Dokke.git
+cd Dokke
+cd mac && ./install.sh --open
+```
+
+O app inicia o server automaticamente. Fechar o app mata o server.
+
+### Terminal
+
+```sh
 npm install
+node server.js
+# → http://localhost:3000
 ```
 
-## Rodar (macOS)
+### Android
 
-Abra o app **Dokke** — ele inicia o server automaticamente. Fechar o app mata o server.
+Abra `http://<ip-do-mac>:3000` no Chrome do Android → Menu → "Adicionar à tela inicial".
 
-## OBS WebSocket
-
-No OBS:
-
-1. **Tools → WebSocket Server Settings** (Ferramentas → Configurações do servidor WebSocket).
-2. Marque **“Enable WebSocket server”** (Ativar servidor WebSocket).
-3. Porta padrão: **4455**.
-4. Defina uma **senha** (“Server Password”).
-
-Passa a senha pro j5-dock via env:
-
-| env | default | o que faz |
-|-----|---------|-----------|
-| `OBS_WS_PASSWORD` | — | senha do servidor WebSocket do OBS. Sem ela o painel OBS fica **offline**. |
-| `OBS_WS_HOST` | `127.0.0.1` | host do OBS (pra remote, use ex.: Tailscale IP). |
-| `OBS_WS_PORT` | `4455` | porta do servidor WebSocket do OBS. |
-
-## Rodar (terminal)
+Ou build o APK:
 
 ```sh
-OBS_WS_PASSWORD=sua-senha node server.js
+cd android
+./gradlew assembleDebug
+# APK em app/build/outputs/apk/debug/
 ```
 
-ou, usando o script (env vem do shell):
+## Mac app
 
-```sh
-export OBS_WS_PASSWORD=sua-senha
-./run.sh
-```
-
-O servidor responde em `http://0.0.0.0:3000`.
-
-## HTTPS / PWA no celular
-
-PWA precisa de HTTPS pra instalar no mobile. Opção mais simples: **Tailscale serve** (HTTPS grátis via Let's Encrypt, sem abrir porta).
-
-```sh
-# No Mac (servidor do j5-dock):
-tailscale serve --bg 3000
-```
-
-Isso expõe `https://<nome-da-mac>.ts.net/` com cert automático. No Galaxy J5:
-
-1. Abra `https://<nome-da-mac>.ts.net/` no Chrome.
-2. Menu → "Adicionar à tela inicial" (ou "Instalar app").
-3. O PWA aparece como app standalone.
-
-O servidor j5-dock segue rodando em HTTP local — o `tailscale serve` termina o HTTPS na borda.
-
-**Cert local alternativo** (se não usar Tailscale): passe os caminhos dos arquivos PEM:
-
-```sh
-HTTPS_CERT=./cert.pem HTTPS_KEY=./key.pem node server.js
-```
-
-Sem essas envs, o servidor sobe em HTTP puro (comportamento padrão).
-
-**Seja honesto sobre o comportamento:** sem `OBS_WS_PASSWORD` (ou com OBS fechado / senha errada) o painel OBS no app mostra **offline** (`connected: false`) — o daemon sobe normalmente, não quebra e não tenta reconectar sozinho.
-
-## Acessar da J5 de verdade
-
-Abra no kiosk da J5 (navegador em tela cheia):
-
-- `http://<ip-do-mac>:3000` — mesmo Wi-Fi.
-- Via **Tailscale**: `http://<tailscale-ip>:3000`, e aí o `OBS_WS_HOST` pode apontar pro `localhost` do Mac via Tailscale magicDNS, se preferir.
-
-Dica de kiosk Android: **WebKiosk**, **Fulminate**, ou só o modo “Tela inteira” do Chrome — qualquer um serve, é um HTML só.
+- **Sidebar** — navegação entre Apps e Sobre
+- **Dock Grid** — apps fixados em grid 4×2 com Liquid Glass
+- **App Picker** — busca e adiciona apps do macOS
+- **Drag-to-reorder** — reordena apps via drag-and-drop
+- **Ícones reais** — serve os .icns do macOS, com cache em memória
+- **Menu Bar** — ícone `square.grid.2x2`, status online/offline
+- **Auto-start** — server sobe ao abrir o app, morre ao fechar
 
 ## API
 
-| Método | Path                | O que faz                          |
-|--------|---------------------|-------------------------------------|
-| GET    | `/health`           | healthcheck (`{ok:true}`)           |
-| GET    | `/api/apps`         | apps fixados + processos rodando     |
-| GET    | `/api/config`       | config corrente                     |
-| POST   | `/api/config/pinned`| fixa um app (`{app:"nome"}`)        |
-| DELETE | `/api/config/pinned/:app` | desfixa um app              |
-| POST   | `/api/apps/:name/activate` | ativa o app (`{pid?}`)     |
-| GET    | `/api/obs/state`    | cenas atuais, gravando, transmitindo |
-| POST   | `/api/obs/scene`    | troca cena (`{scene:"nome"}`)        |
-| POST   | `/api/obs/record`   | alterna gravação                     |
-| POST   | `/api/obs/stream`   | alterna transmissão                  |
-| POST   | `/api/obs/stop-all` | para gravação e stream               |
+| Método | Path | O que faz |
+|--------|------|-----------|
+| GET | `/health` | healthcheck |
+| GET | `/api/status` | status + devices conectados |
+| GET | `/api/apps` | apps fixados + processos rodando |
+| GET | `/api/apps/installed` | todos os apps instalados no Mac |
+| GET | `/api/apps/:name/icon` | ícone PNG do app (128px, cacheado) |
+| GET | `/api/config` | config corrente |
+| POST | `/api/config/pinned` | fixa um app (`{"app":"nome"}`) |
+| PUT | `/api/config/pinned` | substitui lista inteira (`{"pinned":[]}`) |
+| DELETE | `/api/config/pinned/:app` | desfixa um app |
+| POST | `/api/apps/:name/activate` | ativa o app no Mac |
 
-`/api/obs/*` com o OBS offline responde `{ok:false, connected:false}` (ou `connected:false` no state) — a UI mostra o placeholder offline.
+## OBS WebSocket (standby)
+
+Suporte a controle do OBS (cenas, gravação, streaming) via WebSocket está planejado mas ainda não implementado. Quando disponível:
+
+| env | Default | O que faz |
+|-----|---------|-----------|
+| `OBS_WS_PASSWORD` | — | senha do servidor WebSocket do OBS |
+| `OBS_WS_HOST` | `127.0.0.1` | host do OBS |
+| `OBS_WS_PORT` | `4455` | porta do OBS |
 
 ## Testes
 
-```bash
+```sh
 npm test
 ```
 
 Node 24, `node --test`, zero deps além de `ws`.
+
+## Licença
+
+MIT
