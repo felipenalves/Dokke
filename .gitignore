@@ -1,0 +1,15 @@
+node_modules/
+.icon-cache/
+*.log
+.DS_Store
+build/
+*.apk.bak
+index.html.bak
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/local.properties
+mac/.build/
+mac/.swiftpm/

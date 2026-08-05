@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Troque pelo IP do Mac na sua rede. Pode também sobrescrever em runtime
+         via SharedPreferences("prefs", "server_url"). -->
+    <string name="server_url">http://192.168.1.6:3000</string>
+</resources>
