@@ -16,7 +16,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
   @EnvironmentObject private var store: DockStore
-  @State private var selection: SidebarItem = .apps
+  @State private var selection: SidebarItem? = .apps
 
   var body: some View {
     NavigationSplitView {
@@ -30,6 +30,7 @@ struct ContentView: View {
   private var sidebar: some View {
     List(SidebarItem.allCases, selection: $selection) { item in
       Label(item.rawValue, systemImage: item.icon)
+        .tag(item)
     }
     .listStyle(.sidebar)
     .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
@@ -42,6 +43,8 @@ struct ContentView: View {
       DockGridView()
     case .about:
       AboutView()
+    case .none:
+      DockGridView()
     }
   }
 }
@@ -84,6 +87,31 @@ struct AboutView: View {
         }
         LabeledContent("Apps Fixados") {
           Text("\(store.pinned.count)")
+        }
+      }
+      .padding(16)
+      .background(
+        RoundedRectangle(cornerRadius: 12)
+          .fill(.quaternary)
+      )
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text("Código de acesso")
+            .font(.headline)
+          Spacer()
+          Button("Gerar novo código") {
+            Task { await store.resetPin() }
+          }
+          .buttonStyle(.link)
+        }
+        HStack(spacing: 8) {
+          Text(store.pinCode ?? "—")
+            .font(.system(size: 28, weight: .bold, design: .monospaced))
+            .tracking(4)
+          Text("Digite no dispositivo J5 para acessar o dock.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
       }
       .padding(16)

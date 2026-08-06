@@ -82,7 +82,7 @@ cd android
 
 | Método | Path | O que faz |
 |--------|------|-----------|
-| GET | `/health` | healthcheck |
+| GET | `/health` | healthcheck (público) |
 | GET | `/api/status` | status + devices conectados |
 | GET | `/api/apps` | apps fixados + processos rodando |
 | GET | `/api/apps/installed` | todos os apps instalados no Mac |
@@ -92,6 +92,27 @@ cd android
 | PUT | `/api/config/pinned` | substitui lista inteira (`{"pinned":[]}`) |
 | DELETE | `/api/config/pinned/:app` | desfixa um app |
 | POST | `/api/apps/:name/activate` | ativa o app no Mac |
+| POST | `/api/obs/record` · `/api/obs/stream` · `/api/obs/stop-all` | controle OBS |
+| POST | `/api/obs/scene` | troca cena (`{"scene":"nome"}`) |
+| GET | `/api/obs/state` | estado OBS (cenas, gravação, streaming) |
+
+## Autenticação (pin de acesso)
+
+O servidor escuta em todas as interfaces (os dispositivos J5 acessam pela rede), então todo
+`/api/*` exige um **pin de 4 dígitos** — exceto `/health`, `/api/probe` e `/api/auth`.
+Requests vindos de **loopback** (o app Dokke no Mac) passam direto.
+
+- O pin é gerado no primeiro boot e fica em `.j5-pin` (fixo até regenerar).
+- **Aba "Sobre" no app Dokke**: mostra o código e o botão "Gerar novo código" (regenerar
+  invalida o cookie dos dispositivos — o J5 pedirá o código novo na próxima ação).
+- **Dispositivo J5**: ao abrir o dock, digite o código na tela de acesso; o cookie dura 180 dias.
+- Brute-force: 5 tentativas erradas por IP → bloqueio de 60s.
+
+| Método | Path | Quem acessa | O que faz |
+|--------|------|-------------|-----------|
+| POST | `/api/auth` | qualquer (público) | login `{"pin":"1234"}` → `Set-Cookie` |
+| GET | `/api/pin` | só loopback | lê o código (exibido na aba Sobre) |
+| POST | `/api/pin` | só loopback | regenera o código |
 
 ## OBS WebSocket (standby)
 

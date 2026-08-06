@@ -25,11 +25,18 @@ import { listAppProcesses, listInstalledApps, realIconService } from "./apps.js"
 import { activateApp } from "./actions.js";
 import { loadConfig, saveConfig, normalizePinned } from "./config.js";
 import { connectOBS } from "./obs-ws.js";
+import { ensurePin, newPin, isLoopback, pinFromCookie, pinCookie, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".apk": "application/vnd.android.package-archive" };
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
+/** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */
+const BODY_MAX_BYTES = 64 * 1024;
+/** Anti-bruteforce do pin: 5 falhas → lock 60s por IP. */
+const PIN_MAX_FAILS = 5;
+const PIN_LOCK_MS = 60_000;
+const pinLocks = new Map();
 
 const SEC_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -49,7 +56,7 @@ function readBody(req, res) {
     req.on("data", c => {
       if (big) return;
       body += c;
-      if (Buffer.byteLength(body, "utf8") > 1024) {
+      if (Buffer.byteLength(body, "utf8") > BODY_MAX_BYTES) {
         big = true;
         res.writeHead(413, { "Content-Type": "application/json", ...SEC_HEADERS });
         res.end(JSON.stringify({ ok: false, error: "corpo grande demais" }));
@@ -163,11 +170,82 @@ export function makeApp(deps = {}) {
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
     const ok = body => { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify(body)); };
+    // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
+    const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
     if (url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
       res.writeHead(204); res.end(); return;
+    }
+    // ---------- auth: pin de 4 dígitos (gate do kiosk da LAN) ----------
+    const trustLoopback = deps.trustLoopback !== false;
+    const auth = deps.auth;
+    const ipOf = req.socket.remoteAddress || "?";
+    const authed = () =>
+      (trustLoopback && isLoopback(ipOf)) ||
+      (!!auth && pinFromCookie(req.headers.cookie) === auth.getPin());
+    if (auth && url.pathname === "/api/auth" && req.method === "POST") {
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG || body === BODY_INVALID) {
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
+          return;
+        }
+        const given = typeof body?.pin === "string" ? body.pin.trim() : "";
+        if (given === "") {
+          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.end(JSON.stringify({ ok: false, error: "código vazio" }));
+          return;
+        }
+        const now = Date.now();
+        const lock = pinLocks.get(ipOf);
+        if (lock && lock.until > now) {
+          res.writeHead(429, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.end(JSON.stringify({ ok: false, error: "muitas tentativas — aguarde" }));
+          return;
+        }
+        if (given === auth.getPin()) {
+          pinLocks.delete(ipOf);
+          res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": pinCookie(auth.getPin()), ...SEC_HEADERS });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        const prev = pinLocks.get(ipOf);
+        if (!prev || now - prev.last > PIN_LOCK_MS) {
+          pinLocks.set(ipOf, { fails: 1, last: now, until: 0 });
+        } else {
+          prev.fails += 1;
+          prev.last = now;
+          if (prev.fails >= PIN_MAX_FAILS) prev.until = now + PIN_LOCK_MS;
+        }
+        res.writeHead(401, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.end(JSON.stringify({ ok: false, error: "código inválido" }));
+      });
+      return;
+    }
+    if (auth && url.pathname === "/api/pin") {
+      // só o dono (loopback) lê/regenera — atacante na LAN não descobre o pin
+      if (!isLoopback(ipOf)) {
+        res.writeHead(403, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+        return;
+      }
+      if (req.method === "POST") {
+        Promise.resolve()
+          .then(async () => { const p = newPin(); await auth.setPin(p); return p; })
+          .then(p => ok({ ok: true, pin: p }))
+          .catch(err => fail(res, err));
+        return;
+      }
+      ok({ ok: true, pin: auth.getPin() });
+      return;
+    }
+    // wall: todo /api/* exige cookie válido — loopback do Mac (dono) passa
+    if (url.pathname.startsWith("/api/") && !authed()) {
+      res.writeHead(401, { "Content-Type": "application/json", ...SEC_HEADERS });
+      res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+      return;
     }
     if (url.pathname === "/api/apps") {
       Promise.resolve()
@@ -181,7 +259,7 @@ export function makeApp(deps = {}) {
     if (url.pathname === "/api/config") {
       Promise.resolve()
         .then(() => readConfig())
-        .then(cfg => ok({ ok: true, config: cfg }))
+        .then(cfg => ok({ ok: true, config: publicCfg(cfg) }))
         .catch(err => fail(res, err));
       return;
     }
@@ -205,7 +283,7 @@ export function makeApp(deps = {}) {
           Promise.resolve()
             .then(() => readConfig())
             .then(cfg => { cfg.pinned = pinned; return persistConfig(cfg); })
-            .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+            .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
             .then(() => { if (onStatusChange) onStatusChange(); })
             .catch(err => fail(res, err));
           return;
@@ -223,7 +301,7 @@ export function makeApp(deps = {}) {
             if (!cfg.pinned.includes(app)) cfg.pinned.push(app);
             return persistConfig(cfg);
           })
-          .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+          .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
           .then(() => { if (onStatusChange) onStatusChange(); })
           .catch(err => fail(res, err));
       });
@@ -245,7 +323,7 @@ export function makeApp(deps = {}) {
           cfg.pinned = normalizePinned(cfg.pinned).filter(x => x !== app);
           return persistConfig(cfg);
         })
-        .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+        .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
         .then(() => { if (onStatusChange) onStatusChange(); })
         .catch(err => fail(res, err));
       return;
@@ -392,6 +470,14 @@ export async function startServer(arg = {}) {
   }
   const configProvided = opts.config !== undefined;
   const configFile = configProvided ? null : (opts.configFile ?? join(import.meta.dirname, "config.json"));
+  // pin de acesso (4 dígitos): fixo em .j5-pin, só regenera via POST /api/pin
+  const pinRoot = opts.root ?? import.meta.dirname;
+  let currentPin = await ensurePin(pinRoot);
+  opts.auth = {
+    getPin: () => currentPin,
+    setPin: async (p) => { currentPin = p; await writePinFile(p, pinRoot); },
+  };
+  opts.trustLoopback = opts.trustLoopback !== false;
   const uiVer = () => uiVersion(join(import.meta.dirname, "public"));
   const feed = createStatusFeed({
     readConfig: () => configFile ? loadConfig(configFile) : Promise.resolve(opts.config || { pinned: [] }),
@@ -409,7 +495,13 @@ export async function startServer(arg = {}) {
   server.on("request", handler);
   // path /ws é o default do upgrade no mesmo server; clients conectam em ws://host:port/
   // (browser usa location.host + "/ws" — o ws library aceita qualquer path no mesmo port)
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({
+    server,
+    verifyClient: (info) => {
+      if (opts.trustLoopback && isLoopback(info.req.socket.remoteAddress)) return true;
+      return pinFromCookie(info.req.headers.cookie) === currentPin;
+    },
+  });
   wss.on("connection", (ws) => {
     ws.on("message", (raw) => {
       let m = null;

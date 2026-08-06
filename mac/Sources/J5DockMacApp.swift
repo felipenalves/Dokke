@@ -5,10 +5,6 @@ struct J5DockMacApp: App {
   @StateObject private var store = DockStore()
   @StateObject private var server = ServerManager()
 
-  init() {
-    _server = StateObject(wrappedValue: ServerManager())
-  }
-
   var body: some Scene {
     WindowGroup("Dokke") {
       ContentView()

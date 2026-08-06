@@ -10,6 +10,8 @@ reescrito.
 - Aceita cert local (Tailscale) para não travar em HTTP/self-signed.
 - Botão voltar do Android navega para trás dentro do app.
 - Tela de "loading" enquanto carrega.
+- **Login por código**: o dock pede o pin de 4 dígitos (aba "Sobre" do app Dokke no Mac)
+  na primeira conexão; o cookie dura 180 dias.
 
 ## Configurar a URL do servidor
 Edite `app/src/main/res/values/server_url.xml` com o IP do Mac na sua rede, ou

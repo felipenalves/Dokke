@@ -486,6 +486,72 @@
   }
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.err{ border-color: rgba(255,69,58,.5); color:#ffb3ae; }
+
+  /* ---- login wall (pin de acesso) — líquido/glass ---- */
+  .login-scrim{
+    position: fixed; top:0; left:0; right:0; bottom:0; z-index:90;
+    display:flex; align-items:center; justify-content:center;
+    padding: 24px 18px;
+    background: rgba(3,6,14,.34);
+    backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+    opacity:0; pointer-events:none; transition: opacity .2s ease;
+    overflow-y:auto;
+  }
+  .login-scrim.show{ opacity:1; pointer-events:auto; }
+  .login-card{
+    width: min(360px, 100%); border-radius: 32px; padding: 24px 20px 18px;
+    background: linear-gradient(165deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 55%, rgba(255,255,255,.07));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28), 0 24px 60px rgba(0,0,0,.5);
+    text-align:center; animation: rise .18s ease;
+  }
+  .login-card .lkey{ width:62px; height:62px; margin:0 auto 14px; border-radius:20px;
+    padding:4px;
+    background: linear-gradient(160deg, rgba(10,132,255,.32), rgba(10,132,255,.10));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+    display:flex; align-items:center; justify-content:center; }
+  .login-card .lkey img{ width:100%; height:100%; border-radius:17px; object-fit:cover; display:block; }
+  .login-card h3{ font-size:19px; font-weight:700; margin-bottom:4px; letter-spacing:-.01em; }
+  .login-card .body{ font-size:13px; color:var(--ink-2); line-height:1.5; }
+  .login-card .lsteps{ list-style:none; margin:16px 0 18px; padding:0; text-align:left; }
+  .login-card .lsteps li{ display:flex; align-items:flex-start; gap:11px; padding:6px 0; }
+  .login-card .lsteps .lnum{ flex:0 0 auto; width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+    font-size:11px; font-weight:700; color:var(--ink-2);
+    background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); }
+  .login-card .lsteps p{ font-size:12.6px; color:var(--ink-2); line-height:1.45; }
+  .login-card .lsteps b{ color:var(--ink); font-weight:600; }
+  .login-card input{
+    width:100%; padding:15px; border-radius:16px; text-align:center;
+    font-size:26px; font-weight:700; letter-spacing:12px; color:var(--ink);
+    font-variant-numeric: tabular-nums;
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
+    outline:none; caret-color: var(--accent, #0a84ff);
+  }
+  .login-card input:focus{ border-color: rgba(10,132,255,.65); background: rgba(10,132,255,.06); box-shadow: 0 0 0 4px rgba(10,132,255,.14); }
+  .login-card .lerr{ font-size:12px; color:#ff837d; font-weight:600; margin-top:10px; min-height:16px; }
+  .login-card .btn.connect{ margin-top:16px; flex:1; padding:15px; border-radius:18px; cursor:pointer;
+    font-size:16px; font-weight:700; color:#fff;
+    background: linear-gradient(180deg, rgba(10,132,255,.96), rgba(10,132,255,.72));
+    border:1px solid rgba(255,255,255,.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 12px 26px rgba(10,132,255,.32);
+    transition: transform .08s ease, opacity .15s ease; }
+  .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
+  .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
+
+  /* ---- trava da tela de auth em retrato ---- */
+  /* Enquanto o login está aberto (body.is-login), se o device estiver deitado
+     (landscape) mantemos o scrim em proporção retrato, rodando 90° no eixo.
+     O dock continua livre pra girar depois de autenticado. */
+  @media (orientation: landscape){
+    body.is-login .login-scrim{
+      position: fixed; top: 50%; left: 50%;
+      width: 100vh; height: 100vw;
+      transform: translate(-50%, -50%) rotate(90deg);
+      transform-origin: center;
+    }
+  }
 </style>
 </head>
 <body id="j5dock">
@@ -508,6 +574,25 @@
 <div class="vdots" id="vdots"></div>
 
 <div class="toast" id="toast"></div>
+
+  <div class="login-scrim" id="loginScrim">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <div class="lkey" aria-hidden="true">
+        <img src="/icon-192.png" alt="" aria-hidden="true" width="54" height="54">
+      </div>
+      <h3 id="loginTitle">Conectar ao Dokke</h3>
+      <div class="body">Conecte o aparelho ao seu Mac para abrir os apps.</div>
+      <ol class="lsteps">
+        <li><span class="lnum">1</span><div><p>Conecte o Mac e este aparelho à <b>mesma rede Wi-Fi</b>.</p></div></li>
+        <li><span class="lnum">2</span><div><p>No Mac, abra o <b>Dokke</b> e escolha os apps que quer usar.</p></div></li>
+        <li><span class="lnum">3</span><div><p>Toque em <b>Gerar novo código</b> no Mac e digite o código de 4 dígitos aqui.</p></div></li>
+      </ol>
+      <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso">
+      <div class="lerr" id="loginErr"></div>
+      <button class="btn connect" id="loginGo">Conectar</button>
+      <p class="lfoot">Dokke by Felipe Natanael</p>
+    </div>
+  </div>
 
   <div class="scrim" id="scrim">
     <div class="sheet" id="sheet"></div>
@@ -573,6 +658,65 @@
     toastT = setTimeout(function(){ t.classList.remove("show"); }, 2500);
   }
 
+  // ---------- login wall (pin de acesso) ----------
+  let authed = false, loginOpen = false;
+  function showLogin(){
+    if (loginOpen) return;
+    loginOpen = true;
+    const err = $("loginErr"); if (err) err.textContent = "";
+    const pin = $("loginPin"); if (pin){ pin.value = ""; }
+    $("loginScrim").classList.add("show");
+    // trava a orientação em retrato só enquanto a auth está aberta
+    document.body.classList.add("is-login");
+    lockPortrait();
+    if (pin) setTimeout(function(){ pin.focus(); }, 80);
+  }
+  function hideLogin(){
+    loginOpen = false;
+    $("loginScrim").classList.remove("show");
+    document.body.classList.remove("is-login");
+    unlockOrientation();
+  }
+  // tenta travar a orientação nativa; se o browser/WebView negar, o CSS
+  // (body.is-login + @media landscape) mantém o card em retrato de todo jeito.
+  function lockPortrait(){
+    try {
+      if (screen.orientation && screen.orientation.lock){
+        screen.orientation.lock("portrait").catch(function(){ /* CSS cobre o fallback */ });
+      }
+    } catch (e){}
+  }
+  function unlockOrientation(){
+    try {
+      if (screen.orientation && screen.orientation.unlock){ screen.orientation.unlock(); }
+    } catch (e){}
+  }
+  function loginError(msg){
+    const err = $("loginErr");
+    if (err) err.textContent = msg || "código inválido";
+  }
+  async function doLogin(){
+    const pin = $("loginPin");
+    const val = (pin && pin.value || "").trim();
+    if (loginOpen === false) return;
+    if (!/^\d{4}$/.test(val)){ loginError("código inválido"); return; }
+    const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
+    if (r && r.status === 200 && r.data && r.data.ok === true){
+      authed = true;
+      hideLogin();
+      boot();
+    } else if (r && r.status === 429){
+      loginError("Muitas tentativas — aguarde um pouco.");
+    } else {
+      loginError("Código errado.");
+    }
+  }
+  $("loginGo").addEventListener("click", doLogin);
+  $("loginPin").addEventListener("keydown", function(e){
+    if (e.key === "Enter") doLogin();
+    else if (!/^\d$/.test(e.key) && e.key.length === 1) e.preventDefault();
+  });
+
   // ---------- landscape detection ----------
   let landscape = false;
   function checkOrientation(){
@@ -593,9 +737,10 @@
     if (typeof AbortController !== "undefined") c = new AbortController();
     const id = setTimeout(function(){ if (c) c.abort(); }, timeout);
     try {
-      const init = { method: opts.method || "GET", headers: opts.headers, body: opts.body };
+      const init = { method: opts.method || "GET", headers: opts.headers, body: opts.body, credentials: "same-origin" };
       if (c) init.signal = c.signal;
       const res = await fetch(path, init);
+      if (res.status === 401) { showLogin(); }
       const ct = res.headers.get("content-type") || "";
       const data = /application\/json/.test(ct) ? await res.json().catch(function(){ return {}; }) : null;
       return { status: res.status, data: data };
@@ -1311,6 +1456,7 @@
   let statusWs = null, wsRetry = 2000, wsTimer = null;
   function connectStatusWs(){
     if (!("WebSocket" in window)) return;
+    if (!authed) return;
     if (statusWs && (statusWs.readyState === 0 || statusWs.readyState === 1)) return;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     let ws;
@@ -1359,10 +1505,13 @@
     let ok = false;
     try {
       const r = await req("/api/apps", { timeout: 4200 });
-      if (r.status === 200 && Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
-        ok = true;
-        maybeReloadForUi(r.data.v);
-        applyAppsPayload(r.data.pinned, r.data.running);
+      if (r.status === 200){
+        authed = true;
+        if (Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
+          ok = true;
+          maybeReloadForUi(r.data.v);
+          applyAppsPayload(r.data.pinned, r.data.running);
+        }
       }
     } catch (e) { /* offline: keep last view */ }
     appsBackoff = ok ? APPS_OK : Math.min(appsBackoff * 2, POLL_MAX);
@@ -1390,7 +1539,9 @@
   // tela 2 time travel: sem rdot/labels — rebuild já cobre mudanças estruturais
   function updateRecentsDots(){ /* no-op: visual limpo como a ref */ }
 
+  let installedT = null;
   async function loadInstalled(){
+    if (installedT){ clearTimeout(installedT); installedT = null; }
     try {
       const r = await req("/api/apps/installed", { timeout: 6000 });
       if (r.status === 200 && r.data && r.data.ok === true && Array.isArray(r.data.apps)){
@@ -1398,7 +1549,7 @@
         state.installedReady = true;
         renderLaunchpad();
       }
-    } catch (e) { setTimeout(loadInstalled, 8000); }
+    } catch (e) { installedT = setTimeout(loadInstalled, 8000); }
   }
 
   // ---------- header ----------
@@ -1796,10 +1947,15 @@
     checkOrientation();
   });
 
+  // boot real depende do login (cookie válido) — 401 reabre a wall
+  function boot(){
+    connectStatusWs();
+    loadApps();
+    loadInstalled();
+  }
+
   loadHealth();
-  connectStatusWs();
-  loadApps();
-  loadInstalled();
+  boot();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(function() {});

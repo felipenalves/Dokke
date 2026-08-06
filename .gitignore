@@ -13,3 +13,10 @@ android/.idea/
 android/local.properties
 mac/.build/
 mac/.swiftpm/
+
+# pin de acesso (segredo local — nunca vai pro git)
+.j5-pin
+
+# Xcode user state (gerado localmente, não vai pro git)
+ios/Dokke.xcodeproj/xcuserdata/
+ios/Dokke.xcodeproj/project.xcworkspace/xcuserdata/
