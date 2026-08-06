@@ -113,6 +113,11 @@ struct AboutView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+        if let err = store.pinError {
+          Text(err)
+            .font(.caption)
+            .foregroundStyle(.red)
+        }
       }
       .padding(16)
       .background(

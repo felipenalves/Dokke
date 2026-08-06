@@ -11,7 +11,6 @@ struct J5DockMacApp: App {
         .environmentObject(store)
         .environmentObject(server)
         .frame(minWidth: 760, idealWidth: 800, minHeight: 500, idealHeight: 520)
-        .onDisappear { server.stop() }
     }
     .windowResizability(.contentSize)
     .defaultSize(width: 800, height: 520)
