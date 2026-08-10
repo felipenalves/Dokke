@@ -109,7 +109,7 @@ final class DockStore: ObservableObject {
     } catch { pinCode = nil }
   }
 
-  /// Regenera o código — o J5 precisará digitar o novo (cookie antigo vira 401 → wall).
+  /// Regenera o código — o device precisará digitar o novo (cookie antigo vira 401 → wall).
   func resetPin() async {
     pinError = nil
     guard let url = URL(string: baseURL + "/api/pin") else {
@@ -133,7 +133,7 @@ final class DockStore: ObservableObject {
     }
   }
 
-  /// Health + contagem de devices no WS (app J5 escutando).
+  /// Health + contagem de devices no WS (devices escutando).
   func pingStatus() async {
     guard let url = URL(string: baseURL + "/api/status") else {
       // fallback health
@@ -234,7 +234,7 @@ final class DockStore: ObservableObject {
   }
 
   func pin(_ name: String) async {
-    // otimista: UI reage na hora; server empurra pro J5 via WS
+    // otimista: UI reage na hora; server empurra pros devices via WS
     let prev = pinned
     if !pinned.contains(name) { pinned.append(name) }
     busyName = name
@@ -309,7 +309,7 @@ final class DockStore: ObservableObject {
     var req = URLRequest(url: url)
     req.httpMethod = "PUT"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    // envia a lista NA ORDEM do drag (arrastada) — o servidor persiste e empurra pro J5 via WS
+    // envia a lista NA ORDEM do drag (arrastada) — o servidor persiste e empurra pros devices via WS
     req.httpBody = try? JSONSerialization.data(withJSONObject: ["pinned": pinned])
     req.timeoutInterval = 4
     do {
@@ -340,7 +340,7 @@ final class DockStore: ObservableObject {
     if devices > 0 {
       lastSyncNote = "Enviado a \(devices) dispositivo\(devices == 1 ? "" : "s")"
     } else {
-      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no J5)"
+      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no seu celular)"
     }
   }
 
