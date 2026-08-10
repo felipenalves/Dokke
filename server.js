@@ -40,28 +40,44 @@ const PIN_MAX_FAILS = 5;
 const PIN_LOCK_MS = 60_000;
 const pinLocks = new Map();
 
-// versão publicada no GitHub (releases/latest) — cacheia 10min; nunca bloqueia o request
-const versionCache = { value: null, age: 0 };
+// versão publicada no GitHub (releases/latest) — stale-while-revalidate; nunca bloqueia o request
+// usa redirect da URL pública (sem API → sem rate limit)
+const VERSION_CACHE_MS = 10 * 60 * 1000;
+const versionCache = { value: null, age: 0, refreshing: null };
 async function refreshVersion() {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
-    const r = await fetch("https://api.github.com/repos/felipenalves/Dokke/releases/latest",
-      { headers: { "User-Agent": "Dokke", "Accept": "application/vnd.github+json" }, signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) return;
-    const j = await r.json();
-    const apk = (j.assets || []).find(a => /^dokke\.apk$/.test(a.name));
-    versionCache.value = {
-      tag: j.tag_name || "",
-      htmlUrl: j.html_url || "",
-      apkUrl: apk ? apk.browser_download_url : "",
-      published: j.published_at || "",
-    };
-    versionCache.age = Date.now();
-  } catch {}
+  if (versionCache.refreshing) return versionCache.refreshing;
+  versionCache.refreshing = (async () => {
+    let timer = null;
+    try {
+      const ctrl = new AbortController();
+      timer = setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch("https://github.com/felipenalves/Dokke/releases/latest",
+        { redirect: "manual", signal: ctrl.signal });
+      const loc = r.headers.get("location") || "";
+      const m = loc.match(/\/releases\/tag\/([^/]+)$/);
+      if (!m) return;
+      versionCache.value = {
+        tag: m[1],
+        htmlUrl: "https://github.com/felipenalves/Dokke/releases/tag/" + m[1],
+        apkUrl: "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk",
+      };
+      versionCache.age = Date.now();
+    } catch {
+    } finally {
+      if (timer) clearTimeout(timer);
+      versionCache.refreshing = null;
+    }
+  })();
+  return versionCache.refreshing;
 }
 refreshVersion();
+
+function latestVersionSnapshot() {
+  if (!versionCache.age || Date.now() - versionCache.age >= VERSION_CACHE_MS) {
+    refreshVersion();
+  }
+  return versionCache.value;
+}
 
 const SEC_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -272,9 +288,7 @@ export function makeApp(deps = {}) {
         const raw = readFileSync(join(root, "version.json"), "utf8");
         local = JSON.parse(raw);
       } catch {}
-      const latest = versionCache.age && Date.now() - versionCache.age < 10 * 60 * 1000
-        ? versionCache.value : null;
-      ok({ ok: true, local, latest });
+      ok({ ok: true, local, latest: latestVersionSnapshot() });
       return;
     }
     // ---------- auth: pin de 4 dígitos (gate do kiosk da LAN) ----------
