@@ -10,6 +10,8 @@ reescrito.
 - Aceita cert local (Tailscale) para não travar em HTTP/self-signed.
 - Botão voltar do Android navega para trás dentro do app.
 - Tela de "loading" enquanto carrega.
+- Aviso de nova versão quando existe uma release mais recente no GitHub.
+- Download iniciado somente após o toque do usuário; a instalação passa pelo instalador oficial do Android.
 - **Login por código**: o dock pede o pin de 4 dígitos (aba "Sobre" do app Dokke no Mac)
   na primeira conexão; o cookie dura 180 dias.
 

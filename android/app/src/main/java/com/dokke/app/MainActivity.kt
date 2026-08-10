@@ -2,15 +2,22 @@ package com.dokke.app
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
@@ -23,6 +30,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,6 +49,41 @@ class MainActivity : ComponentActivity() {
     private var serverUrl = ""
     private var mainFrameFailed = false
     private var healed = false
+    private var updateDownloadId: Long? = null
+    private var pendingUpdateVersion: String? = null
+    private var updateReceiverRegistered = false
+
+    private val updateApkUrl = "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk"
+    private val updateMime = "application/vnd.android.package-archive"
+    private val updateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: return
+            if (id <= 0 || id != updateDownloadId) return
+            updateDownloadId = null
+
+            val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val cursor = manager.query(DownloadManager.Query().setFilterById(id))
+            try {
+                if (!cursor.moveToFirst()) {
+                    showUpdateMessage("Não foi possível verificar o download.")
+                    return
+                }
+                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                    showUpdateMessage("Não foi possível baixar a atualização.")
+                    return
+                }
+                val uri = manager.getUriForDownloadedFile(id)
+                if (uri == null) {
+                    showUpdateMessage("O arquivo da atualização não está disponível.")
+                    return
+                }
+                installDownloadedApk(uri)
+            } finally {
+                cursor.close()
+            }
+        }
+    }
 
     private val discoverMagic = "dokke:discover".toByteArray(Charsets.UTF_8)
     private val discoverReply = Regex("^dokke:(\\d{1,3}(\\.\\d{1,3}){3}):(\\d+)$")
@@ -76,6 +119,7 @@ class MainActivity : ComponentActivity() {
         serverUrl = prefs.getString("server_url", null) ?: getString(R.string.server_url)
         // permite override via intent extra (fácil de testar via am)
         intent.getStringExtra("server_url")?.let { serverUrl = it; prefs.edit().putString("server_url", it).apply() }
+        registerUpdateReceiver()
 
         web.settings.apply {
             javaScriptEnabled = true
@@ -139,6 +183,10 @@ class MainActivity : ComponentActivity() {
             }
             @android.webkit.JavascriptInterface
             fun appVersion(): String = BuildConfig.VERSION_NAME
+            @android.webkit.JavascriptInterface
+            fun requestUpdate(version: String) {
+                runOnUiThread { beginUpdate(version) }
+            }
         }, "DokkeAndroid")
         web.loadUrl(serverUrl)
         // descoberta automática: se o IP do Mac mudou, atualiza sozinho
@@ -222,8 +270,95 @@ class MainActivity : ComponentActivity() {
     private var firstResume = true
     override fun onResume() {
         super.onResume()
+        pendingUpdateVersion?.let { version ->
+            if (canInstallPackages()) {
+                pendingUpdateVersion = null
+                enqueueUpdate(version)
+            }
+        }
         if (firstResume) { firstResume = false; return }
         if (offlinePanel.visibility == View.VISIBLE) retryConnection() else web.reload()
+    }
+
+    private fun registerUpdateReceiver() {
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(updateReceiver, filter)
+        }
+        updateReceiverRegistered = true
+    }
+
+    private fun beginUpdate(version: String) {
+        if (updateDownloadId != null) {
+            showUpdateMessage("A atualização já está sendo baixada.")
+            return
+        }
+        val safeVersion = version.trim().replace(Regex("[^0-9A-Za-z._-]"), "")
+        if (safeVersion.isEmpty()) {
+            showUpdateMessage("Versão de atualização inválida.")
+            return
+        }
+        if (!canInstallPackages()) {
+            pendingUpdateVersion = safeVersion
+            AlertDialog.Builder(this)
+                .setTitle("Permitir atualização")
+                .setMessage("Para atualizar o Dokke, permita que este app instale a nova versão.")
+                .setNegativeButton("Agora não") { _, _ -> pendingUpdateVersion = null }
+                .setPositiveButton("Abrir configurações") { _, _ -> openInstallSettings() }
+                .show()
+            return
+        }
+        enqueueUpdate(safeVersion)
+    }
+
+    private fun canInstallPackages(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+    }
+
+    private fun openInstallSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+        }
+    }
+
+    private fun enqueueUpdate(version: String) {
+        val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val filename = "dokke-update-$version.apk"
+        val request = DownloadManager.Request(Uri.parse(updateApkUrl))
+            .setTitle("Atualização do Dokke")
+            .setDescription("Baixando a versão $version")
+            .setMimeType(updateMime)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, filename)
+        updateDownloadId = manager.enqueue(request)
+        Toast.makeText(this, "Baixando a atualização…", Toast.LENGTH_LONG).show()
+    }
+
+    private fun installDownloadedApk(uri: Uri) {
+        if (!canInstallPackages()) {
+            showUpdateMessage("Permissão para instalar a atualização não concedida.")
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, updateMime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            showUpdateMessage("Não foi possível abrir o instalador do Android.")
+        }
+    }
+
+    private fun showUpdateMessage(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun buildOfflinePanel(): View {
@@ -340,6 +475,14 @@ class MainActivity : ComponentActivity() {
             cornerRadius = dp(radius).toFloat()
             if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
         }
+    }
+
+    override fun onDestroy() {
+        if (updateReceiverRegistered) {
+            unregisterReceiver(updateReceiver)
+            updateReceiverRegistered = false
+        }
+        super.onDestroy()
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
