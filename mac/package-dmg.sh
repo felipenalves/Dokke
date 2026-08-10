@@ -3,56 +3,70 @@
 # Usage: ./package-dmg.sh [output.dmg]
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+MAC_ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "${MAC_ROOT}/.." && pwd)"
 APP_NAME="Dokke"
-OUTPUT="${1:-${ROOT}/dist/Dokke-macOS.dmg}"
+OUTPUT="${1:-${MAC_ROOT}/dist/Dokke-macOS.dmg}"
 WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/dokke-dmg.XXXXXX")"
-STAGE="${WORKSPACE}/contents"
-WORK_DMG="${WORKSPACE}/Dokke-rw.dmg"
-MOUNT_POINT=""
+SPEC="${WORKSPACE}/appdmg.json"
 
 cleanup() {
-  if [[ -n "${MOUNT_POINT}" ]]; then
-    hdiutil detach "${MOUNT_POINT}" -force >/dev/null 2>&1 || true
-  fi
   rm -rf "${WORKSPACE}"
 }
 trap cleanup EXIT
 
-"${ROOT}/install.sh" --build-only >/dev/null
-mkdir -p "${STAGE}" "$(dirname "${OUTPUT}")"
-cp -R "${ROOT}/dist/${APP_NAME}.app" "${STAGE}/${APP_NAME}.app"
-ln -s /Applications "${STAGE}/Applications"
-
-echo "==> create DMG stage"
-hdiutil create -volname "${APP_NAME}" -srcfolder "${STAGE}" -ov -format UDRW "${WORK_DMG}" >/dev/null
-MOUNT_POINT="$(hdiutil attach "${WORK_DMG}" -nobrowse -noautoopen | awk '$NF ~ /^\/Volumes\// { print $NF; exit }')"
-if [[ -z "${MOUNT_POINT}" || ! -d "${MOUNT_POINT}" ]]; then
-  echo "error: DMG mount point not found" >&2
+if [[ ! -x "${PROJECT_ROOT}/node_modules/.bin/appdmg" ]]; then
+  echo "error: appdmg is not installed; run npm install first" >&2
   exit 1
 fi
 
-echo "==> arrange Finder window"
-osascript <<'APPLESCRIPT'
-tell application "Finder"
-  delay 1
-  tell disk "Dokke"
-    open
-    tell container window
-      set current view to icon view
-      set bounds to {120, 120, 760, 520}
-      set position of item "Dokke.app" to {190, 210}
-      set position of item "Applications" to {570, 210}
-    end tell
-    update without registering applications
-    close
-  end tell
-end tell
-APPLESCRIPT
+cd "${PROJECT_ROOT}"
+"${MAC_ROOT}/install.sh" --build-only >/dev/null
+mkdir -p "$(dirname "${OUTPUT}")"
 
-hdiutil detach "${MOUNT_POINT}" -force >/dev/null
-MOUNT_POINT=""
+APP_BUNDLE="${MAC_ROOT}/dist/${APP_NAME}.app"
+if [[ ! -d "${APP_BUNDLE}" || ! -x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" ]]; then
+  echo "error: built app bundle is missing or not executable" >&2
+  exit 1
+fi
+if [[ ! -f "${APP_BUNDLE}/Contents/Resources/Dokke/server.js" ]]; then
+  echo "error: server.js is missing from the app bundle" >&2
+  exit 1
+fi
 
-echo "==> compress DMG"
-hdiutil convert "${WORK_DMG}" -format UDZO -imagekey zlib-level=9 -ov -o "${OUTPUT}" >/dev/null
+# npm 11 can leave native optional build scripts pending. appdmg needs its
+# alias helper to write the background reference into the volume .DS_Store.
+if ! node -e "const alias = require('macos-alias'); alias.create(process.argv[1])" "${MAC_ROOT}/dmg-background.png" >/dev/null 2>&1; then
+  echo "==> build DMG metadata helper"
+  npm rebuild --silent macos-alias fs-xattr
+fi
+
+node --input-type=module - "${SPEC}" "${MAC_ROOT}/dmg-background.png" "${APP_BUNDLE}" <<'NODE'
+import fs from 'node:fs';
+
+const specPath = process.argv[2];
+const backgroundPath = process.argv[3];
+const appBundlePath = process.argv[4];
+
+const spec = {
+  title: 'Dokke Installer',
+  format: 'UDZO',
+  background: backgroundPath,
+  'icon-size': 96,
+  window: {
+    position: { x: 120, y: 120 },
+    // appdmg adds the 22pt title bar to this value: 378 + 22 = 400.
+    size: { width: 640, height: 378 }
+  },
+  contents: [
+    { x: 170, y: 210, type: 'file', path: appBundlePath },
+    { x: 570, y: 210, type: 'link', path: '/Applications' }
+  ]
+};
+
+fs.writeFileSync(specPath, JSON.stringify(spec));
+NODE
+
+echo "==> build DMG layout"
+"${PROJECT_ROOT}/node_modules/.bin/appdmg" "${SPEC}" "${OUTPUT}"
 echo "OK ${OUTPUT}"

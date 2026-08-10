@@ -1,0 +1,67 @@
+{
+  "feature": "instalador-dmg-layout",
+  "timestamp": "2026-08-10T19:38:53.448Z",
+  "gitRev": "67e6b60",
+  "command": "node --test --test-reporter=tap",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 111,
+  "results": {
+    "AC-001": {
+      "status": "pass",
+      "testName": "@spec:AC-001 DMG monta normalmente",
+      "method": "tap"
+    },
+    "AC-002": {
+      "status": "pass",
+      "testName": "@spec:AC-002 raiz contém apenas app e Applications visíveis",
+      "method": "tap"
+    },
+    "AC-003": {
+      "status": "pass",
+      "testName": "@spec:AC-003 Applications é symlink nativo para /Applications",
+      "method": "tap"
+    },
+    "AC-004": {
+      "status": "pass",
+      "testName": "@spec:AC-004 seta fica no fundo e não na raiz",
+      "method": "tap"
+    },
+    "AC-005": {
+      "status": "pass",
+      "testName": "@spec:AC-005 posições persistem à esquerda e à direita",
+      "method": "tap"
+    },
+    "AC-006": {
+      "status": "pass",
+      "testName": "@spec:AC-006 layout não depende de ordenação global",
+      "method": "tap"
+    },
+    "AC-007": {
+      "status": "pass",
+      "testName": "@spec:AC-007 fundo e posições sobrevivem à remontagem",
+      "method": "tap"
+    },
+    "AC-008": {
+      "status": "pass",
+      "testName": "@spec:AC-008 janela persiste composição compacta",
+      "method": "tap"
+    },
+    "AC-009": {
+      "status": "pass",
+      "testName": "@spec:AC-009 app mantém servidor embutido e executável",
+      "method": "tap"
+    },
+    "AC-010": {
+      "status": "pass",
+      "testName": "@spec:AC-010 bash -n passa",
+      "method": "tap"
+    },
+    "AC-011": {
+      "status": "pass",
+      "testName": "@spec:AC-011 não existe Arraste para instalar.png visível",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

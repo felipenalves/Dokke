@@ -1,0 +1,14 @@
+{
+  "testCommand": "node --test --test-reporter=tap",
+  "reporter": "tap",
+  "testGlobs": [
+    "test/**",
+    "tests/**",
+    "src/**/*.test.*",
+    "src/**/*.spec.*",
+    "__tests__/**"
+  ],
+  "srcGlobs": [
+    "src/**"
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "sinais": {
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-001": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-001",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.849Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-002": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-002",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-003": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-003",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-004": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-004",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-005": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-005",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-006": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-006",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-007": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-007",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-008": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-008",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-009": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-009",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-010": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-010",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "AC_SEM_PROVA::instalador-dmg-layout::AC-011": {
+      "codigo": "AC_SEM_PROVA",
+      "feature": "instalador-dmg-layout",
+      "ref": "AC-011",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:36:31.852Z",
+      "gitRev": "67e6b60"
+    },
+    "GLOB_SEM_ARQUIVOS::—::P-002": {
+      "codigo": "GLOB_SEM_ARQUIVOS",
+      "feature": "—",
+      "ref": "P-002",
+      "ocorrencias": 4,
+      "primeiraVez": "2026-08-10T19:36:31.852Z",
+      "ultimaVez": "2026-08-10T19:46:07.596Z",
+      "gitRev": "67e6b60"
+    }
+  }
+}
