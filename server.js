@@ -40,6 +40,29 @@ const PIN_MAX_FAILS = 5;
 const PIN_LOCK_MS = 60_000;
 const pinLocks = new Map();
 
+// versão publicada no GitHub (releases/latest) — cacheia 10min; nunca bloqueia o request
+const versionCache = { value: null, age: 0 };
+async function refreshVersion() {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch("https://api.github.com/repos/felipenalves/Dokke/releases/latest",
+      { headers: { "User-Agent": "Dokke", "Accept": "application/vnd.github+json" }, signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return;
+    const j = await r.json();
+    const apk = (j.assets || []).find(a => /^dokke\.apk$/.test(a.name));
+    versionCache.value = {
+      tag: j.tag_name || "",
+      htmlUrl: j.html_url || "",
+      apkUrl: apk ? apk.browser_download_url : "",
+      published: j.published_at || "",
+    };
+    versionCache.age = Date.now();
+  } catch {}
+}
+refreshVersion();
+
 const SEC_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -241,6 +264,18 @@ export function makeApp(deps = {}) {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
       res.writeHead(204); res.end(); return;
+    }
+    if (url.pathname === "/api/version" && req.method === "GET") {
+      // versão local (embutida no server) + versão publicada no GitHub — info pública
+      let local = { tag: "v0.0.0", apkVersion: "0.0.0" };
+      try {
+        const raw = readFileSync(join(root, "version.json"), "utf8");
+        local = JSON.parse(raw);
+      } catch {}
+      const latest = versionCache.age && Date.now() - versionCache.age < 10 * 60 * 1000
+        ? versionCache.value : null;
+      ok({ ok: true, local, latest });
+      return;
     }
     // ---------- auth: pin de 4 dígitos (gate do kiosk da LAN) ----------
     const trustLoopback = deps.trustLoopback !== false;
@@ -524,7 +559,7 @@ export function makeApp(deps = {}) {
 
 export async function startServer(arg = {}) {
   const opts = typeof arg === "number" ? { port: arg } : (arg ?? {});
-  const port = opts.port ?? 3000;
+  const port = opts.port ?? (process.env.PORT ? Number(process.env.PORT) : 3000);
   if (opts.obs === undefined) {
     opts.obs = await connectOBS({
       password: process.env.OBS_WS_PASSWORD,

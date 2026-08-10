@@ -107,6 +107,8 @@ class MainActivity : ComponentActivity() {
                         .hideSoftInputFromWindow(web.windowToken, 0)
                 }
             }
+            @android.webkit.JavascriptInterface
+            fun appVersion(): String = BuildConfig.VERSION_NAME
         }, "DokkeAndroid")
         web.loadUrl(url)
         // descoberta automática: se o IP do Mac mudou, atualiza sozinho
