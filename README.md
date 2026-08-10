@@ -44,11 +44,13 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 ### Mac app (recomendado)
 
 ```sh
-# Pré-requisitos: macOS 14+ (Liquid Glass completo no 26+), Xcode CLT (Swift)
+# Pré-requisitos: macOS 14+ (Liquid Glass completo no 26+), Xcode CLT (Swift), Node.js 20+ (o app usa o `node` do sistema)
 git clone https://github.com/felipenalves/Dokke.git
 cd Dokke
 cd mac && ./install.sh --open
 ```
+
+> **Node.js**: instale via `brew install node` ou do [nodejs.org](https://nodejs.org). Se você não tiver Node, use a opção **Terminal** abaixo só depois de instalar — ou use o **Android** (que não precisa de nada instalado no PC além do server rodando).
 
 O app inicia o server automaticamente. Fechar o app mata o server.
 
@@ -118,9 +120,6 @@ open Dokke.xcodeproj
 | PUT | `/api/config/pinned` | substitui lista inteira (`{"pinned":[]}`) |
 | DELETE | `/api/config/pinned/:app` | desfixa um app |
 | POST | `/api/apps/:name/activate` | ativa o app no Mac |
-| POST | `/api/obs/record` · `/api/obs/stream` · `/api/obs/stop-all` | controle OBS |
-| POST | `/api/obs/scene` | troca cena (`{"scene":"nome"}`) |
-| GET | `/api/obs/state` | estado OBS (cenas, gravação, streaming) |
 
 ## Autenticação (pin de acesso)
 
@@ -140,15 +139,9 @@ Requests vindos de **loopback** (o app Dokke no Mac) passam direto.
 | GET | `/api/pin` | só loopback | lê o código (exibido na aba Sobre) |
 | POST | `/api/pin` | só loopback | regenera o código |
 
-## OBS WebSocket (standby)
+## Próximo lançamento: OBS Commander
 
-Suporte a controle do OBS (cenas, gravação, streaming) via WebSocket está planejado mas ainda não implementado. Quando disponível:
-
-| env | Default | O que faz |
-|-----|---------|-----------|
-| `OBS_WS_PASSWORD` | — | senha do servidor WebSocket do OBS |
-| `OBS_WS_HOST` | `127.0.0.1` | host do OBS |
-| `OBS_WS_PORT` | `4455` | porta do OBS |
+Controle do OBS (cenas, gravação, streaming) direto do dock está **em desenvolvimento** — spoiler de lançamento. Assim que estiver pronto: gravar/parar, trocar cena e checar estado da gravação pelo celular, com suporte a webcam/light como botões do dock.
 
 ## Testes
 

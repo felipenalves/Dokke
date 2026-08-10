@@ -51,6 +51,22 @@ chmod +x "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 cp "${ROOT}/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
 cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
 
+# pack do server no bundle (Contents/Resources/Dokke/) — sem isso o app instalado
+# não acha o server.js (cwd do Launchpad é /) e o dock morre offline.
+SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
+mkdir -p "${SRV_DIR}"
+cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
+cp -R "${ROOT}/../public" "${SRV_DIR}/public"
+cp "${ROOT}/../package.json" "${ROOT}/../package-lock.json" "${SRV_DIR}/"
+if command -v npm >/dev/null 2>&1; then
+  (cd "${SRV_DIR}" && npm ci --omit=dev >/dev/null 2>&1) \
+    || echo "warn: npm ci falhou — server pode não subir (dependência ws ausente)"
+elif [ -d "${ROOT}/../node_modules" ]; then
+  cp -R "${ROOT}/../node_modules" "${SRV_DIR}/node_modules"
+else
+  echo "warn: npm/node_modules ausentes — server pode não subir (dependência ws ausente)"
+fi
+
 if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "${APP_BUNDLE}" 2>/dev/null || true
 fi
