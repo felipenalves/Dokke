@@ -698,6 +698,10 @@
     const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
     if (r && r.status === 200 && r.data && r.data.ok === true){
       authed = true;
+      // tira o foco do input pra o teclado recuar (mobile/WebView)
+      const active = document.activeElement;
+      if (active && active.blur) active.blur();
+      try { if (window.DokkeAndroid) window.DokkeAndroid.hideKeyboard(); } catch (e) {}
       hideLogin();
       boot();
     } else if (r && r.status === 429){
