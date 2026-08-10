@@ -31,6 +31,9 @@ test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
     assert.match(html, /\.ddiv/, "divisor | estilo dock presente");
     assert.match(html, /\.dcard\.front/, "card da frente com classe front");
     assert.doesNotMatch(html, /toque em \+ para adicionar/, "copy morta do botão + removida");
+    assert.match(html, /id="upDownload"/, "aviso de atualização deve ter ação explícita");
+    assert.match(html, /DokkeAndroid\.requestUpdate/, "Android deve controlar o download da atualização");
+    assert.match(html, /cmpVer\(rel\.tag, apkNow\)/, "APK deve comparar a versão instalada com a release");
   } finally { await close(); }
 });
 
