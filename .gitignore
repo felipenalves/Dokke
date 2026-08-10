@@ -13,6 +13,7 @@ android/.idea/
 android/local.properties
 mac/.build/
 mac/.swiftpm/
+mac/dist/
 
 # pin de acesso (segredo local — nunca vai pro git)
 .j5-pin
