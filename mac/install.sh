@@ -80,7 +80,8 @@ else
 fi
 
 if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "${APP_BUNDLE}" 2>/dev/null || true
+  codesign --force --deep --sign - "${APP_BUNDLE}"
+  codesign --verify --deep --strict "${APP_BUNDLE}" || { echo "error: assinatura inválida após codesign" >&2; exit 1; }
 fi
 
 if [[ "${BUILD_ONLY}" -eq 1 ]]; then
