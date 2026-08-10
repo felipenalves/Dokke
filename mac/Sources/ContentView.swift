@@ -72,9 +72,10 @@ struct AboutView: View {
   @State private var showingReleaseNotes = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      Text("Sobre")
-        .font(.title.bold())
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        Text("Sobre")
+          .font(.title.bold())
 
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 10) {
@@ -85,7 +86,7 @@ struct AboutView: View {
             .font(.headline)
         }
 
-        if let err = store.lastError, !store.online {
+        if !store.online, let err = server.lastError ?? store.lastError {
           Text(err)
             .font(.caption)
             .foregroundStyle(.red)
@@ -261,10 +262,11 @@ struct AboutView: View {
       }
       .buttonStyle(.bordered)
 
-      Spacer()
+      }
+      .padding(20)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(20)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 

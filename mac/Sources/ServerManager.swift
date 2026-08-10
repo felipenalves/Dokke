@@ -4,6 +4,7 @@ import Combine
 
 final class ServerManager: ObservableObject {
   @Published var isRunning = false
+  @Published var lastError: String?
   private var process: Process?
   private var logFile: FileHandle?
   private var restartWork: DispatchWorkItem?
@@ -62,9 +63,25 @@ final class ServerManager: ObservableObject {
       "/usr/bin/node",
     ]
     for c in candidates.compactMap({ $0 }) where fm.isExecutableFile(atPath: c) {
-      return c
+      if canRunNode(at: c) { return c }
     }
     return nil
+  }
+
+  private static func canRunNode(at path: String) -> Bool {
+    let proc = Process()
+    let pipe = Pipe()
+    proc.executableURL = URL(fileURLWithPath: path)
+    proc.arguments = ["--version"]
+    proc.standardOutput = pipe
+    proc.standardError = pipe
+    do {
+      try proc.run()
+      proc.waitUntilExit()
+      return proc.terminationStatus == 0
+    } catch {
+      return false
+    }
   }
 
   /// IP IPv4 da LAN (en0/en1) — mostrado na aba Sobre como link de acesso dos devices.
@@ -98,10 +115,12 @@ final class ServerManager: ObservableObject {
   func start() {
     guard !isRunning else { return }
     guard let serverPath, let nodePath else {
+      lastError = "Node ou server.js não foi encontrado. Reinstale o Dokke pelo DMG mais recente."
       print("[dokke] server.js ou node não encontrado — defina DOKKE_SERVER / DOKKE_NODE (env) ou dokke.serverPath / dokke.nodePath (UserDefaults)")
       return
     }
     intentionalStop = false
+    lastError = nil
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: nodePath)
     proc.arguments = [serverPath]
@@ -113,12 +132,15 @@ final class ServerManager: ObservableObject {
     proc.standardOutput = logFile
     proc.standardError = logFile
 
-    proc.terminationHandler = { [weak self] _ in
+    proc.terminationHandler = { [weak self] process in
       DispatchQueue.main.async { [weak self] in
         guard let self = self else { return }
         self.logFile = nil
         self.process = nil
         self.isRunning = false
+        if !self.intentionalStop && process.terminationStatus != 0 {
+          self.lastError = "O servidor não conseguiu iniciar (código \(process.terminationStatus)). Veja /tmp/dokke-server.log."
+        }
         if !self.intentionalStop { self.scheduleRestart() }
       }
     }
@@ -130,6 +152,7 @@ final class ServerManager: ObservableObject {
       restartFailures = 0
       print("[dokke] server started pid=\(proc.processIdentifier)")
     } catch {
+      lastError = "Não foi possível iniciar o servidor: \(error.localizedDescription)"
       print("[dokke] failed to start server: \(error)")
     }
   }

@@ -67,16 +67,54 @@ else
   echo "warn: npm/node_modules ausentes — server pode não subir (dependência ws ausente)"
 fi
 
-# embute o node no bundle (Contents/Resources/node-bin) — o app roda em Mac
-# sem Node instalado; o ServerManager.locateNode olha o bundle primeiro.
-NODE_SRC="$(command -v node || true)"
+# embute um node relocável no bundle (Contents/Resources/node-bin) — o app
+# roda em Mac sem Node instalado. Homebrew Node costuma depender de dylibs em
+# /opt/homebrew/opt, então prefere uma cópia estática do nvm quando disponível.
+find_relocatable_node() {
+  local candidate
+  local -a candidates=()
+  local nvm_root="${NVM_DIR:-${HOME}/.nvm}/versions/node"
+
+  if [[ -n "${DOKKE_NODE:-}" ]]; then
+    candidates+=("${DOKKE_NODE}")
+  fi
+  if [[ -d "${nvm_root}" ]]; then
+    while IFS= read -r candidate; do
+      candidates+=("${candidate}")
+    done < <(find "${nvm_root}" -type f -path '*/bin/node' -perm -111 2>/dev/null | sort -r)
+  fi
+  candidate="$(command -v node || true)"
+  if [[ -n "${candidate}" ]]; then
+    candidates+=("${candidate}")
+  fi
+  candidates+=("/opt/homebrew/bin/node" "/usr/local/bin/node")
+
+  for candidate in "${candidates[@]}"; do
+    [[ -x "${candidate}" ]] || continue
+    if command -v otool >/dev/null 2>&1 && otool -L "${candidate}" | grep -Eq '(@rpath/libnode|/opt/homebrew/opt/|/usr/local/opt/)'; then
+      continue
+    fi
+    if "${candidate}" --version >/dev/null 2>&1; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+NODE_SRC="$(find_relocatable_node || true)"
 if [[ -n "${NODE_SRC}" ]]; then
   mkdir -p "${APP_BUNDLE}/Contents/Resources/node-bin"
-  cp -L "${NODE_SRC}" "${APP_BUNDLE}/Contents/Resources/node-bin/node"
-  chmod +x "${APP_BUNDLE}/Contents/Resources/node-bin/node"
-  echo "==> node embutido ($(du -sh "${APP_BUNDLE}/Contents/Resources/node-bin/node" | cut -f1))"
+  NODE_BIN="${APP_BUNDLE}/Contents/Resources/node-bin/node"
+  cp -L "${NODE_SRC}" "${NODE_BIN}"
+  chmod +x "${NODE_BIN}"
+  if ! "${NODE_BIN}" --version >/dev/null 2>&1; then
+    echo "error: node embutido não executa fora do ambiente de origem" >&2
+    exit 1
+  fi
+  echo "==> node embutido (${NODE_SRC}; $(du -sh "${NODE_BIN}" | cut -f1))"
 else
-  echo "warn: node não encontrado no sistema — o app usará o node do Mac (se existir)"
+  echo "warn: nenhum node relocável encontrado — o app usará o node do Mac (se existir)"
 fi
 
 if command -v codesign >/dev/null 2>&1; then
