@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server.js";
 
-test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
+test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
   const { port, close } = await startServer(0);
   try {
     const r = await fetch(`http://127.0.0.1:${port}/`);
@@ -21,14 +21,14 @@ test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
     assert.doesNotMatch(html, /\.screens\.up/, "sem classe .up com transform CSS (tranco)");
     assert.match(html, /function goScreen/, "troca de tela final via goScreen (sem setY fixo)");
     assert.match(html, /body\.is-recents/, "troca de tela por classe opacity (não empilha telas)");
-    assert.match(html, /function renderDeck/, "tela 2 com deck em escada (pilha vertical)");
+    assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
     assert.doesNotMatch(html, /layoutTimeTravel|centerTimeTravel|bindTimeTravel|favscroll|favrow/, "Time Travel v01 removido (deck v03)");
-    assert.match(html, /"Recentes"/, "tela 2 com título Recentes");
+    assert.match(html, /"Apps abertos"/, "tela 2 com título Apps abertos");
     assert.doesNotMatch(html, /tzone-pin|tdivider/, "tela 2 v03 sem split pinados/divisor antigo");
-    assert.match(html, /Long press any app to pin/, "hint de long-press presente");
+    assert.doesNotMatch(html, /Long press any app to pin|Long press any app to unpin/, "tela 2 não oferece fixação");
     assert.doesNotMatch(html, /📌/, "sem emoji de pin");
     assert.match(html, /\.thint/, "hint com classe thint presente");
-    assert.match(html, /\.ddiv/, "divisor | estilo dock presente");
+    assert.doesNotMatch(html, /\.ddiv|className = "ddiv"/, "tela 2 sem grupo de fixados ou divisor");
     assert.match(html, /\.dcard\.front/, "card da frente com classe front");
     assert.doesNotMatch(html, /toque em \+ para adicionar/, "copy morta do botão + removida");
     assert.match(html, /id="upDownload"/, "aviso de atualização deve ter ação explícita");

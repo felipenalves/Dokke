@@ -138,7 +138,7 @@ Abra a URL no Safari → compartilhar → **"Adicionar à tela de início"** →
 ## PWA (tela dos devices)
 
 - **Dock** — apps fixados em grid com Liquid Glass
-- **Recentes** — deck em escada com os apps abertos no Mac (swipe/tap pra ativar)
+- **Apps abertos** — apps em execução no Mac (swipe/tap pra ativar)
 - **Long-press em qualquer app** — fixa direto do device
 - **Auto-recarga** — quando o server sobe UI nova, o kiosk recarrega sozinho
 
