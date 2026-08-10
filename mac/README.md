@@ -17,6 +17,7 @@ cd mac
 ./install.sh          # → ~/Applications/Dokke.app
 ./install.sh --open   # instala e abre
 ./install.sh --system # → /Applications (opcional)
+./package-dmg.sh      # gera um DMG com Dokke + atalho Aplicativos
 ```
 
 Depois: Launchpad / Spotlight → **Dokke**.
