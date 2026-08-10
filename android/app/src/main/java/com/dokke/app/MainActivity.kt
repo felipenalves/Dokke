@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var offlinePanel: View
     private var serverUrl = ""
+    private var mainFrameFailed = false
     private var healed = false
 
     private val discoverMagic = "dokke:discover".toByteArray(Charsets.UTF_8)
@@ -86,13 +87,19 @@ class MainActivity : ComponentActivity() {
         }
         web.setBackgroundColor(Color.BLACK)
         web.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, u: String?, favicon: android.graphics.Bitmap?) {
+                mainFrameFailed = false
+                loader.visibility = View.VISIBLE
+            }
             override fun onPageFinished(view: WebView?, u: String?) {
+                if (mainFrameFailed) return
                 loader.visibility = View.GONE
                 hideOfflineScreen()
             }
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                 Log.e("Dokke", "WebView error: ${error?.description} (${error?.errorCode}) url=${request?.url}")
                 if (request?.isForMainFrame == true) {
+                    mainFrameFailed = true
                     runOnUiThread { showOfflineScreen() }
                 }
                 // self-heal: se o IP gravado morreu (DHCP mudou), procura o servidor na rede
@@ -300,6 +307,7 @@ class MainActivity : ComponentActivity() {
 
     private fun retryConnection() {
         healed = false
+        mainFrameFailed = false
         hideOfflineScreen()
         loader.visibility = View.VISIBLE
         web.visibility = View.VISIBLE
