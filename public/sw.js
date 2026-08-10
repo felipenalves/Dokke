@@ -1,4 +1,4 @@
-const CACHE = "dokke-v11";
+const CACHE = "dokke-v12";
 const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", function(e) {
