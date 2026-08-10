@@ -67,6 +67,18 @@ else
   echo "warn: npm/node_modules ausentes — server pode não subir (dependência ws ausente)"
 fi
 
+# embute o node no bundle (Contents/Resources/node-bin) — o app roda em Mac
+# sem Node instalado; o ServerManager.locateNode olha o bundle primeiro.
+NODE_SRC="$(command -v node || true)"
+if [[ -n "${NODE_SRC}" ]]; then
+  mkdir -p "${APP_BUNDLE}/Contents/Resources/node-bin"
+  cp -L "${NODE_SRC}" "${APP_BUNDLE}/Contents/Resources/node-bin/node"
+  chmod +x "${APP_BUNDLE}/Contents/Resources/node-bin/node"
+  echo "==> node embutido ($(du -sh "${APP_BUNDLE}/Contents/Resources/node-bin/node" | cut -f1))"
+else
+  echo "warn: node não encontrado no sistema — o app usará o node do Mac (se existir)"
+fi
+
 if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "${APP_BUNDLE}" 2>/dev/null || true
 fi
