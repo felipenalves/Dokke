@@ -68,6 +68,10 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 # (Node.js já embutido — nada pra instalar)
 ```
 
+> **Já tinha uma versão antiga?** Ao arrastar, o Finder pergunta — escolha
+> **"Substituir"** (ou apague a versão antiga antes). Assim não ficam cópias
+> duplicadas com comportamentos diferentes.
+>
 > **Primeira abertura:** se o macOS mostrar um aviso do tipo *"Dokke não pode ser aberto
 > porque vem de um desenvolvedor não identificado"*, é só: **clique com o botão direito
 > no Dokke.app → Abrir → confirme**. Na primeira vez o macOS pede essa confirmação;
