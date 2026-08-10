@@ -95,33 +95,8 @@ final class ServerManager: ObservableObject {
       isRunning = true
       restartFailures = 0
       print("[dokke] server started pid=\(proc.processIdentifier)")
-      enableTailscaleServe()
     } catch {
       print("[dokke] failed to start server: \(error)")
-    }
-  }
-
-  /// Publica localhost:3000 em HTTPS no tailnet (cert Tailscale) p/ PWA no iPhone.
-  private func enableTailscaleServe() {
-    let candidates = [
-      "/opt/homebrew/bin/tailscale",
-      "/usr/local/bin/tailscale",
-      "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-    ]
-    guard let bin = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-      print("[dokke] tailscale CLI não encontrado — PWA iOS fica só em http://LAN")
-      return
-    }
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: bin)
-    p.arguments = ["serve", "--bg", "3000"]
-    p.standardOutput = FileHandle.nullDevice
-    p.standardError = FileHandle.nullDevice
-    do {
-      try p.run()
-      print("[dokke] tailscale serve --bg 3000")
-    } catch {
-      print("[dokke] tailscale serve falhou: \(error)")
     }
   }
 
