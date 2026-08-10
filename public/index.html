@@ -482,6 +482,30 @@
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.err{ border-color: rgba(255,69,58,.5); color:#ffb3ae; }
 
+  /* ---- aviso de atualização ---- */
+  .up-banner{
+    position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px;
+    z-index: 80; display:flex; align-items:center; gap: 10px;
+    padding: 12px 14px; border-radius: 18px;
+    background: linear-gradient(165deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%);
+    box-shadow: 0 14px 40px rgba(0,0,0,.45);
+    color: var(--ink); font-size: 13px; font-weight: 600;
+    opacity:0; pointer-events:none; transform: translateY(-14px);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .up-banner.show{ opacity:1; pointer-events:auto; transform: translateY(0); }
+  .up-banner .up-icon{ flex:0 0 auto; width: 30px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(255,214,10,.16); color:#ffd70a; font-weight:800; font-size:15px; }
+  .up-banner .up-txt{ flex:1; min-width:0; }
+  .up-banner .up-txt b{ display:block; font-size:13.5px; }
+  .up-banner .up-txt span{ display:block; color:var(--ink-2); font-weight:500; font-size:12px; }
+  .up-banner .up-x{ flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:0; cursor:pointer;
+    background: rgba(255,255,255,.1); color:var(--ink-2); font-size:14px; }
+  .up-banner .up-x:active{ background: rgba(255,255,255,.2); }
+
   /* ---- login wall (pin de acesso) — líquido/glass ---- */
   .login-scrim{
     position: fixed; top:0; left:0; right:0; bottom:0; z-index:90;
@@ -591,6 +615,15 @@
 
   <div class="scrim" id="scrim">
     <div class="sheet" id="sheet"></div>
+  </div>
+
+  <div class="up-banner" id="upBanner">
+    <div class="up-icon">!</div>
+    <div class="up-txt">
+      <b id="upTitle"></b>
+      <span id="upSub"></span>
+    </div>
+    <button class="up-x" id="upX" aria-label="Fechar aviso">✕</button>
   </div>
 
   <aside class="drawer" id="drawer">
@@ -2040,6 +2073,52 @@
     if ($("deck")) layoutDeck();
   });
 
+  // ---------- aviso de atualização (Mac / Android) ----------
+  function cmpVer(a, b){
+    const pa = String(a || "").replace(/^v/, "").split(".").map(n => parseInt(n, 10) || 0);
+    const pb = String(b || "").replace(/^v/, "").split(".").map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < 3; i++){
+      if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0) ? 1 : -1;
+    }
+    return 0;
+  }
+  function showUpBanner(title, sub, href){
+    const b = $("upBanner");
+    $("upTitle").textContent = title;
+    $("upSub").textContent = sub;
+    b.classList.add("show");
+    b.onclick = function(){ window.open(href, "_blank"); };
+  }
+  $("upX").addEventListener("click", function(e){
+    e.stopPropagation();
+    $("upBanner").classList.remove("show");
+  });
+  function checkVersion(){
+    fetch("/api/version", { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(v){
+        if (!v || !v.local) return;
+        const rel = v.latest;
+        // Mac (server embutido) desatualizado
+        if (rel && rel.tag && cmpVer(rel.tag, v.local.tag) > 0){
+          showUpBanner("App do Mac desatualizado",
+            "Nova versão " + rel.tag + " disponível — atualize o Dokke no computador",
+            rel.htmlUrl || "https://github.com/felipenalves/Dokke/releases/latest");
+          return;
+        }
+        // APK desatualizado (só quando roda dentro do app Android)
+        try {
+          const apkNow = window.DokkeAndroid && window.DokkeAndroid.appVersion();
+          if (apkNow && cmpVer(v.local.apkVersion, apkNow) > 0){
+            showUpBanner("App Android desatualizado",
+              "Nova versão " + v.local.apkVersion + " disponível — baixe o APK atualizado",
+              "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk");
+          }
+        } catch (e) {}
+      })
+      .catch(function(){});
+  }
+
   // boot real depende do login (cookie válido) — 401 reabre a wall
   function boot(){
     connectStatusWs();
@@ -2049,6 +2128,7 @@
 
   loadHealth();
   boot();
+  checkVersion();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(function() {});

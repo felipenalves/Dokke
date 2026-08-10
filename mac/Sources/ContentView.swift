@@ -53,6 +53,32 @@ struct AboutView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var server: ServerManager
 
+  @State private var update: (tag: String, htmlUrl: String)?
+  @State private var updateChecking = false
+  @State private var updateNote: String?
+
+  private func checkUpdate() async {
+    updateChecking = true
+    defer { updateChecking = false }
+    do {
+      let u = URL(string: "http://127.0.0.1:3000/api/version")!
+      let (data, _) = try await URLSession.shared.data(from: u)
+      let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      let local = json?["local"] as? [String: Any]
+      let latest = json?["latest"] as? [String: Any]
+      guard let lt = latest as? [String: Any],
+            let tag = lt["tag"] as? String, !tag.isEmpty,
+            let localTag = local?["tag"] as? String,
+            tag != localTag else {
+        updateNote = "Você está na versão mais recente."
+        return
+      }
+      update = (tag: tag, htmlUrl: (lt["htmlUrl"] as? String) ?? "https://github.com/felipenalves/Dokke/releases/latest")
+    } catch {
+      updateNote = "Não foi possível verificar atualizações (servidor fora do ar?)."
+    }
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       Text("Sobre")
@@ -129,6 +155,44 @@ struct AboutView: View {
         RoundedRectangle(cornerRadius: 12)
           .fill(.quaternary)
       )
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text("Atualizações")
+            .font(.headline)
+          Spacer()
+          if updateChecking {
+            ProgressView().controlSize(.small)
+          }
+        }
+        if let note = updateNote {
+          Text(note)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        if let upd = update {
+          HStack(spacing: 8) {
+            Label("Nova versão \(upd.tag) disponível", systemImage: "arrow.down.circle.fill")
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(.orange)
+            Button("Baixar") {
+              if let u = URL(string: upd.htmlUrl) {
+                NSWorkspace.shared.open(u)
+              }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+          }
+        }
+      }
+      .padding(16)
+      .background(
+        RoundedRectangle(cornerRadius: 12)
+          .fill(.quaternary)
+      )
+      .task {
+        await checkUpdate()
+      }
 
       VStack(alignment: .leading, spacing: 10) {
         HStack {
