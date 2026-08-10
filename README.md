@@ -1,15 +1,34 @@
-# Dokke
+<p align="center">
+  <img src="public/icon-512.png" width="120" alt="Dokke">
+</p>
+
+<h1 align="center">Dokke</h1>
+
+<p align="center">
+  <b>Dock de apps que sincroniza do Mac pra qualquer device na LAN.</b><br>
+  Nasceu de um Galaxy J5 velho parado em casa — agora o dock do teu Mac cabe na palma da mão.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/felipenalves/Dokke?label=release&color=4f46e5">
+  <img src="https://img.shields.io/github/downloads/felipenalves/Dokke/total?label=downloads&color=0891b2">
+  <img src="https://img.shields.io/github/stars/felipenalves/Dokke?style=social">
+  <img src="https://img.shields.io/badge/tests-100%20passing-22c55e">
+  <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=nodedotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/Android-5.0%2B-3ddc84?logo=android&logoColor=white">
+  <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white">
+</p>
 
 Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositivo.
 
-A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (Android, iOS, outro Mac).
+A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (Android, iPhone, outro Mac).
 
 ## Como funciona
 
 ```
 ┌─────────────┐      WebSocket       ┌─────────────┐
 │  Mac (Dokke) │ ◄──────────────────► │  J5 / Phone  │
-│  SwiftUI app │      HTTP API       │  PWA/APK/iOS │
+│  SwiftUI app │      HTTP API       │   PWA/APK    │
 └──────┬──────┘                      └──────────────┘
        │
        ▼
@@ -36,7 +55,6 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 | Server | Node.js, `ws` (WebSocket), HTTP puro (zero deps além de `ws`) |
 | PWA | HTML/CSS/JS vanilla, CSS Grid, backdrop-filter blur |
 | Android | Kotlin, WebView wrapper (APK pré-buildado incluído) |
-| iOS | Swift, SwiftUI, XcodeGen |
 | Sync | WebSocket (push em tempo real, sem polling) + broadcast UDP (descoberta) |
 
 ## Quick start
@@ -78,16 +96,19 @@ cd android
 # APK em app/build/outputs/apk/debug/
 ```
 
-### iOS
+### iPhone (PWA)
 
-Cliente SwiftUI nativo (login por PIN, launchpad, recentes, OBS). Requer um Mac com **Xcode**:
+Sem app nativo por enquanto (em desenvolvimento). No iPhone o Dokke roda como **PWA salva na tela de início** — e o iOS **exige HTTPS** (site HTTP salvo na tela de início não abre como app). Use o túnel Cloudflare:
 
 ```sh
-cd ios
-xcodegen generate   # gera Dokke.xcodeproj a partir do project.yml
-open Dokke.xcodeproj
-# rode no simulador ou device — o app descobre o server na LAN
+brew install cloudflared
+cloudflared tunnel --url http://localhost:3000
+# → pega a URL https://xxx.trycloudflare.com
 ```
+
+Abra a URL no Safari → compartilhar → **"Adicionar à tela de início"** → abre como app.
+
+> ⚠️ O quick tunnel é temporário: a URL muda a cada reinício do `cloudflared` — salve de novo quando precisar. Sem custo e sem conta Cloudflare.
 
 ## Mac app
 
