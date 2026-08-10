@@ -1,6 +1,6 @@
-# J5 Dock — App Android (wrapper WebView)
+# Dokke — App Android (wrapper WebView)
 
-App fino que carrega a UI do **j5-dock** (já construída em `../public/index.html`) em tela
+App fino que carrega a UI do **Dokke** (já construída em `../public/index.html`) em tela
 cheia, sem a chrome do navegador. Reaproveita 100% do front-end — nenhum código da UI é
 reescrito.
 
@@ -10,10 +10,16 @@ reescrito.
 - Aceita cert local (Tailscale) para não travar em HTTP/self-signed.
 - Botão voltar do Android navega para trás dentro do app.
 - Tela de "loading" enquanto carrega.
+- **Login por código**: o dock pede o pin de 4 dígitos (aba "Sobre" do app Dokke no Mac)
+  na primeira conexão; o cookie dura 180 dias.
 
 ## Configurar a URL do servidor
 Edite `app/src/main/res/values/server_url.xml` com o IP do Mac na sua rede, ou
 sobrescreva em runtime pela chave `server_url` em `SharedPreferences("prefs")`.
+
+> **Auto-descoberta**: o app pergunta na rede via UDP broadcast (porta 3001, protocolo
+> `dokke:discover`) e o servidor responde com o IP atual. Se o IP do Mac mudar (queda de
+> luz, DHCP), o device acha o servidor sozinho e grava a URL nova — o IP do XML é só fallback.
 
 ## Build (precisa de Java + Android SDK)
 ```sh

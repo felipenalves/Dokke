@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.j5dock.app"
+    namespace = "com.dokke.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.j5dock.app"
+        applicationId = "com.dokke.app"
         minSdk = 23
         targetSdk = 34
         versionCode = 1

@@ -15,7 +15,7 @@ final class DockStore: ObservableObject {
       let trimmed = Self.normalizeBase(baseURL)
       if trimmed != baseURL { baseURL = trimmed; return }
       UserDefaults.standard.set(baseURL, forKey: "j5.baseURL")
-      Task { await refreshAll() }
+      debounceRefresh()
     }
   }
   @Published var online = false
@@ -27,9 +27,22 @@ final class DockStore: ObservableObject {
   @Published var loading = false
   @Published var devices = 0
   @Published var busyName: String?
+  @Published var pinCode: String?
+  @Published var pinError: String?
 
   private var timer: Timer?
+  private var refreshTask: Task<Void, Never>?
   private var iconCache: [String: Image] = [:]
+
+  /// Evita disparar refreshAll a cada tecla digitada no campo Base URL (aba Sobre).
+  private func debounceRefresh() {
+    refreshTask?.cancel()
+    refreshTask = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: 600_000_000)
+      guard !Task.isCancelled else { return }
+      await self?.refreshAll()
+    }
+  }
   private let session: URLSession = {
     let c = URLSessionConfiguration.ephemeral
     c.timeoutIntervalForRequest = 4
@@ -80,7 +93,44 @@ final class DockStore: ObservableObject {
     guard online else { return }
     await loadConfig()
     await loadInstalled()
+    await loadPin()
     preloadIcons()
+  }
+
+  /// Código de acesso de 4 dígitos exibido na aba Sobre — só acessível de loopback.
+  func loadPin() async {
+    guard let url = URL(string: baseURL + "/api/pin") else { return }
+    do {
+      let (data, resp) = try await session.data(from: url)
+      guard (resp as? HTTPURLResponse)?.statusCode == 200,
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let p = obj["pin"] as? String else { pinCode = nil; return }
+      pinCode = p
+    } catch { pinCode = nil }
+  }
+
+  /// Regenera o código — o J5 precisará digitar o novo (cookie antigo vira 401 → wall).
+  func resetPin() async {
+    pinError = nil
+    guard let url = URL(string: baseURL + "/api/pin") else {
+      pinError = "URL inválida"
+      return
+    }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    req.timeoutInterval = 4
+    do {
+      let (data, resp) = try await session.data(for: req)
+      guard (resp as? HTTPURLResponse)?.statusCode == 200,
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let p = obj["pin"] as? String else {
+        pinError = "Não foi possível gerar o código. O servidor está no ar?"
+        return
+      }
+      pinCode = p
+    } catch {
+      pinError = error.localizedDescription
+    }
   }
 
   /// Health + contagem de devices no WS (app J5 escutando).
@@ -290,7 +340,7 @@ final class DockStore: ObservableObject {
     if devices > 0 {
       lastSyncNote = "Enviado a \(devices) dispositivo\(devices == 1 ? "" : "s")"
     } else {
-      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o j5-dock no J5)"
+      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no J5)"
     }
   }
 

@@ -250,95 +250,90 @@
   .rstage{
     flex: 1 1 auto; min-height: 0;
     width: 100%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center;     justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom, 12px);
+    box-sizing: border-box;
   }
-  .favscroll{
+  /* ---- tela 2 v05: dock horizontal flex (fila circular, magnify no centro) ---- */
+  .deck{
+    position: relative;
     width: 100%;
-    overflow-x: auto; overflow-y: visible;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-    padding: 20px 0;
-    box-sizing: border-box;
-  }
-  .favscroll::-webkit-scrollbar{ display: none; }
-  .favrow{
-    display: flex; flex-direction: row; align-items: center;
-    width: -webkit-max-content; width: max-content;
-    margin: 0 auto;
-    padding: 0 24px;
-    box-sizing: border-box;
-  }
-  /* ---- tile fav: responsivo via container queries ---- */
-  :root{
-    --fav-tile: 140px;
-  }
-  @supports (width: min(1px, 2px)){
-    :root{
-      --fav-tile: clamp(140px, min(28vmin, 34vw), 320px);
-    }
-  }
-  .fav{
-    position: relative; flex: 0 0 auto;
-    display: flex; flex-direction: column; align-items: center;
-    width: var(--fav-tile); height: var(--fav-tile);
-    margin: 0 calc(var(--fav-tile) * -0.12);
-    opacity: 0.82;
-    z-index: 1;
-    transition: transform .15s ease, opacity .15s ease;
-    container-type: inline-size;
-  }
-  .fav .aglass{
-    width: 94%; height: 94%; border-radius: 26%;
-    background: linear-gradient(160deg, rgba(255,255,255,.18), rgba(210,95,30,.12) 55%, rgba(35,16,8,.65));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1.5px solid rgba(240, 135, 55, 0.40);
-    box-shadow: inset 0 1.5px 0 rgba(255,255,255,.35), 0 0 18px rgba(210,95,30,.22), 0 8px 18px rgba(0,0,0,.45);
-    transition: border-color .2s ease, box-shadow .2s ease;
+    height: clamp(200px, 38vmin, 300px);
     overflow: hidden;
+    touch-action: none;
+    padding-bottom: 20px;
+    box-sizing: border-box;
   }
-  .fav .aglass .gicon, .fav .aglass img.aicon{
-    width: 84%; height: 84%; border-radius: 20%;
+  .deck-inner{
+    display: flex; flex-direction: row; align-items: center; justify-content: center;
+    height: 100%;
+    will-change: transform;
+    gap: 0;
   }
-  .fav .aglass .gicon{ font-size: 30px; }
-  @supports (width: 1cqi){
-    .fav .aglass{
-      width: 94cqi; height: 94cqi; border-radius: 24cqi;
-    }
-    .fav .aglass .gicon, .fav .aglass img.aicon{
-      width: 82cqi; height: 82cqi; border-radius: 20cqi;
-    }
-    .fav .aglass .gicon{ font-size: 32cqi; }
-  }
-  .fav .fname{ display: none; }
-  .fav .rdot{ display: none; }
-  .thint{
+  .dcard{
+    position: relative;
     flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    width: clamp(100px, 18vmin, 150px);
+    height: clamp(100px, 18vmin, 150px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 6px;
+    border-radius: 22px;
+    transform-origin: 50% 50%;
+    will-change: transform, opacity;
+    transition: none;
+    cursor: pointer;
+  }
+  .dcard .aglass{
+    width: 82%; height: 74%;
+    border-radius: 26%;
+  }
+  .dcard .aglass::before{ border-radius: 26%; }
+  .dcard .aglass .gicon, .dcard .aglass img.aicon{
+    width: 86%; height: 86%;
+    border-radius: 18%;
+  }
+  .dcard .aglass .gicon{ font-size: 30px; }
+  .dcard .dname{
     font-family: "Bricolage Grotesque", sans-serif;
-    font-size: 13px; font-weight: 500;
-    color: rgba(255,255,255,.38);
-    padding: 0 16px;
-    line-height: 1.35;
-    letter-spacing: 0.02em;
-    width: 100%;
+    font-size: 11px; font-weight: 600;
+    color: rgba(255,255,255,.88);
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transform: translateY(-3px);
+    transition: opacity .15s ease, transform .15s ease;
   }
-  .thint .pic{
-    display: flex;
-    align-items: center;
+  .dcard.front .dname{ opacity: 1; transform: none; }
+  .dcard .dpin{
+    position: absolute; bottom: -16px; left: 50%;
+    transform: translateX(-50%);
+    opacity: .6;
+    pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ddiv{
     flex: 0 0 auto;
-    opacity: 0.75;
+    width: 1.5px; height: 40%;
+    border-radius: 1px;
+    background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.2), rgba(255,255,255,0));
+    align-self: center;
   }
-  .thint .pic svg{
-    display: block; width: 18px; height: 18px;
+  body.swiping .dcard .aglass{
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .rempty{
+    margin: auto;
     color: var(--ink-3); font-size: 13px; text-align: center;
     padding: 24px 28px; max-width: 280px; line-height: 1.4;
+  }
+  .thint{
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255,255,255,.35);
+    padding: 6px 20px 0;
+    pointer-events: none;
   }
   .robscard{
     flex: 0 0 auto; display: flex; align-items: center;
@@ -486,9 +481,75 @@
   }
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.err{ border-color: rgba(255,69,58,.5); color:#ffb3ae; }
+
+  /* ---- login wall (pin de acesso) — líquido/glass ---- */
+  .login-scrim{
+    position: fixed; top:0; left:0; right:0; bottom:0; z-index:90;
+    display:flex; align-items:center; justify-content:center;
+    padding: 24px 18px;
+    background: rgba(3,6,14,.34);
+    backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%);
+    opacity:0; pointer-events:none; transition: opacity .2s ease;
+    overflow-y:auto;
+  }
+  .login-scrim.show{ opacity:1; pointer-events:auto; }
+  .login-card{
+    width: min(360px, 100%); border-radius: 32px; padding: 24px 20px 18px;
+    background: linear-gradient(165deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 55%, rgba(255,255,255,.07));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28), 0 24px 60px rgba(0,0,0,.5);
+    text-align:center; animation: rise .18s ease;
+  }
+  .login-card .lkey{ width:62px; height:62px; margin:0 auto 14px; border-radius:20px;
+    padding:4px;
+    background: linear-gradient(160deg, rgba(10,132,255,.32), rgba(10,132,255,.10));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+    display:flex; align-items:center; justify-content:center; }
+  .login-card .lkey img{ width:100%; height:100%; border-radius:17px; object-fit:cover; display:block; }
+  .login-card h3{ font-size:19px; font-weight:700; margin-bottom:4px; letter-spacing:-.01em; }
+  .login-card .body{ font-size:13px; color:var(--ink-2); line-height:1.5; }
+  .login-card .lsteps{ list-style:none; margin:16px 0 18px; padding:0; text-align:left; }
+  .login-card .lsteps li{ display:flex; align-items:flex-start; gap:11px; padding:6px 0; }
+  .login-card .lsteps .lnum{ flex:0 0 auto; width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+    font-size:11px; font-weight:700; color:var(--ink-2);
+    background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); }
+  .login-card .lsteps p{ font-size:12.6px; color:var(--ink-2); line-height:1.45; }
+  .login-card .lsteps b{ color:var(--ink); font-weight:600; }
+  .login-card input{
+    width:100%; padding:15px; border-radius:16px; text-align:center;
+    font-size:26px; font-weight:700; letter-spacing:12px; color:var(--ink);
+    font-variant-numeric: tabular-nums;
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14);
+    outline:none; caret-color: var(--accent, #0a84ff);
+  }
+  .login-card input:focus{ border-color: rgba(10,132,255,.65); background: rgba(10,132,255,.06); box-shadow: 0 0 0 4px rgba(10,132,255,.14); }
+  .login-card .lerr{ font-size:12px; color:#ff837d; font-weight:600; margin-top:10px; min-height:16px; }
+  .login-card .btn.connect{ margin-top:16px; flex:1; padding:15px; border-radius:18px; cursor:pointer;
+    font-size:16px; font-weight:700; color:#fff;
+    background: linear-gradient(180deg, rgba(10,132,255,.96), rgba(10,132,255,.72));
+    border:1px solid rgba(255,255,255,.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 12px 26px rgba(10,132,255,.32);
+    transition: transform .08s ease, opacity .15s ease; }
+  .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
+  .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
+
+  /* ---- trava da tela de auth em retrato ---- */
+  /* Enquanto o login está aberto (body.is-login), se o device estiver deitado
+     (landscape) mantemos o scrim em proporção retrato, rodando 90° no eixo.
+     O dock continua livre pra girar depois de autenticado. */
+  @media (orientation: landscape){
+    body.is-login .login-scrim{
+      position: fixed; top: 50%; left: 50%;
+      width: 100vh; height: 100vw;
+      transform: translate(-50%, -50%) rotate(90deg);
+      transform-origin: center;
+    }
+  }
 </style>
 </head>
-<body id="j5dock">
+<body id="dokke">
   <div class="bg"></div>
 
   <main>
@@ -508,6 +569,25 @@
 <div class="vdots" id="vdots"></div>
 
 <div class="toast" id="toast"></div>
+
+  <div class="login-scrim" id="loginScrim">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <div class="lkey" aria-hidden="true">
+        <img src="/icon-192.png" alt="" aria-hidden="true" width="54" height="54">
+      </div>
+      <h3 id="loginTitle">Conectar ao Dokke</h3>
+      <div class="body">Conecte o aparelho ao seu Mac para abrir os apps.</div>
+      <ol class="lsteps">
+        <li><span class="lnum">1</span><div><p>Conecte o Mac e este aparelho à <b>mesma rede Wi-Fi</b>.</p></div></li>
+        <li><span class="lnum">2</span><div><p>No Mac, abra o <b>Dokke</b> e escolha os apps que quer usar.</p></div></li>
+        <li><span class="lnum">3</span><div><p>Toque em <b>Gerar novo código</b> no Mac e digite o código de 4 dígitos aqui.</p></div></li>
+      </ol>
+      <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso">
+      <div class="lerr" id="loginErr"></div>
+      <button class="btn connect" id="loginGo">Conectar</button>
+      <p class="lfoot">Dokke by Felipe Natanael</p>
+    </div>
+  </div>
 
   <div class="scrim" id="scrim">
     <div class="sheet" id="sheet"></div>
@@ -573,6 +653,65 @@
     toastT = setTimeout(function(){ t.classList.remove("show"); }, 2500);
   }
 
+  // ---------- login wall (pin de acesso) ----------
+  let authed = false, loginOpen = false;
+  function showLogin(){
+    if (loginOpen) return;
+    loginOpen = true;
+    const err = $("loginErr"); if (err) err.textContent = "";
+    const pin = $("loginPin"); if (pin){ pin.value = ""; }
+    $("loginScrim").classList.add("show");
+    // trava a orientação em retrato só enquanto a auth está aberta
+    document.body.classList.add("is-login");
+    lockPortrait();
+    if (pin) setTimeout(function(){ pin.focus(); }, 80);
+  }
+  function hideLogin(){
+    loginOpen = false;
+    $("loginScrim").classList.remove("show");
+    document.body.classList.remove("is-login");
+    unlockOrientation();
+  }
+  // tenta travar a orientação nativa; se o browser/WebView negar, o CSS
+  // (body.is-login + @media landscape) mantém o card em retrato de todo jeito.
+  function lockPortrait(){
+    try {
+      if (screen.orientation && screen.orientation.lock){
+        screen.orientation.lock("portrait").catch(function(){ /* CSS cobre o fallback */ });
+      }
+    } catch (e){}
+  }
+  function unlockOrientation(){
+    try {
+      if (screen.orientation && screen.orientation.unlock){ screen.orientation.unlock(); }
+    } catch (e){}
+  }
+  function loginError(msg){
+    const err = $("loginErr");
+    if (err) err.textContent = msg || "código inválido";
+  }
+  async function doLogin(){
+    const pin = $("loginPin");
+    const val = (pin && pin.value || "").trim();
+    if (loginOpen === false) return;
+    if (!/^\d{4}$/.test(val)){ loginError("código inválido"); return; }
+    const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
+    if (r && r.status === 200 && r.data && r.data.ok === true){
+      authed = true;
+      hideLogin();
+      boot();
+    } else if (r && r.status === 429){
+      loginError("Muitas tentativas — aguarde um pouco.");
+    } else {
+      loginError("Código errado.");
+    }
+  }
+  $("loginGo").addEventListener("click", doLogin);
+  $("loginPin").addEventListener("keydown", function(e){
+    if (e.key === "Enter") doLogin();
+    else if (!/^\d$/.test(e.key) && e.key.length === 1) e.preventDefault();
+  });
+
   // ---------- landscape detection ----------
   let landscape = false;
   function checkOrientation(){
@@ -593,9 +732,10 @@
     if (typeof AbortController !== "undefined") c = new AbortController();
     const id = setTimeout(function(){ if (c) c.abort(); }, timeout);
     try {
-      const init = { method: opts.method || "GET", headers: opts.headers, body: opts.body };
+      const init = { method: opts.method || "GET", headers: opts.headers, body: opts.body, credentials: "same-origin" };
       if (c) init.signal = c.signal;
       const res = await fetch(path, init);
+      if (res.status === 401) { showLogin(); }
       const ct = res.headers.get("content-type") || "";
       const data = /application\/json/.test(ct) ? await res.json().catch(function(){ return {}; }) : null;
       return { status: res.status, data: data };
@@ -927,12 +1067,34 @@
   updateLandDir();
   watchScale();
 
-  // ---------- rendering: tela 2 v01 — uma fileira Time Travel ----------
-  function makeFavTile(name, isOpen){
-    const f = document.createElement("div");
-    f.className = "fav" + (isOpen ? " is-open" : "");
-    f.dataset.name = name;
-    if (isOpen) f.setAttribute("data-open", "1");
+  // ---------- rendering: tela 2 v03 — dock macOS clássico (horizontal, magnify, fila circular) ----------
+  const DIV = { divider: true };
+  let deckCur = 0;                // índice da fila no centro do dock
+  let deckStep = 0;               // px por card (largura + gap, medido no layout)
+  let deckOff = 0;                // px do centramento do deck (deckCur no meio da viewport)
+  let deckPid = null, deckSx = 0, deckDx = 0, deckRaf = null;
+
+  function deckQueue(){
+    const q = [];
+    const seen = {};
+    state.running.forEach(function(a){
+      if (a.type && a.type !== "Foreground") return;
+      if (seen[a.name]) return;
+      seen[a.name] = true;
+      q.push(a.name);
+    });
+    const pins = (state.pinned || []).filter(function(n){ return !seen[n]; });
+    if (pins.length){
+      q.push(DIV);                             // única barra separadora
+      pins.forEach(function(n){ q.push(n); });
+    }
+    return q;
+  }
+
+  function makeDeckCard(name, isFront){
+    const c = document.createElement("div");
+    c.className = "dcard" + (isFront ? " front" : "");
+    c.dataset.name = name;
     const glass = document.createElement("div");
     glass.className = "aglass";
     const img = document.createElement("img");
@@ -946,82 +1108,162 @@
       glass.appendChild(giconEl(name));
     };
     glass.appendChild(img);
-    f.appendChild(glass);
-    makeBtn(f, name, function(el){ activateApp(el.dataset.name); });
-    // long-press: pin se solto, unpin se fixo (ref: "to pin")
-    bindHold(f, tileLong);
-    return f;
+    c.appendChild(glass);
+    const nm = document.createElement("div");
+    nm.className = "dname";
+    nm.textContent = name;
+    c.appendChild(nm);
+    if (state.pinned && state.pinned.indexOf(name) !== -1){
+      const pin = document.createElement("span");
+      pin.className = "dpin";
+      pin.innerHTML = '<svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M5 0C3.34 0 2 1.34 2 3c0 2.25 3 6 3 6s3-3.75 3-6c0-1.66-1.34-3-3-3z" fill="rgba(255,255,255,.5)"/><circle cx="5" cy="3" r="1.2" fill="rgba(255,255,255,.3)"/><line x1="5" y1="8" x2="5" y2="11" stroke="rgba(255,255,255,.4)" stroke-width="1.2" stroke-linecap="round"/></svg>';
+      c.appendChild(pin);
+    }
+    makeBtn(c, name, function(el){ activateApp(el.dataset.name); });
+    // long-press: pin se solto, unpin se fixo
+    bindHold(c, tileLong);
+    return c;
   }
 
-  /** Centro da viewport = ícone grande com glow amber; bordas encolhem com transparência e profundidade. */
-  function layoutTimeTravel(scroll, row){
-    if (!scroll || !row) return;
-    const kids = row.children;
-    if (!kids.length) return;
-    const mid = scroll.scrollLeft + scroll.clientWidth * 0.52;
-    const half = Math.max(scroll.clientWidth * 0.36, 1);
-    for (let i = 0; i < kids.length; i++){
-      const el = kids[i];
-      const c = el.offsetLeft + el.offsetWidth / 2;
-      let d = Math.abs(c - mid) / half;
-      if (d > 1.8) d = 1.8;
-      let s = 1.05 - d * 0.24;
-      if (s < 0.72) s = 0.72;
-      const t = "scale(" + s.toFixed(2) + ")";
-      el.style.webkitTransform = t;
-      el.style.transform = t;
-      el.style.zIndex = String(Math.round(s * 100));
-      el.style.opacity = String((0.30 + s * 0.70).toFixed(2));
-      /* escada: offset vertical crescente da esquerda pra direita */
-      const step = (i - (kids.length - 1) * 0.5) * 8;
-      el.style.marginTop = step.toFixed(1) + "px";
-      const aglass = el.querySelector(".aglass");
-      if (aglass){
-        if (s > 0.90){
-          aglass.style.borderColor = "rgba(240, 135, 55, 0.55)";
-          aglass.style.boxShadow = "inset 0 1.5px 0 rgba(255,255,255,.38), 0 0 24px rgba(210,95,30,.35), 0 8px 24px rgba(0,0,0,.50)";
-        } else {
-          aglass.style.borderColor = "rgba(255, 255, 255, 0.18)";
-          aglass.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,.20), 0 6px 14px rgba(0,0,0,.35)";
+  function renderDeck(){
+    const q = deckQueue();
+    const stage = document.querySelector(".rstage");
+    if (!stage) return;
+    const old = $("deck");
+    if (old) old.parentNode.removeChild(old);
+    if (!q.length) return;
+    if (deckCur >= q.length) deckCur = 0;
+    if (q[deckCur] && q[deckCur].divider) deckCur = 0;
+    const deck = document.createElement("div");
+    deck.className = "deck";
+    deck.id = "deck";
+    const inner = document.createElement("div");
+    inner.className = "deck-inner";
+    q.forEach(function(item, i){
+      let el;
+      if (item.divider){
+        el = document.createElement("div");
+        el.className = "ddiv";
+      } else {
+        el = makeDeckCard(item, i === deckCur);
+      }
+      el.dataset.idx = String(i);
+      inner.appendChild(el);
+    });
+    deck.appendChild(inner);
+    stage.appendChild(deck);
+    bindDeckGestures();
+    requestAnimationFrame(function(){ layoutDeck(); positionDeck(); });
+  }
+
+  function layoutDeck(){
+    const card = document.querySelector("#deck .dcard");
+    if (!card) return;
+    deckStep = card.offsetWidth + 12;
+    positionDeck();
+  }
+
+  function positionDeck(){
+    const deck = $("deck");
+    const inner = deck ? deck.querySelector(".deck-inner") : null;
+    if (!deck || !inner) return;
+    const q = deckQueue();
+    const len = q.length;
+    const deckW = deck.offsetWidth;
+    inner.style.transition = "none";
+    inner.style.transform = "translateX(0px)";
+    const cards = inner.querySelectorAll(".dcard, .ddiv");
+    cards.forEach(function(el){
+      const idx = parseInt(el.dataset.idx, 10);
+      const dist = Math.min(Math.abs(idx - deckCur), len - Math.abs(idx - deckCur));
+      if (el.classList.contains("dcard")){
+        const scale = dist === 0 ? 1 : Math.max(0.55, 1 - dist * 0.12);
+        el.style.transform = "scale(" + scale.toFixed(3) + ")";
+        el.style.opacity = String(Math.min(1, 0.3 + scale * 0.7).toFixed(3));
+        el.style.zIndex = String(100 - dist);
+        if (dist === 0) el.classList.add("front"); else el.classList.remove("front");
+      } else {
+        el.style.opacity = String(Math.min(1, 0.3 + (1 - dist * 0.12) * 0.7).toFixed(3));
+        el.style.zIndex = String(99 - dist);
+      }
+    });
+    const frontCard = inner.querySelector(".dcard[data-idx='" + deckCur + "']");
+    if (frontCard){
+      const cardCenter = frontCard.offsetLeft + frontCard.offsetWidth / 2;
+      const offset = deckW / 2 - cardCenter;
+      deckOff = offset;
+      inner.style.transform = "translateX(" + offset + "px)";
+    }
+  }
+
+  function deckSnap(){
+    const len = deckQueue().length;
+    if (len && deckDx){
+      const step = deckStep || 1;
+      const shift = Math.round(deckDx / step);
+      deckCur = ((deckCur - shift) % len + len) % len;
+    }
+    deckDx = 0;
+    renderDeck();
+  }
+
+  function deckDragTo(dx){
+    deckDx = dx;
+    if (!deckRaf) deckRaf = requestAnimationFrame(function(){
+      deckRaf = null;
+      const inner = $("deck") ? $("deck").querySelector(".deck-inner") : null;
+      if (inner) inner.style.transform = "translateX(" + (deckOff + deckDx) + "px)";
+    });
+  }
+
+  function bindDeckGestures(){
+    const deck = $("deck");
+    if (!deck || deck.dataset.bound) return;
+    deck.dataset.bound = "1";
+    deck.addEventListener("pointerdown", function(e){
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.stopPropagation();
+      document.body.classList.add("swiping");
+      deckPid = e.pointerId;
+      deckSx = e.clientX;
+      deckDx = 0;
+      const inner = deck.querySelector(".deck-inner");
+      if (inner) inner.style.transition = "none";
+      try { deck.setPointerCapture(deckPid); } catch (err) {}
+    });
+    deck.addEventListener("pointermove", function(e){
+      if (deckPid !== e.pointerId) return;
+      e.preventDefault();
+      deckDragTo(e.clientX - deckSx);
+    }, { passive: false });
+    function endDeck(e){
+      if (deckPid !== e.pointerId) return;
+      e.stopPropagation();
+      deckPid = null;
+      suppressClickUntil = Date.now() + 320;
+      const dx = deckDx;
+      const inner = deck ? deck.querySelector(".deck-inner") : null;
+      if (inner){
+        inner.style.transition = "transform .18s cubic-bezier(.22,.61,.36,1)";
+        inner.style.transform = "translateX(" + deckOff + "px)";
+        function onEnd(){
+          inner.removeEventListener("transitionend", onEnd);
+          document.body.classList.remove("swiping");
+          if (Math.abs(dx) >= Math.max(20, deckStep * 0.35)) deckSnap();
+          else renderDeck();
         }
+        inner.addEventListener("transitionend", onEnd);
+        setTimeout(onEnd, 240);
+      } else {
+        document.body.classList.remove("swiping");
       }
     }
-  }
-
-  /** Foca o grupo de apps ABERTOS (não o meio dos pinados — bug: abertos iam pra fora da tela). */
-  function centerTimeTravel(scroll, row){
-    if (!scroll || !row || !row.children.length) return;
-    const open = row.querySelectorAll(".fav[data-open=\"1\"]");
-    let el;
-    if (open.length){
-      el = open[Math.floor((open.length - 1) / 2)];
-    } else {
-      const n = row.children.length;
-      el = row.children[n <= 2 ? 0 : Math.floor((n - 1) / 2)];
-    }
-    if (!el) return;
-    const left = el.offsetLeft - (scroll.clientWidth - el.offsetWidth) / 2;
-    scroll.scrollLeft = left < 0 ? 0 : left;
-    layoutTimeTravel(scroll, row);
-  }
-
-  function bindTimeTravel(scroll, row){
-    let raf = null;
-    function tick(){
-      raf = null;
-      layoutTimeTravel(scroll, row);
-    }
-    function onScroll(){
-      if (raf) return;
-      raf = requestAnimationFrame(tick);
-    }
-    scroll.addEventListener("scroll", onScroll, false);
-    centerTimeTravel(scroll, row);
-    setTimeout(function(){ centerTimeTravel(scroll, row); }, 40);
-    setTimeout(function(){ centerTimeTravel(scroll, row); }, 200);
+    deck.addEventListener("pointerup", endDeck);
+    deck.addEventListener("pointercancel", endDeck);
   }
 
   function renderRecents(){
+    if (deckPid != null) return;             // drag do deck em andamento: fim do gesto re-renderiza
     const sc = document.createElement("div");
     sc.className = "recents";
 
@@ -1029,42 +1271,22 @@
     head.className = "thead";
     const title = document.createElement("div");
     title.className = "ttitle";
-    title.textContent = "App Time Travel";
+    title.textContent = "Recentes";
     head.appendChild(title);
     sc.appendChild(head);
 
     const stage = document.createElement("div");
     stage.className = "rstage";
+    sc.appendChild(stage);
 
-    const scroll = document.createElement("div");
-    scroll.className = "favscroll";
-    const row = document.createElement("div");
-    row.className = "favrow";
-    const added = {};
-    // REGRA tela 2 (App Time Travel): SOMENTE apps ABERTOS no Mac (Foreground).
-    // Favoritos pertencem à Tela 1 (launchpad) e não entram aqui — evita o mesmo
-    // app duas vezes quando está aberto e também é favorito (ex.: Calendário/Calendar).
-    state.running.forEach(function(a){
-      if (a.type && a.type !== "Foreground") return;
-      if (added[a.name]) return;
-      added[a.name] = true;
-      row.appendChild(makeFavTile(a.name, true));
-    });
-
-    if (row.children.length){
-      scroll.appendChild(row);
-      stage.appendChild(scroll);
-      sc.appendChild(stage);
-      const hint = document.createElement("div");
-      hint.className = "thint";
-      hint.innerHTML = "<span class=\"pic\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 17v5\"/><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\"/></svg></span>Long press any app to pin";
-      sc.appendChild(hint);
-    } else {
+    // REGRA tela 2 v03: pilha = apps ABERTOS (Foreground) | divisor | PINADOS.
+    // Dedupe evita o mesmo app duas vezes quando está aberto e também é favorito.
+    const q = deckQueue();
+    if (!q.length){
       const e = document.createElement("div");
       e.className = "rempty";
       e.textContent = "Nada aberto ainda — abra um app no Mac para ele aparecer aqui";
       stage.appendChild(e);
-      sc.appendChild(stage);
     }
 
     const obsApp = state.running.find(function(a){ return a.name === "OBS" || a.name === "OBS Studio"; });
@@ -1094,8 +1316,17 @@
       sc.appendChild(card);
     }
 
+    if (q.length){
+      const hint = document.createElement("div");
+      hint.className = "thint";
+      const hasPinned = state.pinned && state.pinned.length > 0;
+      hint.textContent = hasPinned ? "Long press any app to unpin" : "Long press any app to pin";
+      sc.appendChild(hint);
+    }
+
     replaceChildren($("screenRecents"), [sc]);
-    if (row.children.length) bindTimeTravel(scroll, row);
+    if (q.length) renderDeck();
+    bindDeckGestures();
   }
 
   // ---------- pin sheet ----------
@@ -1311,6 +1542,7 @@
   let statusWs = null, wsRetry = 2000, wsTimer = null;
   function connectStatusWs(){
     if (!("WebSocket" in window)) return;
+    if (!authed) return;
     if (statusWs && (statusWs.readyState === 0 || statusWs.readyState === 1)) return;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     let ws;
@@ -1359,10 +1591,13 @@
     let ok = false;
     try {
       const r = await req("/api/apps", { timeout: 4200 });
-      if (r.status === 200 && Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
-        ok = true;
-        maybeReloadForUi(r.data.v);
-        applyAppsPayload(r.data.pinned, r.data.running);
+      if (r.status === 200){
+        authed = true;
+        if (Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
+          ok = true;
+          maybeReloadForUi(r.data.v);
+          applyAppsPayload(r.data.pinned, r.data.running);
+        }
       }
     } catch (e) { /* offline: keep last view */ }
     appsBackoff = ok ? APPS_OK : Math.min(appsBackoff * 2, POLL_MAX);
@@ -1390,7 +1625,9 @@
   // tela 2 time travel: sem rdot/labels — rebuild já cobre mudanças estruturais
   function updateRecentsDots(){ /* no-op: visual limpo como a ref */ }
 
+  let installedT = null;
   async function loadInstalled(){
+    if (installedT){ clearTimeout(installedT); installedT = null; }
     try {
       const r = await req("/api/apps/installed", { timeout: 6000 });
       if (r.status === 200 && r.data && r.data.ok === true && Array.isArray(r.data.apps)){
@@ -1398,7 +1635,7 @@
         state.installedReady = true;
         renderLaunchpad();
       }
-    } catch (e) { setTimeout(loadInstalled, 8000); }
+    } catch (e) { installedT = setTimeout(loadInstalled, 8000); }
   }
 
   // ---------- header ----------
@@ -1433,11 +1670,6 @@
     state.screen = name;
     document.body.classList.toggle("is-recents", name === "recents");
     syncVDots();
-    if (name === "recents"){
-      const scroll = document.querySelector("#screenRecents .favscroll");
-      const row = document.querySelector("#screenRecents .favrow");
-      if (scroll && row) centerTimeTravel(scroll, row);
-    }
   }
 
     const screensEl = $("screens");
@@ -1487,6 +1719,7 @@
         const g = on ? "transform" : "";
         for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
       } catch (err) {}
+      try { document.body.classList.toggle("swiping", !!on); } catch (err) {}
     }
     let dragRaf = null, dragDy = null;
     function dragTo(dy){
@@ -1581,12 +1814,13 @@
     }
     function settleAndCommit(dir){
       if (Date.now() < coolUntil && dir){
+        setLayer(false);
         clearDrag();
         return;
       }
       if (dir === "up" && state.screen === "apps") settleTo("recents");
       else if (dir === "down" && state.screen === "recents") settleTo("apps");
-      else clearDrag();
+      else { setLayer(false); clearDrag(); }
     }
     function releasePointer(){
       if (pid != null && screensEl.releasePointerCapture){
@@ -1660,7 +1894,8 @@
     }, { passive: false });
 
     function endPointer(e){
-      if (pid != null && e && e.pointerId !== pid) return;
+      if (pid == null) return;               // nunca viu pointerdown (ex.: gesto do deck)
+      if (e && e.pointerId !== pid) return;
       dragFlush();
       hFlush();
       const ey = e && typeof e.clientY === "number" ? e.clientY : lastY;
@@ -1696,7 +1931,10 @@
       }
       moving = false;
       suppressClickUntil = Date.now() + 320;
-      if (hGest) hCommit(hDecide(dx));
+      if (hGest){
+        hCommit(hDecide(dx));
+        setLayer(false);
+      }
       else settleAndCommit(decideDir(dy, dt));
       releasePointer();
     }
@@ -1709,6 +1947,7 @@
       if (hGest){
         moving = false;
         hCommit(hDecide(hLastX - sx));
+        setLayer(false);
         releasePointer();
         return;
       }
@@ -1794,12 +2033,18 @@
   checkOrientation();
   window.addEventListener("resize", function(){
     checkOrientation();
+    if ($("deck")) layoutDeck();
   });
 
+  // boot real depende do login (cookie válido) — 401 reabre a wall
+  function boot(){
+    connectStatusWs();
+    loadApps();
+    loadInstalled();
+  }
+
   loadHealth();
-  connectStatusWs();
-  loadApps();
-  loadInstalled();
+  boot();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(function() {});

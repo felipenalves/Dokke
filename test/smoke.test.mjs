@@ -7,7 +7,7 @@ test("server responde /health", async () => {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true, service: "j5-dock" });
+    assert.deepEqual(await r.json(), { ok: true, service: "Dokke" });
   } finally { await close(); }
 });
 

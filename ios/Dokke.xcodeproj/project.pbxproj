@@ -1,0 +1,355 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		09D3494B6694920745370EAD /* DokkeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F193C8BD48773CACA61A1688 /* DokkeApp.swift */; };
+		0F2BABE6E2A5871ECE30092E /* dokke-icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 60D4046C61A35B784DC841B3 /* dokke-icon.png */; };
+		2F0DE5876CC9426C014AEA52 /* RecentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E06941449C2EE8EA940330F /* RecentsView.swift */; };
+		4F7340F589EB10B2ECDD94EA /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29BA38B64C41F70B03B59B15 /* MainView.swift */; };
+		5A1EDB9B07BB7B09756642B5 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9438A7DED6A8BE522DAC338C /* RootView.swift */; };
+		63DACCFA79EF13967C17308D /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62830D9646B0C17A1C4EBA23 /* Models.swift */; };
+		659B73486EFE752B9C7EAEEF /* LaunchpadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33E3054C8EC2A52F8B58E06 /* LaunchpadView.swift */; };
+		89193074ADD96CFE8DDADA4A /* DockStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB493E1B2C8E32EBDA030140 /* DockStore.swift */; };
+		8F1823A42599B19C9EC2209B /* OBSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F8ADAD3421F8640877A8E7 /* OBSView.swift */; };
+		B169680E2813A1570B1FEDA8 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2813F1DA9F63E1DF92DAA96B /* APIClient.swift */; };
+		CC5B52C288CCF1E7E096F4A3 /* UIShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB7282F49D4DBE20FC2F205 /* UIShared.swift */; };
+		EE3A12BA4D9B44B3D85354F3 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185D50950AFBF56CB796D0C8 /* LoginView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		185D50950AFBF56CB796D0C8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		2813F1DA9F63E1DF92DAA96B /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		29BA38B64C41F70B03B59B15 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		3AB7282F49D4DBE20FC2F205 /* UIShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIShared.swift; sourceTree = "<group>"; };
+		47837389D7BDBDC9753DF00E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		60D4046C61A35B784DC841B3 /* dokke-icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "dokke-icon.png"; sourceTree = "<group>"; };
+		62830D9646B0C17A1C4EBA23 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		6E06941449C2EE8EA940330F /* RecentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentsView.swift; sourceTree = "<group>"; };
+		756A4147FF701EDCC1058451 /* Dokke.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dokke.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		80F8ADAD3421F8640877A8E7 /* OBSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSView.swift; sourceTree = "<group>"; };
+		9438A7DED6A8BE522DAC338C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		C33E3054C8EC2A52F8B58E06 /* LaunchpadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchpadView.swift; sourceTree = "<group>"; };
+		CB493E1B2C8E32EBDA030140 /* DockStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockStore.swift; sourceTree = "<group>"; };
+		F193C8BD48773CACA61A1688 /* DokkeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DokkeApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		16ED6A88C40DB0F37A69706F = {
+			isa = PBXGroup;
+			children = (
+				C7C60DB98780D94132CE0B3D /* Dokke */,
+				395F1341B95CDBB03C8CD7A3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		395F1341B95CDBB03C8CD7A3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				756A4147FF701EDCC1058451 /* Dokke.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C7C60DB98780D94132CE0B3D /* Dokke */ = {
+			isa = PBXGroup;
+			children = (
+				2813F1DA9F63E1DF92DAA96B /* APIClient.swift */,
+				CB493E1B2C8E32EBDA030140 /* DockStore.swift */,
+				60D4046C61A35B784DC841B3 /* dokke-icon.png */,
+				F193C8BD48773CACA61A1688 /* DokkeApp.swift */,
+				47837389D7BDBDC9753DF00E /* Info.plist */,
+				C33E3054C8EC2A52F8B58E06 /* LaunchpadView.swift */,
+				185D50950AFBF56CB796D0C8 /* LoginView.swift */,
+				29BA38B64C41F70B03B59B15 /* MainView.swift */,
+				62830D9646B0C17A1C4EBA23 /* Models.swift */,
+				80F8ADAD3421F8640877A8E7 /* OBSView.swift */,
+				6E06941449C2EE8EA940330F /* RecentsView.swift */,
+				9438A7DED6A8BE522DAC338C /* RootView.swift */,
+				3AB7282F49D4DBE20FC2F205 /* UIShared.swift */,
+			);
+			path = Dokke;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F781654E307899B08948CC08 /* Dokke */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6E1194AD6D6B0F220A4354F9 /* Build configuration list for PBXNativeTarget "Dokke" */;
+			buildPhases = (
+				A62F69942AB878851257D37A /* Sources */,
+				66000759BE8D9BFEB57F0672 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Dokke;
+			packageProductDependencies = (
+			);
+			productName = Dokke;
+			productReference = 756A4147FF701EDCC1058451 /* Dokke.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FB86ED8C53B220820775FCD0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					F781654E307899B08948CC08 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 4DB51F96EA5A81DBC4FFA3B6 /* Build configuration list for PBXProject "Dokke" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 16ED6A88C40DB0F37A69706F;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 395F1341B95CDBB03C8CD7A3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F781654E307899B08948CC08 /* Dokke */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		66000759BE8D9BFEB57F0672 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0F2BABE6E2A5871ECE30092E /* dokke-icon.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A62F69942AB878851257D37A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B169680E2813A1570B1FEDA8 /* APIClient.swift in Sources */,
+				89193074ADD96CFE8DDADA4A /* DockStore.swift in Sources */,
+				09D3494B6694920745370EAD /* DokkeApp.swift in Sources */,
+				659B73486EFE752B9C7EAEEF /* LaunchpadView.swift in Sources */,
+				EE3A12BA4D9B44B3D85354F3 /* LoginView.swift in Sources */,
+				4F7340F589EB10B2ECDD94EA /* MainView.swift in Sources */,
+				63DACCFA79EF13967C17308D /* Models.swift in Sources */,
+				8F1823A42599B19C9EC2209B /* OBSView.swift in Sources */,
+				2F0DE5876CC9426C014AEA52 /* RecentsView.swift in Sources */,
+				5A1EDB9B07BB7B09756642B5 /* RootView.swift in Sources */,
+				CC5B52C288CCF1E7E096F4A3 /* UIShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		16D2E4B70249FD4A2782B676 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Dokke/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dokke.app;
+				PRODUCT_NAME = Dokke;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5EBAAD48F3723BB0C82B5978 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Dokke/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dokke.app;
+				PRODUCT_NAME = Dokke;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		CFE90D296FCBF06A5CF3362A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		E3254474C31752BA5EB05B60 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4DB51F96EA5A81DBC4FFA3B6 /* Build configuration list for PBXProject "Dokke" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E3254474C31752BA5EB05B60 /* Debug */,
+				CFE90D296FCBF06A5CF3362A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6E1194AD6D6B0F220A4354F9 /* Build configuration list for PBXNativeTarget "Dokke" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16D2E4B70249FD4A2782B676 /* Debug */,
+				5EBAAD48F3723BB0C82B5978 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = FB86ED8C53B220820775FCD0 /* Project object */;
+}

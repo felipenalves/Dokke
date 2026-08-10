@@ -1,8 +1,10 @@
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { createSocket } from "node:dgram";
+import { networkInterfaces } from "node:os";
 import { readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { join, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 function tryReadCert(envPath) {
@@ -25,14 +27,35 @@ import { listAppProcesses, listInstalledApps, realIconService } from "./apps.js"
 import { activateApp } from "./actions.js";
 import { loadConfig, saveConfig, normalizePinned } from "./config.js";
 import { connectOBS } from "./obs-ws.js";
+import { ensurePin, newPin, isLoopback, pinFromCookie, pinCookie, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".apk": "application/vnd.android.package-archive" };
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
+/** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */
+const BODY_MAX_BYTES = 64 * 1024;
+/** Anti-bruteforce do pin: 5 falhas → lock 60s por IP. */
+const PIN_MAX_FAILS = 5;
+const PIN_LOCK_MS = 60_000;
+const pinLocks = new Map();
+
+const SEC_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
+/** Respostas JSON de API — nunca podem ser cacheadas (dados em tempo real).
+ *  Sem isso o browser/WebView pode cachear GET /api/* heuristicamente. */
+const JSON_HEADERS = {
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store",
+  ...SEC_HEADERS,
+};
 
 function fail(res, err, extra = {}) {
-  res.writeHead(500, { "Content-Type": "application/json" });
+  res.writeHead(500, JSON_HEADERS);
   res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err), ...extra }));
 }
 
@@ -43,9 +66,9 @@ function readBody(req, res) {
     req.on("data", c => {
       if (big) return;
       body += c;
-      if (Buffer.byteLength(body, "utf8") > 1024) {
+      if (Buffer.byteLength(body, "utf8") > BODY_MAX_BYTES) {
         big = true;
-        res.writeHead(413, { "Content-Type": "application/json" });
+        res.writeHead(413, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "corpo grande demais" }));
       }
     });
@@ -57,6 +80,60 @@ function readBody(req, res) {
 }
 
 const STATUS_POLL_MS = 6000;
+
+/**
+ * Descoberta automática de servidor (UDP broadcast) — o APK Android manda
+ * "dokke:discover" em 255.255.255.255 e o servidor responde com seu IP:porta.
+ * Assim o device acha o Mac mesmo quando o DHCP troca o IP (queda de luz,
+ * reinício de roteador). Zero deps — dgram é builtin do Node.
+ */
+const DISCOVERY_PORT = 3001;
+export const DISCOVERY_MAGIC = "dokke:discover";
+
+function ipv4ToInt(ip) {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+function inSubnet(ip, addr, mask) {
+  const a = ipv4ToInt(ip), b = ipv4ToInt(addr), m = ipv4ToInt(mask);
+  if (a == null || b == null || m == null) return false;
+  return (a & m) === (b & m);
+}
+
+/** IP da interface que está na mesma rede do cliente (Wi-Fi, Ethernet, Tailscale…). */
+function localIpFor(peerIp) {
+  for (const infos of Object.values(networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family !== "IPv4" || info.internal) continue;
+      if (inSubnet(peerIp, info.address, info.netmask)) return info.address;
+    }
+  }
+  // fallback: primeira IPv4 não-interna (cobre 127.0.0.1 em testes)
+  for (const infos of Object.values(networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family === "IPv4" && !info.internal) return info.address;
+    }
+  }
+  return null;
+}
+
+/** Sobe o listener UDP que responde "dokke:<ip>:<porta>" pra quem perguntar. */
+export function startDiscovery(port = DISCOVERY_PORT, { portHint = 3000, log = console.log } = {}) {
+  const sock = createSocket("udp4");
+  sock.on("message", (msg, rinfo) => {
+    if (msg.toString("utf8").trim() !== DISCOVERY_MAGIC) return;
+    const ip = localIpFor(rinfo.address);
+    if (!ip) return;
+    const reply = `dokke:${ip}:${portHint}`;
+    sock.send(reply, rinfo.port, rinfo.address);
+    log(`[discover] ${rinfo.address}:${rinfo.port} → ${reply}`);
+  });
+  sock.on("error", e => log(`[discover] erro: ${e.message}`));
+  sock.bind(port, () => { sock.setBroadcast(true); });
+  return sock;
+}
 
 /** Versão do index.html (mtime+size) — o cliente recarrega sozinho quando
  *  o servidor sobe uma UI nova, mesmo com a página aberta há horas no kiosk. */
@@ -156,12 +233,83 @@ export function makeApp(deps = {}) {
   };
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
-    const ok = body => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
-    if (url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
+    const ok = body => { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify(body)); };
+    // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
+    const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
+    if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "Dokke" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
       res.writeHead(204); res.end(); return;
+    }
+    // ---------- auth: pin de 4 dígitos (gate do kiosk da LAN) ----------
+    const trustLoopback = deps.trustLoopback !== false;
+    const auth = deps.auth;
+    const ipOf = req.socket.remoteAddress || "?";
+    const authed = () =>
+      (trustLoopback && isLoopback(ipOf)) ||
+      (!!auth && pinFromCookie(req.headers.cookie) === auth.getPin());
+    if (auth && url.pathname === "/api/auth" && req.method === "POST") {
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG || body === BODY_INVALID) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
+          return;
+        }
+        const given = typeof body?.pin === "string" ? body.pin.trim() : "";
+        if (given === "") {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: false, error: "código vazio" }));
+          return;
+        }
+        const now = Date.now();
+        const lock = pinLocks.get(ipOf);
+        if (lock && lock.until > now) {
+          res.writeHead(429, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: false, error: "muitas tentativas — aguarde" }));
+          return;
+        }
+        if (given === auth.getPin()) {
+          pinLocks.delete(ipOf);
+          res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": pinCookie(auth.getPin()), ...SEC_HEADERS });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        const prev = pinLocks.get(ipOf);
+        if (!prev || now - prev.last > PIN_LOCK_MS) {
+          pinLocks.set(ipOf, { fails: 1, last: now, until: 0 });
+        } else {
+          prev.fails += 1;
+          prev.last = now;
+          if (prev.fails >= PIN_MAX_FAILS) prev.until = now + PIN_LOCK_MS;
+        }
+        res.writeHead(401, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: false, error: "código inválido" }));
+      });
+      return;
+    }
+    if (auth && url.pathname === "/api/pin") {
+      // só o dono (loopback) lê/regenera — atacante na LAN não descobre o pin
+      if (!isLoopback(ipOf)) {
+        res.writeHead(403, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+        return;
+      }
+      if (req.method === "POST") {
+        Promise.resolve()
+          .then(async () => { const p = newPin(); await auth.setPin(p); return p; })
+          .then(p => ok({ ok: true, pin: p }))
+          .catch(err => fail(res, err));
+        return;
+      }
+      ok({ ok: true, pin: auth.getPin() });
+      return;
+    }
+    // wall: todo /api/* exige cookie válido — loopback do Mac (dono) passa
+    if (url.pathname.startsWith("/api/") && !authed()) {
+      res.writeHead(401, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+      return;
     }
     if (url.pathname === "/api/apps") {
       Promise.resolve()
@@ -175,7 +323,7 @@ export function makeApp(deps = {}) {
     if (url.pathname === "/api/config") {
       Promise.resolve()
         .then(() => readConfig())
-        .then(cfg => ok({ ok: true, config: cfg }))
+        .then(cfg => ok({ ok: true, config: publicCfg(cfg) }))
         .catch(err => fail(res, err));
       return;
     }
@@ -184,14 +332,14 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (req.method === "PUT") {
           const list = body?.apps ?? body?.pinned;
           if (!Array.isArray(list)) {
-            res.writeHead(400, { "Content-Type": "application/json" });
+            res.writeHead(400, JSON_HEADERS);
             res.end(JSON.stringify({ ok: false, error: "apps deve ser array" }));
             return;
           }
@@ -199,14 +347,14 @@ export function makeApp(deps = {}) {
           Promise.resolve()
             .then(() => readConfig())
             .then(cfg => { cfg.pinned = pinned; return persistConfig(cfg); })
-            .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+            .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
             .then(() => { if (onStatusChange) onStatusChange(); })
             .catch(err => fail(res, err));
           return;
         }
         const app = typeof body?.app === "string" ? body.app.trim() : "";
         if (app === "") {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "app inválido" }));
           return;
         }
@@ -217,7 +365,7 @@ export function makeApp(deps = {}) {
             if (!cfg.pinned.includes(app)) cfg.pinned.push(app);
             return persistConfig(cfg);
           })
-          .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+          .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
           .then(() => { if (onStatusChange) onStatusChange(); })
           .catch(err => fail(res, err));
       });
@@ -228,7 +376,7 @@ export function makeApp(deps = {}) {
       let app;
       try { app = decodeURIComponent(unpin[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -239,7 +387,7 @@ export function makeApp(deps = {}) {
           cfg.pinned = normalizePinned(cfg.pinned).filter(x => x !== app);
           return persistConfig(cfg);
         })
-        .then(cfg => ok({ ok: true, config: cfg, pushed: true }))
+        .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
         .then(() => { if (onStatusChange) onStatusChange(); })
         .catch(err => fail(res, err));
       return;
@@ -250,7 +398,7 @@ export function makeApp(deps = {}) {
         .then(() => readConfig())
         .then(cfg => ok({
           ok: true,
-          service: "j5-dock",
+          service: "Dokke",
           devices: typeof getDeviceCount === "function" ? getDeviceCount() : 0,
           pinned: normalizePinned(cfg.pinned).length,
           config: { pinned: normalizePinned(cfg.pinned) },
@@ -270,7 +418,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(activate[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -292,7 +440,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(icon[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -300,13 +448,14 @@ export function makeApp(deps = {}) {
         .then(() => iconService.getIconPng(name))
         .then(buf => {
           if (!buf) {
-            res.writeHead(404, { "Content-Type": "application/json" });
+            res.writeHead(404, JSON_HEADERS);
             res.end(JSON.stringify({ ok: false, error: "app não encontrado" }));
             return;
           }
           res.writeHead(200, {
             "Content-Type": "image/png",
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": "public, max-age=86400",
+            ...SEC_HEADERS,
           });
           res.end(buf);
         })
@@ -333,12 +482,12 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (!(typeof body?.scene === "string" && body.scene.trim() !== "")) {
-          res.writeHead(400, { "Content-Type": "application/json" });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "cena inválida" }));
           return;
         }
@@ -351,13 +500,20 @@ export function makeApp(deps = {}) {
     }
     const file = url.pathname === "/" ? "/index.html" : url.pathname;
     const p = join(root, file);
+    /* path traversal guard: resolved path must stay inside root */
+    if (!resolve(p).startsWith(resolve(root))) {
+      res.writeHead(403, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
+      return;
+    }
     const isUi = url.pathname === "/" || url.pathname.endsWith("/index.html") || url.pathname.endsWith("/sw.js");
     readFile(p).then(b => {
       res.writeHead(200, {
         "Content-Type": `${MIME[extname(p)] || "text/plain"}; charset=utf-8`,
-        // HTML/SW nunca em cache: o kiosk (J5) sempre pega a versão nova;
-        // demais assets estáticos podem usar cache curto (ícones, manifest)
-        "Cache-Control": isUi ? "no-cache, no-store, must-revalidate" : "public, max-age=3600",
+        "Cache-Control": isUi ? "no-cache, no-store, must-revalidate" : "public, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
       });
       res.end(b);
     })
@@ -378,6 +534,14 @@ export async function startServer(arg = {}) {
   }
   const configProvided = opts.config !== undefined;
   const configFile = configProvided ? null : (opts.configFile ?? join(import.meta.dirname, "config.json"));
+  // pin de acesso (4 dígitos): fixo em .j5-pin, só regenera via POST /api/pin
+  const pinRoot = opts.root ?? import.meta.dirname;
+  let currentPin = await ensurePin(pinRoot);
+  opts.auth = {
+    getPin: () => currentPin,
+    setPin: async (p) => { currentPin = p; await writePinFile(p, pinRoot); },
+  };
+  opts.trustLoopback = opts.trustLoopback !== false;
   const uiVer = () => uiVersion(join(import.meta.dirname, "public"));
   const feed = createStatusFeed({
     readConfig: () => configFile ? loadConfig(configFile) : Promise.resolve(opts.config || { pinned: [] }),
@@ -395,7 +559,13 @@ export async function startServer(arg = {}) {
   server.on("request", handler);
   // path /ws é o default do upgrade no mesmo server; clients conectam em ws://host:port/
   // (browser usa location.host + "/ws" — o ws library aceita qualquer path no mesmo port)
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({
+    server,
+    verifyClient: (info) => {
+      if (opts.trustLoopback && isLoopback(info.req.socket.remoteAddress)) return true;
+      return pinFromCookie(info.req.headers.cookie) === currentPin;
+    },
+  });
   wss.on("connection", (ws) => {
     ws.on("message", (raw) => {
       let m = null;
@@ -428,6 +598,10 @@ export async function startServer(arg = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const proto = (process.env.HTTPS_CERT && process.env.HTTPS_KEY) ? "https" : "http";
   startServer()
-    .then(({ port }) => console.log(`j5-dock ouvindo em ${proto}://127.0.0.1:${port}`))
+    .then(({ port }) => {
+      console.log(`Dokke ouvindo em http://127.0.0.1:${port}`);
+      // responder descoberta UDP pra devices Android acharem o IP sozinhos
+      startDiscovery(DISCOVERY_PORT, { portHint: port }).unref();
+    })
     .catch(err => { console.error(err); process.exitCode = 1; });
 }

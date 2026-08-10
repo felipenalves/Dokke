@@ -112,36 +112,29 @@ struct DockGridView: View {
 
   @ViewBuilder
   private func pageContent(names: [String], isLast: Bool, width: CGFloat) -> some View {
-    let columns = Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: 4)
-
     if #available(macOS 26, *) {
       GlassEffectContainer(spacing: spacing) {
-        LazyVGrid(columns: columns, spacing: spacing) {
-          ForEach(names, id: \.self) { name in
-            DockIcon(name: name)
-              .onDrag {
-                startDrag(name)
-                return NSItemProvider(object: name as NSString)
-              }
-              .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
-          }
-          if isLast { addButtonModule() }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-    } else {
-      LazyVGrid(columns: columns, spacing: spacing) {
-        ForEach(names, id: \.self) { name in
-          DockIcon(name: name)
-            .onDrag {
-              startDrag(name)
-              return NSItemProvider(object: name as NSString)
-            }
-            .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
-        }
-        if isLast { addButtonModule() }
+        appGrid(names: names, isLast: isLast)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+    } else {
+      appGrid(names: names, isLast: isLast)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  private func appGrid(names: [String], isLast: Bool) -> some View {
+    let columns = Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: 4)
+    return LazyVGrid(columns: columns, spacing: spacing) {
+      ForEach(names, id: \.self) { name in
+        DockIcon(name: name)
+          .onDrag {
+            startDrag(name)
+            return NSItemProvider(object: name as NSString)
+          }
+          .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
+      }
+      if isLast { addButtonModule() }
     }
   }
 
@@ -194,7 +187,7 @@ struct DockGridView: View {
     ContentUnavailableView(
       "Servidor Offline",
       systemImage: "wifi.slash",
-      description: Text("Inicie o servidor j5-dock e verifique o URL em About.")
+      description: Text("Inicie o servidor Dokke e verifique o URL em About.")
     )
   }
 }

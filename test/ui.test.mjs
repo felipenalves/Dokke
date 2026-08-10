@@ -9,7 +9,7 @@ test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
     assert.equal(r.status, 200);
     assert.match(r.headers.get("content-type") || "", /text\/html/);
     const html = await r.text();
-    assert.match(html, /id="j5dock"/, "html deve marcar a raiz da tela");
+    assert.match(html, /id="dokke"/, "html deve marcar a raiz da tela");
     assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
@@ -21,13 +21,15 @@ test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
     assert.doesNotMatch(html, /\.screens\.up/, "sem classe .up com transform CSS (tranco)");
     assert.match(html, /function goScreen/, "troca de tela final via goScreen (sem setY fixo)");
     assert.match(html, /body\.is-recents/, "troca de tela por classe opacity (não empilha telas)");
-    assert.match(html, /favscroll|favrow/, "tela 2 com carrossel horizontal (v01 uma fileira)");
-    assert.match(html, /function layoutTimeTravel/, "tela 2 escala ícones estilo Time Travel");
-    assert.match(html, /App Time Travel/, "tela 2 com título App Time Travel");
-    assert.doesNotMatch(html, /tzone-pin|tdivider/, "tela 2 v01 sem split pinados/divisor");
-    assert.match(html, /Long press any app to pin/, "hint de long-press to pin");
-    assert.doesNotMatch(html, /📌/, "hint sem emoji de pin");
-    assert.match(html, /thint[\s\S]*<svg/, "hint com ícone SVG minimalista");
+    assert.match(html, /function renderDeck/, "tela 2 com deck em escada (pilha vertical)");
+    assert.doesNotMatch(html, /layoutTimeTravel|centerTimeTravel|bindTimeTravel|favscroll|favrow/, "Time Travel v01 removido (deck v03)");
+    assert.match(html, /"Recentes"/, "tela 2 com título Recentes");
+    assert.doesNotMatch(html, /tzone-pin|tdivider/, "tela 2 v03 sem split pinados/divisor antigo");
+    assert.match(html, /Long press any app to pin/, "hint de long-press presente");
+    assert.doesNotMatch(html, /📌/, "sem emoji de pin");
+    assert.match(html, /\.thint/, "hint com classe thint presente");
+    assert.match(html, /\.ddiv/, "divisor | estilo dock presente");
+    assert.match(html, /\.dcard\.front/, "card da frente com classe front");
     assert.doesNotMatch(html, /toque em \+ para adicionar/, "copy morta do botão + removida");
   } finally { await close(); }
 });

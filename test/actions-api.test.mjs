@@ -129,12 +129,12 @@ test("POST activate com URI malformada responde 400 sem cair", async () => {
   } finally { await close(); }
 });
 
-test("POST activate com corpo maior que 1KB responde 413", async () => {
+test("POST activate com corpo maior que 64KB responde 413", async () => {
   const { port, close } = await startServer({ port: 0 });
   try {
     const r = await fetch(`http://127.0.0.1:${port}/api/apps/Chrome/activate`, {
       method: "POST",
-      body: JSON.stringify({ pid: 1234, junk: "x".repeat(4096) }),
+      body: JSON.stringify({ pid: 1234, junk: "x".repeat(128 * 1024) }),
     });
     assert.equal(r.status, 413);
   } finally { await close(); }
