@@ -18,7 +18,7 @@ enum DockAPIError: LocalizedError {
   }
 }
 
-/// Cliente HTTP + WebSocket para o servidor j5-dock (o "Mac dokke" na LAN).
+/// Cliente HTTP + WebSocket para o servidor Dokke (o "Mac dokke" na LAN).
 struct DockAPIClient {
   let baseURLString: String
   private let session: URLSession

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Modelos que espelham o JSON do server.js (j5-dock)
+// MARK: - Modelos que espelham o JSON do server.js (Dokke)
 
 struct RunningApp: Codable, Identifiable, Hashable {
   var id: String { name }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct J5DockMacApp: App {
+struct DokkeApp: App {
   @StateObject private var store = DockStore()
   @StateObject private var server = ServerManager()
 

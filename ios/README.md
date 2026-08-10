@@ -1,6 +1,6 @@
 # Dokke — iOS (SwiftUI)
 
-Cliente nativo **SwiftUI** do j5-dock: conversa com o servidor que roda no seu Mac
+Cliente nativo **SwiftUI** do Dokke: conversa com o servidor que roda no seu Mac
 (o mesmo que o PWA/APK usam), na LAN. Inclui login por PIN **liquid glass**, launchpad
 de apps fixados, lista de abertos e controle do OBS.
 

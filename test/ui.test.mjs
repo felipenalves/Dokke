@@ -9,7 +9,7 @@ test("GET / serve as 2 telas (apps + recentes) liquid glass", async () => {
     assert.equal(r.status, 200);
     assert.match(r.headers.get("content-type") || "", /text\/html/);
     const html = await r.text();
-    assert.match(html, /id="j5dock"/, "html deve marcar a raiz da tela");
+    assert.match(html, /id="dokke"/, "html deve marcar a raiz da tela");
     assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");

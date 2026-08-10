@@ -236,7 +236,7 @@ export function makeApp(deps = {}) {
     const ok = body => { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify(body)); };
     // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
     const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
-    if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
+    if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "Dokke" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
@@ -398,7 +398,7 @@ export function makeApp(deps = {}) {
         .then(() => readConfig())
         .then(cfg => ok({
           ok: true,
-          service: "j5-dock",
+          service: "Dokke",
           devices: typeof getDeviceCount === "function" ? getDeviceCount() : 0,
           pinned: normalizePinned(cfg.pinned).length,
           config: { pinned: normalizePinned(cfg.pinned) },
@@ -599,7 +599,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const proto = (process.env.HTTPS_CERT && process.env.HTTPS_KEY) ? "https" : "http";
   startServer()
     .then(({ port }) => {
-      console.log(`j5-dock ouvindo em http://127.0.0.1:${port}`);
+      console.log(`Dokke ouvindo em http://127.0.0.1:${port}`);
       // responder descoberta UDP pra devices Android acharem o IP sozinhos
       startDiscovery(DISCOVERY_PORT, { portHint: port }).unref();
     })

@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 	<string>Dokke</string>
 	<key>CFBundleIdentifier</key>
-	<string>app.j5dock.mac</string>
+	<string>app.dokke.mac</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

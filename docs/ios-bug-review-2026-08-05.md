@@ -1,7 +1,7 @@
 # Revisão do app iOS (Dokke) — bugs encontrados
 
 Data: 2026-08-05
-Escopo: `ios/` (app SwiftUI cliente do servidor j5-dock), revisão estática pós-commit `06fee53`.
+Escopo: `ios/` (app SwiftUI cliente do servidor Dokke), revisão estática pós-commit `06fee53`.
 
 ## Como a revisão foi feita
 

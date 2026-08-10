@@ -1,4 +1,4 @@
-package com.j5dock.app
+package com.dokke.app
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
             override fun onPageFinished(view: WebView?, u: String?) { loader.visibility = View.GONE }
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) { handler?.proceed() }
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                Log.e("J5Dock", "WebView error: ${error?.description} (${error?.errorCode}) url=${request?.url}")
+                Log.e("Dokke", "WebView error: ${error?.description} (${error?.errorCode}) url=${request?.url}")
                 // self-heal: se o IP gravado morreu (DHCP mudou), procura o servidor na rede
                 if (request?.isForMainFrame == true && error?.errorCode in netErrors && !healed) {
                     healed = true
@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
-                Log.d("J5Dock", "[${msg.messageLevel()}] ${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
+                Log.d("Dokke", "[${msg.messageLevel()}] ${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
                 return true
             }
             override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
         discoverServer { found ->
             if (found != null && found != url) {
                 prefs.edit().putString("server_url", found).apply()
-                Log.i("J5Dock", "servidor encontrado na rede: $found")
+                Log.i("Dokke", "servidor encontrado na rede: $found")
                 runOnUiThread { web.loadUrl(found) }
             }
         }

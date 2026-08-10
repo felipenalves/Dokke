@@ -187,7 +187,7 @@ struct DockGridView: View {
     ContentUnavailableView(
       "Servidor Offline",
       systemImage: "wifi.slash",
-      description: Text("Inicie o servidor j5-dock e verifique o URL em About.")
+      description: Text("Inicie o servidor Dokke e verifique o URL em About.")
     )
   }
 }

@@ -66,7 +66,7 @@ Abra `http://<ip-do-mac>:3000` no Chrome do Android → Menu → "Adicionar à t
 
 > O device descobre o Mac sozinho (broadcast UDP) — o IP é só pra abrir a PWA na primeira vez.
 
-Ou use o **APK pronto** (sem build): `public/j5-dock.apk` (também servido pelo server em `/j5-dock.apk`). O APK encontra o servidor sozinho e grava a URL nova quando o IP do Mac muda.
+Ou use o **APK pronto** (sem build): `public/dokke.apk` (também servido pelo server em `/dokke.apk`). O APK encontra o servidor sozinho e grava a URL nova quando o IP do Mac muda.
 
 Ou build o APK:
 

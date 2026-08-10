@@ -32,7 +32,7 @@ rm -rf ~/Applications/Dokke.app
 
 ```
 mac/Sources/
-├── J5DockMacApp.swift      # Entry point + MenuBarExtra
+├── DokkeApp.swift            # Entry point + MenuBarExtra
 ├── ContentView.swift       # NavigationSplitView + Sidebar + AboutView
 ├── DockGridView.swift      # Dock grid com Liquid Glass + drag-to-reorder
 ├── DockIcon.swift          # Ícone individual com hover + context menu

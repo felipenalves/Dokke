@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build J5DockMac as a real .app and install once (default: ~/Applications).
+# Build Dokke as a real .app and install once (default: ~/Applications).
 # Does NOT leave a second .app under mac/dist (avoids Launchpad duplicate).
 # Usage:
 #   ./install.sh
@@ -38,7 +38,7 @@ if [[ ! -x "${BIN_PATH}" ]]; then
 fi
 
 # pack in a private temp dir so Spotlight never sees two copies
-STAGE="$(mktemp -d "${TMPDIR:-/tmp}/j5dock-app.XXXXXX")"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/dokke-app.XXXXXX")"
 cleanup() { rm -rf "${STAGE}"; }
 trap cleanup EXIT
 

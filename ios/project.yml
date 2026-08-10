@@ -21,7 +21,7 @@ targets:
       path: Dokke/Info.plist
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.j5dock.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.dokke.app
         PRODUCT_NAME: Dokke
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"

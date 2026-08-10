@@ -340,7 +340,7 @@ final class DockStore: ObservableObject {
     if devices > 0 {
       lastSyncNote = "Enviado a \(devices) dispositivo\(devices == 1 ? "" : "s")"
     } else {
-      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o j5-dock no J5)"
+      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no J5)"
     }
   }
 

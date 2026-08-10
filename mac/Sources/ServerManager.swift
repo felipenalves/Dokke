@@ -32,10 +32,10 @@ final class ServerManager: ObservableObject {
   static func locateServer() -> String? {
     let fm = FileManager.default
     let candidates: [String?] = [
-      ProcessInfo.processInfo.environment["J5_DOCK_SERVER"],
-      UserDefaults.standard.string(forKey: "j5.serverPath"),
+      ProcessInfo.processInfo.environment["DOKKE_SERVER"],
+      UserDefaults.standard.string(forKey: "dokke.serverPath"),
       fm.currentDirectoryPath + "/server.js",
-      Bundle.main.resourceURL?.appendingPathComponent("j5-dock/server.js").path,
+      Bundle.main.resourceURL?.appendingPathComponent("Dokke/server.js").path,
       "/Users/felipealves/FelipeOS/projetos/Felipe.aiOS/projetos/j5-dock/server.js", // fallback dev
     ]
     for c in candidates.compactMap({ $0 }) where fm.isReadableFile(atPath: c) {
@@ -48,8 +48,8 @@ final class ServerManager: ObservableObject {
   static func locateNode() -> String? {
     let fm = FileManager.default
     let candidates = [
-      ProcessInfo.processInfo.environment["J5_NODE"],
-      UserDefaults.standard.string(forKey: "j5.nodePath"),
+      ProcessInfo.processInfo.environment["DOKKE_NODE"],
+      UserDefaults.standard.string(forKey: "dokke.nodePath"),
       "/opt/homebrew/bin/node",
       "/usr/local/bin/node",
       "/opt/local/bin/node",
@@ -64,7 +64,7 @@ final class ServerManager: ObservableObject {
   func start() {
     guard !isRunning else { return }
     guard let serverPath, let nodePath else {
-      print("[dokke] server.js ou node não encontrado — defina J5_DOCK_SERVER / J5_NODE (env) ou j5.serverPath / j5.nodePath (UserDefaults)")
+      print("[dokke] server.js ou node não encontrado — defina DOKKE_SERVER / DOKKE_NODE (env) ou dokke.serverPath / dokke.nodePath (UserDefaults)")
       return
     }
     intentionalStop = false

@@ -1,6 +1,6 @@
-# J5 Dock — App Android (wrapper WebView)
+# Dokke — App Android (wrapper WebView)
 
-App fino que carrega a UI do **j5-dock** (já construída em `../public/index.html`) em tela
+App fino que carrega a UI do **Dokke** (já construída em `../public/index.html`) em tela
 cheia, sem a chrome do navegador. Reaproveita 100% do front-end — nenhum código da UI é
 reescrito.
 
