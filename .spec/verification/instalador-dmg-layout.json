@@ -1,11 +1,11 @@
 {
   "feature": "instalador-dmg-layout",
-  "timestamp": "2026-08-10T19:38:53.448Z",
-  "gitRev": "67e6b60",
+  "timestamp": "2026-08-10T21:11:30.760Z",
+  "gitRev": "2cbf27e",
   "command": "node --test --test-reporter=tap",
   "reporter": "tap",
   "exitCode": 0,
-  "testsParsed": 111,
+  "testsParsed": 115,
   "results": {
     "AC-001": {
       "status": "pass",
@@ -60,6 +60,16 @@
     "AC-011": {
       "status": "pass",
       "testName": "@spec:AC-011 não existe Arraste para instalar.png visível",
+      "method": "tap"
+    },
+    "AC-012": {
+      "status": "pass",
+      "testName": "@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorados de public",
+      "method": "tap"
+    },
+    "AC-013": {
+      "status": "pass",
+      "testName": "@spec:AC-013 install.sh usa allowlist pública explícita",
       "method": "tap"
     }
   },

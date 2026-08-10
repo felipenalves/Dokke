@@ -20,6 +20,15 @@ cd mac
 ./package-dmg.sh      # gera um DMG com Dokke + atalho Aplicativos
 ```
 
+O servidor embutido copia uma allowlist fixa de `public/`: `index.html`,
+`manifest.webmanifest`, `sw.js`, os ícones PWA, `version.json` e `dokke.apk`.
+Backups ignorados (`*.bak`), logs e saídas locais não entram no `.app` nem no
+DMG. A regressão pode ser executada com:
+
+```sh
+node --test test/package-dmg.test.mjs
+```
+
 Depois: Launchpad / Spotlight → **Dokke**.
 
 ## Atualizar
@@ -29,6 +38,16 @@ Ao abrir, o Dokke consulta a release mais recente no GitHub. Quando há uma vers
 O app precisa estar em uma pasta com permissão de escrita, normalmente `/Applications` ou `~/Applications`.
 
 Pré-req: macOS 14+, Xcode CLT (`xcode-select --install`), server `node server.js` na pasta pai.
+
+### Auditoria de dependências de build
+
+`npm audit --omit=dev` deve permanecer limpo. A auditoria completa atualmente
+aponta dois HIGH em `image-size`, transitivo de `appdmg`, usado somente durante
+a geração do DMG; o runtime usa `ws` e não recebe essa dependência. Não há
+correção compatível: o `appdmg` atual (`0.6.6`) exige a linha vulnerável, e
+`npm audit fix --force` troca para `appdmg@0.1.0`, que é uma quebra incompatível
+com o spec atual e com o Node suportado. O audit completo permanece visível e
+não é mascarado.
 
 ## Desinstalar
 

@@ -62,6 +62,35 @@ test("WS /ws empurra online + apps com pinned e running mock", async () => {
   }
 });
 
+test("WS rejeita Origin cross-origin mesmo em loopback", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    config: { pinned: [] },
+    appTools: { listAppProcesses: async () => [] },
+  });
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/arbitrary-path`, {
+        origin: "https://evil.example",
+      });
+      const timer = setTimeout(() => {
+        try { ws.close(); } catch (e) {}
+        reject(new Error("timeout aguardando rejeição do WebSocket"));
+      }, 3000);
+      const finish = value => {
+        clearTimeout(timer);
+        try { ws.close(); } catch (e) {}
+        resolve(value);
+      };
+      ws.once("open", () => finish("open"));
+      ws.once("error", () => finish("denied"));
+      ws.once("unexpected-response", () => finish("denied"));
+      ws.once("close", () => finish("denied"));
+    });
+    assert.equal(result, "denied");
+  } finally { await close(); }
+});
+
 test("POST pin empurra pinned novo no WS (Mac → device)", async () => {
   const dir = await (await import("node:fs/promises")).mkdtemp(
     (await import("node:path")).join((await import("node:os")).tmpdir(), "j5ws-")

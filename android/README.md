@@ -28,6 +28,34 @@ sobrescreva em runtime pela chave `server_url` em `SharedPreferences("prefs")`.
 cd android
 ./gradlew assembleDebug            # gera app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Assinatura de release
+
+`assembleRelease` exige uma keystore externa. O Gradle lê os quatro valores abaixo
+por variáveis de ambiente ou por propriedades do Gradle (por exemplo,
+`~/.gradle/gradle.properties`, que não deve ser commitado):
+
+```properties
+DOKKE_RELEASE_STORE_FILE=/caminho/seguro/dokke-release.keystore
+DOKKE_RELEASE_STORE_PASSWORD=...
+DOKKE_RELEASE_KEY_ALIAS=dokke
+DOKKE_RELEASE_KEY_PASSWORD=...
+```
+
+Também é possível exportar os mesmos nomes no ambiente antes do build:
+
+```sh
+export DOKKE_RELEASE_STORE_FILE=/caminho/seguro/dokke-release.keystore
+export DOKKE_RELEASE_STORE_PASSWORD='...'
+export DOKKE_RELEASE_KEY_ALIAS='dokke'
+export DOKKE_RELEASE_KEY_PASSWORD='...'
+cd android && ./gradlew assembleRelease
+```
+
+Sem os quatro valores, o build de release falha claramente. Ele não gera debug
+no lugar do release e não há keystore ou segredo no repositório. O arquivo
+`../public/dokke.apk` atualmente versionado é um artefato legado assinado com
+certificado Debug; não o use como APK de release nem o anexe a uma release.
 (Se `./gradlew` não existir, gere com: `gradle wrapper --gradle-version 8.5`.)
 
 ## Instalar no J5 (via adb)

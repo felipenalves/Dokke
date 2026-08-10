@@ -116,9 +116,15 @@ class MainActivity : ComponentActivity() {
         setContentView(root)
 
         val prefs = getSharedPreferences("prefs", 0)
-        serverUrl = prefs.getString("server_url", null) ?: getString(R.string.server_url)
-        // permite override via intent extra (fácil de testar via am)
-        intent.getStringExtra("server_url")?.let { serverUrl = it; prefs.edit().putString("server_url", it).apply() }
+        serverUrl = ServerUrl.normalize(getString(R.string.server_url)) ?: ""
+        prefs.getString("server_url", null)?.let { stored ->
+            if (!applyServerUrl(stored, persist = true)) {
+                prefs.edit().remove("server_url").apply()
+            }
+        }
+        // Permite override via Intent extra (fácil de testar via am), mas nunca
+        // grava ou carrega uma URL fora do contrato HTTP(S) com host.
+        intent.getStringExtra("server_url")?.let { applyServerUrl(it, persist = true) }
         registerUpdateReceiver()
 
         web.settings.apply {
@@ -128,10 +134,28 @@ class MainActivity : ComponentActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             databaseEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
         }
         web.setBackgroundColor(Color.BLACK)
         web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                if (request?.isForMainFrame != true) return false
+                return handleWebViewNavigation(request.url?.toString())
+            }
+
+            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, u: String?): Boolean {
+                return handleWebViewNavigation(u)
+            }
+
             override fun onPageStarted(view: WebView?, u: String?, favicon: android.graphics.Bitmap?) {
+                if (u != null && !ServerUrl.isSameOrigin(serverUrl, u)) {
+                    view?.stopLoading()
+                    handleWebViewNavigation(u)
+                    return
+                }
                 mainFrameFailed = false
                 loader.visibility = View.VISIBLE
             }
@@ -150,14 +174,7 @@ class MainActivity : ComponentActivity() {
                 if (request?.isForMainFrame == true && error?.errorCode in netErrors && !healed) {
                     healed = true
                     discoverServer { found ->
-                        if (found != null) {
-                            prefs.edit().putString("server_url", found).apply()
-                            runOnUiThread {
-                                serverUrl = found
-                                hideOfflineScreen()
-                                web.loadUrl(found)
-                            }
-                        }
+                        acceptDiscoveredServer(found)
                     }
                 }
             }
@@ -188,18 +205,49 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread { beginUpdate(version) }
             }
         }, "DokkeAndroid")
-        web.loadUrl(serverUrl)
+        if (serverUrl.isNotEmpty()) web.loadUrl(serverUrl) else showOfflineScreen()
         // descoberta automática: se o IP do Mac mudou, atualiza sozinho
         discoverServer { found ->
-            if (found != null && found != serverUrl) {
-                prefs.edit().putString("server_url", found).apply()
-                Log.i("Dokke", "servidor encontrado na rede: $found")
-                runOnUiThread {
-                    serverUrl = found
-                    hideOfflineScreen()
-                    web.loadUrl(found)
-                }
+            acceptDiscoveredServer(found)
+        }
+    }
+
+    private fun applyServerUrl(raw: String?, persist: Boolean): Boolean {
+        val normalized = ServerUrl.normalize(raw)
+        if (normalized == null) {
+            Log.w("Dokke", "URL do servidor rejeitada: esquema inseguro, host inválido ou credenciais embutidas")
+            return false
+        }
+        serverUrl = normalized
+        if (persist) {
+            getSharedPreferences("prefs", 0).edit().putString("server_url", normalized).apply()
+        }
+        return true
+    }
+
+    private fun handleWebViewNavigation(raw: String?): Boolean {
+        if (ServerUrl.isSameOrigin(serverUrl, raw)) return false
+        if (ServerUrl.isExternalWebUrl(raw)) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(raw)).addCategory(Intent.CATEGORY_BROWSABLE))
+            } catch (_: Exception) {
+                Toast.makeText(this, "Não foi possível abrir o link externo.", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            Log.w("Dokke", "navegação rejeitada fora da origem confiável: $raw")
+        }
+        return true
+    }
+
+    private fun acceptDiscoveredServer(raw: String?) {
+        val found = ServerUrl.normalize(raw) ?: return
+        runOnUiThread {
+            if (found == serverUrl) return@runOnUiThread
+            serverUrl = found
+            getSharedPreferences("prefs", 0).edit().putString("server_url", found).apply()
+            Log.i("Dokke", "servidor encontrado na rede: $found")
+            hideOfflineScreen()
+            web.loadUrl(found)
         }
     }
 
@@ -231,7 +279,13 @@ class MainActivity : ComponentActivity() {
                                 sock.receive(pkt)
                                 val msg = String(buf, 0, pkt.length, Charsets.UTF_8)
                                 val m = discoverReply.find(msg)
-                                if (m != null) { found = "http://${m.groupValues[1]}:${m.groupValues[3]}"; break@loop }
+                                if (m != null) {
+                                    val candidate = ServerUrl.normalize("http://${m.groupValues[1]}:${m.groupValues[3]}")
+                                    if (candidate != null) {
+                                        found = candidate
+                                        break@loop
+                                    }
+                                }
                             } catch (_: Exception) { break }
                         }
                     }
@@ -266,6 +320,18 @@ class MainActivity : ComponentActivity() {
         return null
     }
 
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        newIntent.getStringExtra("server_url")?.let { raw ->
+            if (applyServerUrl(raw, persist = true)) {
+                hideOfflineScreen()
+                web.loadUrl(serverUrl)
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
     private var firstResume = true
     override fun onResume() {
@@ -446,15 +512,9 @@ class MainActivity : ComponentActivity() {
         hideOfflineScreen()
         loader.visibility = View.VISIBLE
         web.visibility = View.VISIBLE
-        web.loadUrl(serverUrl)
+        if (serverUrl.isNotEmpty()) web.loadUrl(serverUrl) else showOfflineScreen()
         discoverServer { found ->
-            if (found != null && found != serverUrl) {
-                getSharedPreferences("prefs", 0).edit().putString("server_url", found).apply()
-                runOnUiThread {
-                    serverUrl = found
-                    web.loadUrl(found)
-                }
-            }
+            acceptDiscoveredServer(found)
         }
     }
 

@@ -880,7 +880,8 @@
   function modal(html, beforeMount){
     beforeMount = beforeMount || function(){};
     lastFocus = document.activeElement;
-    $("sheet").innerHTML = html;
+    if (typeof html === "string") $("sheet").innerHTML = html;
+    else replaceChildren($("sheet"), [html]);
     beforeMount();
     $("scrim").classList.add("show");
     modalFocus();
@@ -897,13 +898,29 @@
     // aceita elemento (hold) ou string (nome) — evita TypeError se alguém passar name direto
     const name = typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : "");
     if (!name) return;
+    const content = document.createDocumentFragment();
+    const title = document.createElement("h3");
+    title.textContent = "Remover dos favoritos?";
+    content.appendChild(title);
+    const body = document.createElement("div");
+    body.className = "body";
+    body.textContent = "\"" + name + "\" sai dos fixos. O app continua no Launchpad.";
+    content.appendChild(body);
+    const btns = document.createElement("div");
+    btns.className = "btns";
+    const cancel = document.createElement("button");
+    cancel.className = "btn ghost";
+    cancel.dataset.sclose = "";
+    cancel.textContent = "Cancelar";
+    btns.appendChild(cancel);
+    const confirm = document.createElement("button");
+    confirm.className = "btn danger";
+    confirm.dataset.confirm = "";
+    confirm.textContent = "Remover";
+    btns.appendChild(confirm);
+    content.appendChild(btns);
     modal(
-      "<h3>Remover dos favoritos?</h3>" +
-      "<div class=\"body\">\"" + name + "\" sai dos fixos. O app continua no Launchpad.</div>" +
-      "<div class=\"btns\">" +
-      "<button class=\"btn ghost\" data-sclose>Cancelar</button>" +
-      "<button class=\"btn danger\" data-confirm>Remover</button>" +
-      "</div>",
+      content,
       function(){
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
         $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){ closeModal(); unpinApp(name); });
@@ -1327,32 +1344,88 @@
     const o = state.obs;
     if (!o.connected){
       const msg = o.error ? "OBS indisponível — verifique o WebSocket" : "OBS offline — abra o OBS para liberar as cenas";
-      panel.innerHTML = "<div class=\"obsplaceholder\"><span class=\"ic\">◈</span>" + msg + "</div>";
+      const placeholder = document.createElement("div");
+      placeholder.className = "obsplaceholder";
+      const icon = document.createElement("span");
+      icon.className = "ic";
+      icon.textContent = "◈";
+      placeholder.appendChild(icon);
+      const message = document.createTextNode(msg);
+      placeholder.appendChild(message);
+      replaceChildren(panel, [placeholder]);
       return;
     }
-    let scenes = "";
+    const top = document.createElement("div");
+    top.className = "obstop";
+    const title = document.createElement("span");
+    title.className = "obstitle";
+    title.textContent = "OBS Commander";
+    top.appendChild(title);
+    const led = document.createElement("span");
+    led.className = "led on";
+    const ledDot = document.createElement("span");
+    ledDot.className = "d";
+    led.appendChild(ledDot);
+    led.appendChild(document.createTextNode(o.streaming ? "AO VIVO" : "conectado"));
+    top.appendChild(led);
+
+    const scenePanel = document.createElement("div");
+    scenePanel.className = "obsscene";
     for (let i = 0; i < o.scenes.length; i++){
       const s = o.scenes[i];
-      scenes += "<button class=\"scene" + (s === o.scene ? " active" : "") + "\" data-scene=\"" + s + "\">" + s + "</button>";
+      const scene = document.createElement("button");
+      scene.className = "scene" + (s === o.scene ? " active" : "");
+      scene.dataset.scene = s;
+      scene.textContent = s;
+      scenePanel.appendChild(scene);
     }
-    panel.innerHTML =
-      "<div class=\"obstop\">" +
-      "<span class=\"obstitle\">OBS Commander</span>" +
-      "<span class=\"led on\"><span class=\"d\"></span>" + (o.streaming ? "AO VIVO" : "conectado") + "</span>" +
-      "</div>" +
-      "<div class=\"obsscene\">" + scenes + "</div>" +
-      "<div class=\"obsctl\">" +
-      "<button class=\"ctl" + (o.recording ? " on-record" : "") + "\" data-rec><span class=\"ic\">●</span><span>" + (o.recording ? "Parar" : "Gravar") + "</span></button>" +
-      "<button class=\"ctl" + (o.streaming ? " on-stream" : "") + "\" data-str><span class=\"ic\">▲</span><span>" + (o.streaming ? "Parar" : "Live") + "</span></button>" +
-      "<button class=\"ctl stop\" data-stop><span class=\"ic\">■</span><span>Encerrar</span></button>" +
-      "</div>";
-    const sc = panel.querySelectorAll(".scene");
+
+    const controls = document.createElement("div");
+    controls.className = "obsctl";
+    const rec = document.createElement("button");
+    rec.className = "ctl" + (o.recording ? " on-record" : "");
+    rec.dataset.rec = "";
+    const recIcon = document.createElement("span");
+    recIcon.className = "ic";
+    recIcon.textContent = "●";
+    rec.appendChild(recIcon);
+    const recLabel = document.createElement("span");
+    recLabel.textContent = o.recording ? "Parar" : "Gravar";
+    rec.appendChild(recLabel);
+    controls.appendChild(rec);
+
+    const stream = document.createElement("button");
+    stream.className = "ctl" + (o.streaming ? " on-stream" : "");
+    stream.dataset.str = "";
+    const streamIcon = document.createElement("span");
+    streamIcon.className = "ic";
+    streamIcon.textContent = "▲";
+    stream.appendChild(streamIcon);
+    const streamLabel = document.createElement("span");
+    streamLabel.textContent = o.streaming ? "Parar" : "Live";
+    stream.appendChild(streamLabel);
+    controls.appendChild(stream);
+
+    const stop = document.createElement("button");
+    stop.className = "ctl stop";
+    stop.dataset.stop = "";
+    const stopIcon = document.createElement("span");
+    stopIcon.className = "ic";
+    stopIcon.textContent = "■";
+    stop.appendChild(stopIcon);
+    const stopLabel = document.createElement("span");
+    stopLabel.textContent = "Encerrar";
+    stop.appendChild(stopLabel);
+    controls.appendChild(stop);
+
+    replaceChildren(panel, [top, scenePanel, controls]);
+    const sc = scenePanel.querySelectorAll(".scene");
     for (let i = 0; i < sc.length; i++){
       sc[i].addEventListener("click", function(){ doObs("scene", { scene: this.dataset.scene }); });
     }
-    panel.querySelector("[data-rec]").addEventListener("click", function(){ doObs("record"); });
-    panel.querySelector("[data-str]").addEventListener("click", function(){ doObs("stream"); });
-    panel.querySelector("[data-stop]").addEventListener("click", confirmStopAll);
+    rec.addEventListener("click", function(){ doObs("record"); });
+    stream.addEventListener("click", function(){ doObs("stream"); });
+    stop.addEventListener("click", confirmStopAll);
   }
 
   function confirmStopAll(){

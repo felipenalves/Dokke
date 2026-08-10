@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { join } from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 
 export const PIN_RE = /^\d{4}$/;
 export const AUTH_COOKIE = "j5_pin";
@@ -30,13 +30,20 @@ export async function readPinFile(root = import.meta.dirname) {
 /** Persiste o pin no arquivo .j5-pin. */
 export async function writePinFile(pin, root = import.meta.dirname) {
   if (!PIN_RE.test(pin)) throw new Error("pin inválido");
-  await writeFile(pinFilePath(root), pin + "\n", "utf8");
+  const file = pinFilePath(root);
+  await writeFile(file, pin + "\n", { encoding: "utf8", mode: 0o600 });
+  // mode só vale na criação; chmod também corrige arquivos legados (ex.: 0644).
+  await chmod(file, 0o600);
 }
 
 /** Garante que exista um pin válido no arquivo .j5-pin. Retorna o pin. */
 export async function ensurePin(root = import.meta.dirname) {
   const existing = await readPinFile(root);
-  if (existing) return existing;
+  if (existing) {
+    // A garantia inclui corrigir a permissão de um .j5-pin já existente.
+    await chmod(pinFilePath(root), 0o600);
+    return existing;
+  }
   const pin = newPin();
   await writePinFile(pin, root);
   return pin;
@@ -48,8 +55,10 @@ export function isLoopback(addr) {
   return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
 }
 
-export function pinCookie(pin) {
-  return `${AUTH_COOKIE}=${pin}; Path=/; HttpOnly; SameSite=Lax; Max-Age=15552000`;
+export function pinCookie(pin, { secure = false } = {}) {
+  const attrs = ["Path=/", "HttpOnly", "SameSite=Strict", "Max-Age=15552000"];
+  if (secure) attrs.push("Secure");
+  return `${AUTH_COOKIE}=${pin}; ${attrs.join("; ")}`;
 }
 
 export function pinFromCookie(header) {

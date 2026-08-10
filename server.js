@@ -39,6 +39,22 @@ const BODY_MAX_BYTES = 64 * 1024;
 const PIN_MAX_FAILS = 5;
 const PIN_LOCK_MS = 60_000;
 const pinLocks = new Map();
+const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** Origin ausente é permitido para clientes nativos; Origin presente precisa
+ * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const protocol = req.socket.encrypted ? "https:" : "http:";
+    if (!req.headers.host) return false;
+    const serverOrigin = new URL(`${protocol}//${req.headers.host}`).origin;
+    return new URL(origin).origin === serverOrigin;
+  } catch {
+    return false;
+  }
+}
 
 // versão publicada no GitHub (releases/latest) — stale-while-revalidate; nunca bloqueia o request
 // usa redirect da URL pública (sem API → sem rate limit)
@@ -273,6 +289,11 @@ export function makeApp(deps = {}) {
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
     const ok = body => { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify(body)); };
+    if (STATE_CHANGING_METHODS.has(req.method) && !sameOrigin(req)) {
+      res.writeHead(403, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, error: "Origin não permitido" }));
+      return;
+    }
     // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
     const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
     if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "Dokke" })); return; }
@@ -320,7 +341,11 @@ export function makeApp(deps = {}) {
         }
         if (given === auth.getPin()) {
           pinLocks.delete(ipOf);
-          res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": pinCookie(auth.getPin()), ...SEC_HEADERS });
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Set-Cookie": pinCookie(auth.getPin(), { secure: Boolean(req.socket.encrypted) }),
+            ...SEC_HEADERS,
+          });
           res.end(JSON.stringify({ ok: true }));
           return;
         }
@@ -638,6 +663,7 @@ export async function startServer(arg = {}) {
   const wss = new WebSocketServer({
     server,
     verifyClient: (info) => {
+      if (!sameOrigin(info.req)) return false;
       if (opts.trustLoopback && isLoopback(info.req.socket.remoteAddress)) return true;
       return pinFromCookie(info.req.headers.cookie) === currentPin;
     },

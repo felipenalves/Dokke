@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server.js";
 import { isLoopback, newPin, pinFromCookie, pinCookie, AUTH_COOKIE, ensurePin, writePinFile, readPinFile, pinFilePath } from "../auth.js";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import WebSocket from "ws";
@@ -41,6 +41,9 @@ test("unit: cookie roundtrip", () => {
   assert.equal(pinFromCookie("other=1; " + h), "9876");
   assert.equal(pinFromCookie("j5_pin="), null);
   assert.equal(pinFromCookie(null), null);
+  assert.match(h, /SameSite=Strict/);
+  assert.doesNotMatch(h, /(?:^|; )Secure(?:;|$)/);
+  assert.match(pinCookie("9876", { secure: true }), /(?:^|; )Secure(?:;|$)/);
 });
 
 test("unit: ensurePin + writePinFile / readPinFile", async () => {
@@ -50,13 +53,56 @@ test("unit: ensurePin + writePinFile / readPinFile", async () => {
     assert.match(p1, /^\d{4}$/);
     const read = await readPinFile(root);
     assert.equal(read, p1);
+    assert.equal((await stat(pinFilePath(root))).mode & 0o777, 0o600);
+    await chmod(pinFilePath(root), 0o644);
     const p2 = await ensurePin(root);
     assert.equal(p2, p1); // não regenera
+    assert.equal((await stat(pinFilePath(root))).mode & 0o777, 0o600);
     await writePinFile("9999", root);
     assert.equal(await readPinFile(root), "9999");
+    assert.equal((await stat(pinFilePath(root))).mode & 0o777, 0o600);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("Origin cross-origin bloqueia mutações HTTP, mas a mesma origem e clientes sem Origin passam", async () => {
+  const { port, close, root } = await boot();
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    const realPin = await readPinFile(root);
+    const deniedLogin = await fetch(`${base}/api/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+      body: JSON.stringify({ pin: realPin }),
+    });
+    assert.equal(deniedLogin.status, 403);
+
+    const login = await fetch(`${base}/api/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: base },
+      body: JSON.stringify({ pin: realPin }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie");
+    assert.match(cookie || "", /SameSite=Strict/);
+    assert.doesNotMatch(cookie || "", /(?:^|; )Secure(?:;|$)/);
+
+    const deniedMutation = await fetch(`${base}/api/config/pinned`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie, Origin: "https://evil.example" },
+      body: JSON.stringify({ app: "blocked" }),
+    });
+    assert.equal(deniedMutation.status, 403);
+
+    const allowedMutation = await fetch(`${base}/api/config/pinned`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie, Origin: base },
+      body: JSON.stringify({ app: "allowed" }),
+    });
+    assert.equal(allowedMutation.status, 200);
+    assert.deepEqual((await allowedMutation.json()).config.pinned, ["allowed"]);
+  } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });
 
 test("GET /api/apps sem cookie (LAN) → 401", async () => {

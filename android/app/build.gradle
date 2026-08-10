@@ -3,6 +3,30 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+def releaseSigningKeys = [
+    "DOKKE_RELEASE_STORE_FILE",
+    "DOKKE_RELEASE_STORE_PASSWORD",
+    "DOKKE_RELEASE_KEY_ALIAS",
+    "DOKKE_RELEASE_KEY_PASSWORD"
+]
+
+def releaseSigningValue = { String name ->
+    providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull
+}
+
+def releaseSigningValues = releaseSigningKeys.collectEntries { name ->
+    [(name): releaseSigningValue(name)]
+}
+def releaseSigningConfigured = releaseSigningValues.values().every { it != null && !it.trim().isEmpty() }
+def releaseSigningPartiallyConfigured = releaseSigningValues.values().any { it != null && !it.trim().isEmpty() } && !releaseSigningConfigured
+
+if (releaseSigningPartiallyConfigured) {
+    throw new GradleException(
+        "Assinatura release incompleta. Configure os quatro valores DOKKE_RELEASE_*; " +
+            "nenhum segredo deve ser commitado."
+    )
+}
+
 android {
     namespace = "com.dokke.app"
     compileSdk = 34
@@ -21,9 +45,50 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseSigningValues["DOKKE_RELEASE_STORE_FILE"])
+                storePassword = releaseSigningValues["DOKKE_RELEASE_STORE_PASSWORD"]
+                keyAlias = releaseSigningValues["DOKKE_RELEASE_KEY_ALIAS"]
+                keyPassword = releaseSigningValues["DOKKE_RELEASE_KEY_PASSWORD"]
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+}
+
+def verifyDokkeReleaseSigning = tasks.register("verifyDokkeReleaseSigning") {
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                "Release Android bloqueado: keystore ausente. Configure DOKKE_RELEASE_STORE_FILE, " +
+                    "DOKKE_RELEASE_STORE_PASSWORD, DOKKE_RELEASE_KEY_ALIAS e DOKKE_RELEASE_KEY_PASSWORD."
+            )
+        }
+        def storeFile = file(releaseSigningValues["DOKKE_RELEASE_STORE_FILE"])
+        if (!storeFile.isFile) {
+            throw new GradleException("Release Android bloqueado: keystore não encontrada em ${storeFile.absolutePath}")
+        }
+    }
+}
+
+tasks.matching {
+    it.name == "assembleRelease" || it.name == "bundleRelease"
+}.configureEach {
+    dependsOn(verifyDokkeReleaseSigning)
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.activity:activity-ktx:1.8.2")
+    testImplementation("junit:junit:4.13.2")
 }

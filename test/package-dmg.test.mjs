@@ -9,9 +9,19 @@ import { fileURLToPath } from 'node:url';
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(testDir, '..');
 const scriptPath = path.join(projectRoot, 'mac', 'package-dmg.sh');
+const installScriptPath = path.join(projectRoot, 'mac', 'install.sh');
 const backgroundSvgPath = path.join(projectRoot, 'mac', 'dmg-background.svg');
 const backgroundFileName = 'dmg-background.png';
 const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
+const expectedPublicFiles = [
+  'dokke.apk',
+  'icon-192.png',
+  'icon-512.png',
+  'index.html',
+  'manifest.webmanifest',
+  'sw.js',
+  'version.json'
+];
 
 let fixturePromise;
 let fixture;
@@ -157,4 +167,26 @@ test('@spec:AC-011 não existe Arraste para instalar.png visível', macOnly, asy
   const current = await getFixture();
   assert.equal(fs.existsSync(path.join(current.mountPoint, 'Arraste para instalar.png')), false);
   assert.equal(rootEntries(current.mountPoint).some((name) => name.endsWith('.png')), false);
+});
+
+test('@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorados de public', macOnly, async () => {
+  const current = await getFixture();
+  const appPaths = [
+    path.join(projectRoot, 'mac', 'dist', 'Dokke.app'),
+    path.join(current.mountPoint, 'Dokke.app')
+  ];
+
+  for (const app of appPaths) {
+    const publicDir = path.join(app, 'Contents', 'Resources', 'Dokke', 'public');
+    assert.deepEqual(fs.readdirSync(publicDir).sort(), expectedPublicFiles);
+    assert.equal(fs.existsSync(path.join(publicDir, 'index.html.bak')), false);
+    assert.equal(fs.readdirSync(publicDir).some((name) => /(?:\.bak|\.log)$/i.test(name)), false);
+  }
+});
+
+test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
+  const script = fs.readFileSync(installScriptPath, 'utf8');
+  assert.match(script, /PUBLIC_FILES=\(/);
+  assert.match(script, /public_file/);
+  assert.doesNotMatch(script, /cp -R [^\n]*public/);
 });

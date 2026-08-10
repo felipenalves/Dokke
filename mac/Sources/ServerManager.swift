@@ -32,16 +32,17 @@ final class ServerManager: ObservableObject {
     }
   }
 
-  /// Localiza o server.js — por override (env/UserDefaults), depois por caminhos
-  /// relativos conhecidos, e por último o caminho de dev desta máquina.
+  /// Localiza o server.js — por override (env/UserDefaults), depois no bundle e
+  /// em caminhos relativos ao diretório atual para execução local.
   static func locateServer() -> String? {
     let fm = FileManager.default
+    let currentDirectory = URL(fileURLWithPath: ".", isDirectory: true)
     let candidates: [String?] = [
       ProcessInfo.processInfo.environment["DOKKE_SERVER"],
       UserDefaults.standard.string(forKey: "dokke.serverPath"),
-      fm.currentDirectoryPath + "/server.js",
       Bundle.main.resourceURL?.appendingPathComponent("Dokke/server.js").path,
-      "/Users/felipealves/FelipeOS/projetos/Felipe.aiOS/projetos/j5-dock/server.js", // fallback dev
+      currentDirectory.appendingPathComponent("server.js").path,
+      currentDirectory.appendingPathComponent("../server.js").standardized.path,
     ]
     for c in candidates.compactMap({ $0 }) where fm.isReadableFile(atPath: c) {
       return c

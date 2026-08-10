@@ -34,6 +34,9 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="upDownload"/, "aviso de atualização deve ter ação explícita");
     assert.match(html, /DokkeAndroid\.requestUpdate/, "Android deve controlar o download da atualização");
     assert.match(html, /cmpVer\(rel\.tag, apkNow\)/, "APK deve comparar a versão instalada com a release");
+    assert.match(html, /function favLong[\s\S]*?textContent = "\\\"" \+ name/, "nome de app no modal deve entrar via textContent");
+    assert.match(html, /scene\.dataset\.scene = s[\s\S]*?scene\.textContent = s/, "nome de cena deve entrar via DOM, não HTML cru");
+    assert.doesNotMatch(html, /data-scene=\\\"" \+ s/, "nome de cena não pode ser concatenado em atributo HTML");
   } finally { await close(); }
 });
 

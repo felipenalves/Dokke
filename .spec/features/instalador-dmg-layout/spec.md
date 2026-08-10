@@ -93,6 +93,18 @@ Como pessoa instalando o Dokke, quero uma janela limpa e previsível, para enten
 - **Quando** a raiz do volume é inspecionada
 - **Então** não existe `Arraste para instalar.png`, nem outro PNG auxiliar visível
 
+#### AC-012 — O bundle público não carrega arquivos locais ignorados
+
+- **Dado** que `public/` pode conter backups, logs ou artefatos locais ignorados
+- **Quando** o app macOS é empacotado
+- **Então** o bundle inclui somente os arquivos públicos necessários ao runtime
+
+#### AC-013 — O instalador usa uma allowlist pública explícita
+
+- **Dado** o script `mac/install.sh`
+- **Quando** ele prepara o bundle do servidor
+- **Então** copia somente a allowlist pública declarada, sem copiar `public/` inteiro
+
 ## Fora de escopo
 
 - Alterar a UI interna do Dokke.
