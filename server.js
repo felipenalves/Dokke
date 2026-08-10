@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createSocket } from "node:dgram";
 import { networkInterfaces } from "node:os";
-import { readFileSync, statSync } from "node:fs";
+import { mkdirSync, existsSync, copyFileSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -582,9 +582,35 @@ export async function startServer(arg = {}) {
     });
   }
   const configProvided = opts.config !== undefined;
-  const configFile = configProvided ? null : (opts.configFile ?? join(import.meta.dirname, "config.json"));
+  // pasta de dados do usuário (sobrevive a reinstalação) — config + pin ficam aqui
+  function userDataDir() {
+    const home = process.env.HOME || process.env.USERPROFILE || ".";
+    if (process.platform === "win32") return join(process.env.APPDATA || home, "Dokke");
+    if (process.platform === "darwin") return join(home, "Library", "Application Support", "Dokke");
+    return join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "dokke");
+  }
+  const dataDir = userDataDir();
+  try { mkdirSync(dataDir, { recursive: true }); } catch (e) {}
+  const userConfig = join(dataDir, "config.json");
+  // migração: versões antigas guardavam config dentro do bundle — se o destino
+  // não existe mas o bundle tem dados, copia antes de começar (nunca sobrescreve)
+  if (!existsSync(userConfig)) {
+    try {
+      const seed = JSON.parse(readFileSync(join(import.meta.dirname, "config.json"), "utf8"));
+      if (seed && typeof seed === "object" && Object.keys(seed).length > 0) {
+        writeFileSync(userConfig, JSON.stringify(seed, null, 2));
+      }
+    } catch {}
+  }
+  const configFile = configProvided ? null : (opts.configFile ?? userConfig);
   // pin de acesso (4 dígitos): fixo em .j5-pin, só regenera via POST /api/pin
-  const pinRoot = opts.root ?? import.meta.dirname;
+  const pinRoot = opts.root ?? dataDir;
+  if (!existsSync(join(pinRoot, ".j5-pin"))) {
+    try {
+      const legacy = join(import.meta.dirname, ".j5-pin");
+      if (existsSync(legacy)) copyFileSync(legacy, join(pinRoot, ".j5-pin"));
+    } catch {}
+  }
   let currentPin = await ensurePin(pinRoot);
   opts.auth = {
     getPin: () => currentPin,
@@ -601,6 +627,7 @@ export async function startServer(arg = {}) {
   });
   const handler = makeApp({
     ...opts,
+    configFile: configFile ?? undefined,
     onStatusChange: () => feed.ping(),
     getDeviceCount: () => feed.clientCount(),
   });
