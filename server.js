@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { createSocket } from "node:dgram";
+import { networkInterfaces } from "node:os";
 import { readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, extname, resolve } from "node:path";
@@ -44,8 +46,16 @@ const SEC_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
+/** Respostas JSON de API — nunca podem ser cacheadas (dados em tempo real).
+ *  Sem isso o browser/WebView pode cachear GET /api/* heuristicamente. */
+const JSON_HEADERS = {
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store",
+  ...SEC_HEADERS,
+};
+
 function fail(res, err, extra = {}) {
-  res.writeHead(500, { "Content-Type": "application/json", ...SEC_HEADERS });
+  res.writeHead(500, JSON_HEADERS);
   res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err), ...extra }));
 }
 
@@ -58,7 +68,7 @@ function readBody(req, res) {
       body += c;
       if (Buffer.byteLength(body, "utf8") > BODY_MAX_BYTES) {
         big = true;
-        res.writeHead(413, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(413, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "corpo grande demais" }));
       }
     });
@@ -70,6 +80,60 @@ function readBody(req, res) {
 }
 
 const STATUS_POLL_MS = 6000;
+
+/**
+ * Descoberta automática de servidor (UDP broadcast) — o APK Android manda
+ * "dokke:discover" em 255.255.255.255 e o servidor responde com seu IP:porta.
+ * Assim o device acha o Mac mesmo quando o DHCP troca o IP (queda de luz,
+ * reinício de roteador). Zero deps — dgram é builtin do Node.
+ */
+const DISCOVERY_PORT = 3001;
+export const DISCOVERY_MAGIC = "dokke:discover";
+
+function ipv4ToInt(ip) {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+function inSubnet(ip, addr, mask) {
+  const a = ipv4ToInt(ip), b = ipv4ToInt(addr), m = ipv4ToInt(mask);
+  if (a == null || b == null || m == null) return false;
+  return (a & m) === (b & m);
+}
+
+/** IP da interface que está na mesma rede do cliente (Wi-Fi, Ethernet, Tailscale…). */
+function localIpFor(peerIp) {
+  for (const infos of Object.values(networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family !== "IPv4" || info.internal) continue;
+      if (inSubnet(peerIp, info.address, info.netmask)) return info.address;
+    }
+  }
+  // fallback: primeira IPv4 não-interna (cobre 127.0.0.1 em testes)
+  for (const infos of Object.values(networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family === "IPv4" && !info.internal) return info.address;
+    }
+  }
+  return null;
+}
+
+/** Sobe o listener UDP que responde "dokke:<ip>:<porta>" pra quem perguntar. */
+export function startDiscovery(port = DISCOVERY_PORT, { portHint = 3000, log = console.log } = {}) {
+  const sock = createSocket("udp4");
+  sock.on("message", (msg, rinfo) => {
+    if (msg.toString("utf8").trim() !== DISCOVERY_MAGIC) return;
+    const ip = localIpFor(rinfo.address);
+    if (!ip) return;
+    const reply = `dokke:${ip}:${portHint}`;
+    sock.send(reply, rinfo.port, rinfo.address);
+    log(`[discover] ${rinfo.address}:${rinfo.port} → ${reply}`);
+  });
+  sock.on("error", e => log(`[discover] erro: ${e.message}`));
+  sock.bind(port, () => { sock.setBroadcast(true); });
+  return sock;
+}
 
 /** Versão do index.html (mtime+size) — o cliente recarrega sozinho quando
  *  o servidor sobe uma UI nova, mesmo com a página aberta há horas no kiosk. */
@@ -169,10 +233,10 @@ export function makeApp(deps = {}) {
   };
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
-    const ok = body => { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify(body)); };
+    const ok = body => { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify(body)); };
     // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
     const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
-    if (url.pathname === "/health") { res.writeHead(200, { "Content-Type": "application/json", ...SEC_HEADERS }); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
+    if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "j5-dock" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
       console.log("[probe]", JSON.stringify({ ua: req.headers["user-agent"], ...flags }));
@@ -188,20 +252,20 @@ export function makeApp(deps = {}) {
     if (auth && url.pathname === "/api/auth" && req.method === "POST") {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG || body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         const given = typeof body?.pin === "string" ? body.pin.trim() : "";
         if (given === "") {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "código vazio" }));
           return;
         }
         const now = Date.now();
         const lock = pinLocks.get(ipOf);
         if (lock && lock.until > now) {
-          res.writeHead(429, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(429, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "muitas tentativas — aguarde" }));
           return;
         }
@@ -219,7 +283,7 @@ export function makeApp(deps = {}) {
           prev.last = now;
           if (prev.fails >= PIN_MAX_FAILS) prev.until = now + PIN_LOCK_MS;
         }
-        res.writeHead(401, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(401, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "código inválido" }));
       });
       return;
@@ -227,7 +291,7 @@ export function makeApp(deps = {}) {
     if (auth && url.pathname === "/api/pin") {
       // só o dono (loopback) lê/regenera — atacante na LAN não descobre o pin
       if (!isLoopback(ipOf)) {
-        res.writeHead(403, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(403, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
         return;
       }
@@ -243,7 +307,7 @@ export function makeApp(deps = {}) {
     }
     // wall: todo /api/* exige cookie válido — loopback do Mac (dono) passa
     if (url.pathname.startsWith("/api/") && !authed()) {
-      res.writeHead(401, { "Content-Type": "application/json", ...SEC_HEADERS });
+      res.writeHead(401, JSON_HEADERS);
       res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
       return;
     }
@@ -268,14 +332,14 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (req.method === "PUT") {
           const list = body?.apps ?? body?.pinned;
           if (!Array.isArray(list)) {
-            res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+            res.writeHead(400, JSON_HEADERS);
             res.end(JSON.stringify({ ok: false, error: "apps deve ser array" }));
             return;
           }
@@ -290,7 +354,7 @@ export function makeApp(deps = {}) {
         }
         const app = typeof body?.app === "string" ? body.app.trim() : "";
         if (app === "") {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "app inválido" }));
           return;
         }
@@ -312,7 +376,7 @@ export function makeApp(deps = {}) {
       let app;
       try { app = decodeURIComponent(unpin[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -354,7 +418,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(activate[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -376,7 +440,7 @@ export function makeApp(deps = {}) {
       let name;
       try { name = decodeURIComponent(icon[1]); }
       catch {
-        res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+        res.writeHead(400, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "nome inválido" }));
         return;
       }
@@ -384,13 +448,13 @@ export function makeApp(deps = {}) {
         .then(() => iconService.getIconPng(name))
         .then(buf => {
           if (!buf) {
-            res.writeHead(404, { "Content-Type": "application/json", ...SEC_HEADERS });
+            res.writeHead(404, JSON_HEADERS);
             res.end(JSON.stringify({ ok: false, error: "app não encontrado" }));
             return;
           }
           res.writeHead(200, {
             "Content-Type": "image/png",
-            "Cache-Control": "public, max-age=3600",
+            "Cache-Control": "public, max-age=86400",
             ...SEC_HEADERS,
           });
           res.end(buf);
@@ -418,12 +482,12 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID) {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
           return;
         }
         if (!(typeof body?.scene === "string" && body.scene.trim() !== "")) {
-          res.writeHead(400, { "Content-Type": "application/json", ...SEC_HEADERS });
+          res.writeHead(400, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "cena inválida" }));
           return;
         }
@@ -438,7 +502,7 @@ export function makeApp(deps = {}) {
     const p = join(root, file);
     /* path traversal guard: resolved path must stay inside root */
     if (!resolve(p).startsWith(resolve(root))) {
-      res.writeHead(403, { "Content-Type": "application/json", ...SEC_HEADERS });
+      res.writeHead(403, JSON_HEADERS);
       res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
       return;
     }
@@ -446,7 +510,7 @@ export function makeApp(deps = {}) {
     readFile(p).then(b => {
       res.writeHead(200, {
         "Content-Type": `${MIME[extname(p)] || "text/plain"}; charset=utf-8`,
-        "Cache-Control": isUi ? "no-cache, no-store, must-revalidate" : "public, max-age=3600",
+        "Cache-Control": isUi ? "no-cache, no-store, must-revalidate" : "public, max-age=86400",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
         "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -534,6 +598,10 @@ export async function startServer(arg = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const proto = (process.env.HTTPS_CERT && process.env.HTTPS_KEY) ? "https" : "http";
   startServer()
-    .then(({ port }) => console.log(`j5-dock ouvindo em ${proto}://127.0.0.1:${port}`))
+    .then(({ port }) => {
+      console.log(`j5-dock ouvindo em http://127.0.0.1:${port}`);
+      // responder descoberta UDP pra devices Android acharem o IP sozinhos
+      startDiscovery(DISCOVERY_PORT, { portHint: port }).unref();
+    })
     .catch(err => { console.error(err); process.exitCode = 1; });
 }

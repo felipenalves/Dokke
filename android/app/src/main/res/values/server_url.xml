@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Troque pelo IP do Mac na sua rede. Pode também sobrescrever em runtime
-         via SharedPreferences("prefs", "server_url"). -->
-    <string name="server_url">http://192.168.1.6:3000</string>
+    <!-- Fallback: o app descobre o servidor sozinho via UDP broadcast (porta 3001)
+         quando o IP do Mac muda. Este valor só é usado se a descoberta falhar.
+         Pode também sobrescrever em runtime via SharedPreferences("prefs", "server_url"). -->
+    <string name="server_url">http://192.168.1.5:3000</string>
 </resources>

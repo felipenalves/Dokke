@@ -17,6 +17,10 @@ reescrito.
 Edite `app/src/main/res/values/server_url.xml` com o IP do Mac na sua rede, ou
 sobrescreva em runtime pela chave `server_url` em `SharedPreferences("prefs")`.
 
+> **Auto-descoberta**: o app pergunta na rede via UDP broadcast (porta 3001, protocolo
+> `dokke:discover`) e o servidor responde com o IP atual. Se o IP do Mac mudar (queda de
+> luz, DHCP), o device acha o servidor sozinho e grava a URL nova — o IP do XML é só fallback.
+
 ## Build (precisa de Java + Android SDK)
 ```sh
 cd android

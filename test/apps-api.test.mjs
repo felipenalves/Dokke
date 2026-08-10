@@ -55,7 +55,7 @@ test("GET /api/apps/Chrome/icon retorna 200 image/png com bytes", async () => {
     const r = await fetch(`http://127.0.0.1:${port}/api/apps/Chrome/icon`);
     assert.equal(r.status, 200);
     assert.equal(r.headers.get("content-type"), "image/png");
-    assert.match(r.headers.get("cache-control") || "", /max-age=3600/, "ícone com cache HTTP");
+    assert.match(r.headers.get("cache-control") || "", /max-age=86400/, "ícone com cache HTTP");
     assert.deepEqual([...Buffer.from(await r.arrayBuffer())], [...bytes]);
   } finally { await close(); }
 });
