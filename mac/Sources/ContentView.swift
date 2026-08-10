@@ -225,7 +225,7 @@ struct AboutView: View {
           Text(store.pinCode ?? "—")
             .font(.system(size: 28, weight: .bold, design: .monospaced))
             .tracking(4)
-          Text("Digite no dispositivo J5 para acessar o dock.")
+          Text("Digite no dispositivo (Android, iPhone) para acessar o dock.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

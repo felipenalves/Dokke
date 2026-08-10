@@ -51,7 +51,7 @@
     padding: 0;
   }
   /* Duas camadas independentes: cada tela ocupa a viewport inteira.
-     A WebView da J5 NÃO resolve height:100% em flex no fluxo — por isso
+     A WebView do Android não resolve height:100% em flex no fluxo — por isso
      cada .screen é absolute e o container não empilha. Transição por
      translate+opacity (slide + class toggle) para eliminar conflitos. */
   .screens{
@@ -1524,7 +1524,7 @@
   }
   let healthT = null, appsT = null;
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
-  // (menos acordar de CPU/radio/bateria no J5; volta rapido quando reaparece)
+  // (menos acordar de CPU/radio/bateria no device; volta rapido quando reaparece)
   let healthBackoff = 15000, appsBackoff = 12000;
   const HEALTH_OK = 15000, APPS_OK = 12000, POLL_MAX = 60000, POLL_HIDDEN = 30000;
 

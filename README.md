@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Dock de apps que sincroniza do Mac pra qualquer device na LAN.</b><br>
-  Nasceu de um Galaxy J5 velho parado em casa — agora o dock do teu Mac cabe na palma da mão.
+  Nasceu de um Galaxy J5 velho parado em casa — hoje roda em qualquer Android, iPhone ou navegador.
 </p>
 
 <p align="center">
@@ -22,13 +22,13 @@
 
 Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositivo.
 
-A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (Android, iPhone, outro Mac).
+A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (qualquer Android, iPhone, outro Mac).
 
 ## Como funciona
 
 ```
 ┌─────────────┐      WebSocket       ┌─────────────┐
-│  Mac (Dokke) │ ◄──────────────────► │  J5 / Phone  │
+│  Mac (Dokke) │ ◄──────────────────► │ Android/Phone│
 │  SwiftUI app │      HTTP API       │   PWA/APK    │
 └──────┬──────┘                      └──────────────┘
        │
@@ -43,7 +43,7 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 
 1. O **Mac app** (Dokke) gerencia seus apps — fixa, remove, reordena
 2. O **server Node.js** sincroniza tudo via WebSocket
-3. O **device** (J5, qualquer Android, iPhone) recebe as mudanças em tempo real
+3. O **device** (qualquer Android, iPhone, tablet) recebe as mudanças em tempo real
 4. Um toque no device ativa o app no Mac
 5. **Sem config de IP**: o device acha o Mac sozinho via broadcast UDP (`dokke:discover`,
    porta 3001) — IP trocou (queda de luz, DHCP), ele descobre de novo
@@ -159,14 +159,14 @@ Abra a URL no Safari → compartilhar → **"Adicionar à tela de início"** →
 
 ## Autenticação (pin de acesso)
 
-O servidor escuta em todas as interfaces (os dispositivos J5 acessam pela rede), então todo
+O servidor escuta em todas as interfaces (os dispositivos acessam pela rede), então todo
 `/api/*` exige um **pin de 4 dígitos** — exceto `/health`, `/api/probe` e `/api/auth`.
 Requests vindos de **loopback** (o app Dokke no Mac) passam direto.
 
 - O pin é gerado no primeiro boot e fica em `.j5-pin` (fixo até regenerar).
 - **Aba "Sobre" no app Dokke**: mostra o código e o botão "Gerar novo código" (regenerar
-  invalida o cookie dos dispositivos — o J5 pedirá o código novo na próxima ação).
-- **Dispositivo J5**: ao abrir o dock, digite o código na tela de acesso; o cookie dura 180 dias.
+  invalida o cookie dos dispositivos — eles pedirão o código novo na próxima ação).
+- **No dispositivo**: ao abrir o dock, digite o código na tela de acesso; o cookie dura 180 dias.
 - Brute-force: 5 tentativas erradas por IP → bloqueio de 60s.
 
 | Método | Path | Quem acessa | O que faz |
