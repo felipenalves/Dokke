@@ -63,7 +63,8 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 ### Mac app (recomendado)
 
 ```sh
-# Baixe o Dokke-macOS.zip na página de release → descompacte → abra o Dokke.app
+# Baixe o Dokke-macOS.dmg na página de release → abra o dmg → arraste o
+# Dokke para a pasta Aplicações → abra o app
 # (Node.js já embutido — nada pra instalar)
 ```
 
