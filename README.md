@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=nodedotjs&logoColor=white">
   <img src="https://img.shields.io/badge/Android-5.0%2B-3ddc84?logo=android&logoColor=white">
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white">
+  <a href="#apoio"><img src="https://img.shields.io/badge/Apoie%20com-PIX-22c55e"></a>
 </p>
 
 Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositivo.
@@ -171,6 +172,22 @@ npm test
 ```
 
 Node 24, `node --test`, zero deps além de `ws`.
+
+## Apoio
+
+Gostou do Dokke e quer ajudar a manter? Qualquer valor é bem-vindo — café, energia, e tempo de dev pra próxima feature (spoiler: OBS Commander 🎥).
+
+<p align="center">
+  <img src="public/donate-qr.png" width="180" alt="QR code PIX">
+  <br>
+  <b>Chave PIX:</b> <code>pagamentos@inovadigitalid.com</code>
+</p>
+
+Ou copie o payload pronto (cola direto no app do banco):
+
+```
+00020101021226510014br.gov.bcb.pix0129pagamentos@inovadigitalid.com5204000053039865802BR5912Felipe Alves6009SAO PAULO62070503***630430EA
+```
 
 ## Licença
 
