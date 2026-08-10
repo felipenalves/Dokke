@@ -98,6 +98,16 @@ class MainActivity : ComponentActivity() {
             }
         }
         web.clearCache(true)
+        web.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun hideKeyboard() {
+                runOnUiThread {
+                    web.clearFocus()
+                    (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                        .hideSoftInputFromWindow(web.windowToken, 0)
+                }
+            }
+        }, "DokkeAndroid")
         web.loadUrl(url)
         // descoberta automática: se o IP do Mac mudou, atualiza sozinho
         discoverServer { found ->
