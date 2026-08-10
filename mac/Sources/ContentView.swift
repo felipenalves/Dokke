@@ -16,15 +16,31 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
   @EnvironmentObject private var store: DockStore
+  @EnvironmentObject private var updater: DokkeUpdateManager
   @State private var selection: SidebarItem? = .apps
+  @State private var showingReleaseNotes = false
 
   var body: some View {
-    NavigationSplitView {
-      sidebar
-    } detail: {
-      detail
+    VStack(spacing: 0) {
+      if let release = updater.release {
+        UpdateBanner(release: release, showingReleaseNotes: $showingReleaseNotes)
+      }
+
+      NavigationSplitView {
+        sidebar
+      } detail: {
+        detail
+      }
+      .navigationTitle("Dokke")
     }
-    .navigationTitle("Dokke")
+    .task {
+      await updater.check()
+    }
+    .sheet(isPresented: $showingReleaseNotes) {
+      if let release = updater.release {
+        ReleaseNotesView(release: release)
+      }
+    }
   }
 
   private var sidebar: some View {
@@ -52,49 +68,8 @@ struct ContentView: View {
 struct AboutView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var server: ServerManager
-
-  @State private var update: (tag: String, htmlUrl: String)?
-  @State private var updateChecking = false
-  @State private var updateNote: String?
-
-  private func compareVersion(_ a: String, _ b: String) -> Int {
-    let pa = a.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-      .split(separator: ".")
-      .map { Int($0) ?? 0 }
-    let pb = b.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-      .split(separator: ".")
-      .map { Int($0) ?? 0 }
-    for i in 0..<3 {
-      let av = i < pa.count ? pa[i] : 0
-      let bv = i < pb.count ? pb[i] : 0
-      if av != bv { return av > bv ? 1 : -1 }
-    }
-    return 0
-  }
-
-  private func checkUpdate() async {
-    update = nil
-    updateNote = nil
-    updateChecking = true
-    defer { updateChecking = false }
-    do {
-      let u = URL(string: "http://127.0.0.1:3000/api/version")!
-      let (data, _) = try await URLSession.shared.data(from: u)
-      let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-      let local = json?["local"] as? [String: Any]
-      let latest = json?["latest"] as? [String: Any]
-      guard let lt = latest,
-            let tag = lt["tag"] as? String, !tag.isEmpty,
-            let localTag = local?["tag"] as? String,
-            compareVersion(tag, localTag) > 0 else {
-        updateNote = "Você está na versão mais recente."
-        return
-      }
-      update = (tag: tag, htmlUrl: (lt["htmlUrl"] as? String) ?? "https://github.com/felipenalves/Dokke/releases/latest")
-    } catch {
-      updateNote = "Não foi possível verificar atualizações (servidor fora do ar?)."
-    }
-  }
+  @EnvironmentObject private var updater: DokkeUpdateManager
+  @State private var showingReleaseNotes = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -178,28 +153,53 @@ struct AboutView: View {
           Text("Atualizações")
             .font(.headline)
           Spacer()
-          if updateChecking {
+          if updater.state == .checking {
             ProgressView().controlSize(.small)
           }
         }
-        if let note = updateNote {
-          Text(note)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        Text("Versão instalada: \(updater.currentVersion)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        if let message = updater.statusMessage {
+          if updater.release == nil {
+            Text(message)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else {
+            Text(message)
+              .font(.caption)
+              .foregroundStyle(.orange)
+          }
         }
-        if let upd = update {
+        if let release = updater.release {
           HStack(spacing: 8) {
-            Label("Nova versão \(upd.tag) disponível", systemImage: "arrow.down.circle.fill")
+            Label("Nova versão \(release.tag)", systemImage: "arrow.down.circle.fill")
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(.orange)
-            Button("Baixar") {
-              if let u = URL(string: upd.htmlUrl) {
-                NSWorkspace.shared.open(u)
-              }
+            Button {
+              showingReleaseNotes = true
+            } label: {
+              Label("Mudanças", systemImage: "doc.text")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Button {
+              Task { await updater.downloadAndInstall() }
+            } label: {
+              Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .disabled(updater.isBusy)
           }
+        } else if case .failed = updater.state {
+          Button {
+            Task { await updater.check() }
+          } label: {
+            Label("Verificar novamente", systemImage: "arrow.clockwise")
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
         }
       }
       .padding(16)
@@ -207,8 +207,10 @@ struct AboutView: View {
         RoundedRectangle(cornerRadius: 12)
           .fill(.quaternary)
       )
-      .task {
-        await checkUpdate()
+      .sheet(isPresented: $showingReleaseNotes) {
+        if let release = updater.release {
+          ReleaseNotesView(release: release)
+        }
       }
 
       VStack(alignment: .leading, spacing: 10) {
@@ -263,6 +265,92 @@ struct AboutView: View {
     }
     .padding(20)
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct UpdateBanner: View {
+  @EnvironmentObject private var updater: DokkeUpdateManager
+  let release: DokkeRelease
+  @Binding var showingReleaseNotes: Bool
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: "arrow.down.circle.fill")
+        .font(.title3)
+        .foregroundStyle(.orange)
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Nova atualização disponível")
+          .font(.subheadline.weight(.semibold))
+        Text("Dokke \(release.tag) está pronto para baixar e instalar.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 12)
+      Button {
+        showingReleaseNotes = true
+      } label: {
+        Label("Mudanças", systemImage: "doc.text")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      Button {
+        Task { await updater.downloadAndInstall() }
+      } label: {
+        if updater.state == .downloading {
+          Label("Baixando...", systemImage: "arrow.down.circle")
+        } else if updater.state == .installing {
+          Label("Instalando...", systemImage: "gearshape")
+        } else {
+          Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
+        }
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.small)
+      .disabled(updater.isBusy)
+    }
+    .padding(.horizontal, 20)
+    .padding(.vertical, 10)
+    .background(.orange.opacity(0.12))
+    .overlay(alignment: .bottom) {
+      Divider()
+    }
+  }
+}
+
+private struct ReleaseNotesView: View {
+  @Environment(\.dismiss) private var dismiss
+  let release: DokkeRelease
+  private let renderedNotes: AttributedString
+
+  init(release: DokkeRelease) {
+    self.release = release
+    renderedNotes = (try? AttributedString(markdown: release.notes)) ?? AttributedString(release.notes)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("O que mudou")
+            .font(.title2.bold())
+          Text("Dokke \(release.tag)")
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Button("Fechar") {
+          dismiss()
+        }
+        .buttonStyle(.bordered)
+      }
+
+      ScrollView {
+        Text(renderedNotes)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .textSelection(.enabled)
+      }
+    }
+    .padding(24)
+    .frame(width: 560, height: 420)
   }
 }
 

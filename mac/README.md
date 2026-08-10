@@ -8,6 +8,7 @@ App nativo SwiftUI — **instala como `.app`**, não roda via `swift run`.
 - **Drag-to-reorder** — reordena apps no dock via drag-and-drop
 - **Menu Bar** — ícone `square.grid.2x2`, status online/offline
 - **Auto-start** — server sobe ao abrir o app
+- **Atualizações** — verifica releases ao abrir, mostra as mudanças e instala o DMG com confirmação
 
 ## Instalar
 
@@ -19,6 +20,12 @@ cd mac
 ```
 
 Depois: Launchpad / Spotlight → **Dokke**.
+
+## Atualizar
+
+Ao abrir, o Dokke consulta a release mais recente no GitHub. Quando há uma versão nova, um banner aparece em qualquer tela do app. **Mudanças** mostra as notas da release; **Baixar e instalar** baixa o DMG, valida o SHA-256 publicado pelo GitHub, substitui o app atual e reabre a versão nova.
+
+O app precisa estar em uma pasta com permissão de escrita, normalmente `/Applications` ou `~/Applications`.
 
 Pré-req: macOS 14+, Xcode CLT (`xcode-select --install`), server `node server.js` na pasta pai.
 
