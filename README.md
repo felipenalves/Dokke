@@ -63,15 +63,19 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 ### Mac app (recomendado)
 
 ```sh
-# Pré-requisitos: macOS 14+ (Liquid Glass completo no 26+), Xcode CLT (Swift), Node.js 20+ (o app usa o `node` do sistema)
+# Baixe o Dokke-macOS.zip na página de release → descompacte → abra o Dokke.app
+# (Node.js já embutido — nada pra instalar)
+```
+
+Ou build do source (requer macOS 14+, Xcode CLT e Node.js 20+):
+
+```sh
 git clone https://github.com/felipenalves/Dokke.git
 cd Dokke
 cd mac && ./install.sh --open
 ```
 
-> **Node.js**: instale via `brew install node` ou do [nodejs.org](https://nodejs.org). Se você não tiver Node, use a opção **Terminal** abaixo só depois de instalar — ou use o **Android** (que não precisa de nada instalado no PC além do server rodando).
-
-O app inicia o server automaticamente. Fechar o app mata o server.
+O app inicia o server automaticamente (aba **Sobre** mostra o link de acesso pra usar de outros devices). Fechar o app mata o server.
 
 ### Terminal
 

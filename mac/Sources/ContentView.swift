@@ -96,6 +96,41 @@ struct AboutView: View {
       )
 
       VStack(alignment: .leading, spacing: 10) {
+        Text("Conectar outros dispositivos")
+          .font(.headline)
+        if let ip = ServerManager.lanIPv4() {
+          HStack(spacing: 8) {
+            Text("http://\(ip):3000")
+              .font(.system(size: 15, weight: .semibold, design: .monospaced))
+              .textSelection(.enabled)
+            Button {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString("http://\(ip):3000", forType: .string)
+            } label: {
+              Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.borderless)
+            .help("Copiar link")
+          }
+        } else {
+          Text("Sem IP de rede detectado (offline?)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Text("Abra este link no Android, iPad ou qualquer navegador para usar o dock sem instalar nada.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("iPhone/iPad PWA: o iOS exige HTTPS — rode `cloudflared tunnel --url http://localhost:3000` e salve a URL no Safari.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .padding(16)
+      .background(
+        RoundedRectangle(cornerRadius: 12)
+          .fill(.quaternary)
+      )
+
+      VStack(alignment: .leading, spacing: 10) {
         HStack {
           Text("Código de acesso")
             .font(.headline)

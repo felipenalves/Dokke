@@ -44,10 +44,16 @@ final class ServerManager: ObservableObject {
     return nil
   }
 
-  /// Localiza o binário do node — override, depois os caminhos comuns.
+  /// Localiza o binário do node — node embutido no bundle (Contents/Resources/node-bin),
+  /// depois override e caminhos comuns.
   static func locateNode() -> String? {
     let fm = FileManager.default
-    let candidates = [
+    let bundledNode = Bundle.main.resourceURL?
+      .appendingPathComponent("node-bin", isDirectory: true)
+      .appendingPathComponent("node", isDirectory: false)
+      .path
+    let candidates: [String?] = [
+      bundledNode,
       ProcessInfo.processInfo.environment["DOKKE_NODE"],
       UserDefaults.standard.string(forKey: "dokke.nodePath"),
       "/opt/homebrew/bin/node",
@@ -59,6 +65,34 @@ final class ServerManager: ObservableObject {
       return c
     }
     return nil
+  }
+
+  /// IP IPv4 da LAN (en0/en1) — mostrado na aba Sobre como link de acesso dos devices.
+  static func lanIPv4() -> String? {
+    var addr: String?
+    var ifaddr: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&ifaddr) == 0 else { return nil }
+    defer { freeifaddrs(ifaddr) }
+    var ptr = ifaddr
+    while ptr != nil {
+      let interface = ptr!.pointee
+      let family = interface.ifa_addr.pointee.sa_family
+      if family == UInt8(AF_INET) {
+        let name = String(cString: interface.ifa_name)
+        if name.hasPrefix("en") && !name.contains("awdl") {
+          var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+          getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                      &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+          let h = String(cString: host)
+          if !h.hasPrefix("169.254") {
+            addr = h
+            break
+          }
+        }
+      }
+      ptr = interface.ifa_next
+    }
+    return addr
   }
 
   func start() {
