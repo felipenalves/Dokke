@@ -4,14 +4,12 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Color
-import android.net.http.SslError
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
-import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -49,8 +47,7 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
         }
-        // permite debug remoto do WebView via chrome://inspect
-        WebView.setWebContentsDebuggingEnabled(true)
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         web = WebView(this)
         loader = ProgressBar(this).apply { isIndeterminate = true }
@@ -76,7 +73,6 @@ class MainActivity : ComponentActivity() {
         web.setBackgroundColor(Color.BLACK)
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, u: String?) { loader.visibility = View.GONE }
-            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) { handler?.proceed() }
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                 Log.e("Dokke", "WebView error: ${error?.description} (${error?.errorCode}) url=${request?.url}")
                 // self-heal: se o IP gravado morreu (DHCP mudou), procura o servidor na rede

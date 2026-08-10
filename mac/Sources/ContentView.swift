@@ -57,7 +57,24 @@ struct AboutView: View {
   @State private var updateChecking = false
   @State private var updateNote: String?
 
+  private func compareVersion(_ a: String, _ b: String) -> Int {
+    let pa = a.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+      .split(separator: ".")
+      .map { Int($0) ?? 0 }
+    let pb = b.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+      .split(separator: ".")
+      .map { Int($0) ?? 0 }
+    for i in 0..<3 {
+      let av = i < pa.count ? pa[i] : 0
+      let bv = i < pb.count ? pb[i] : 0
+      if av != bv { return av > bv ? 1 : -1 }
+    }
+    return 0
+  }
+
   private func checkUpdate() async {
+    update = nil
+    updateNote = nil
     updateChecking = true
     defer { updateChecking = false }
     do {
@@ -66,10 +83,10 @@ struct AboutView: View {
       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
       let local = json?["local"] as? [String: Any]
       let latest = json?["latest"] as? [String: Any]
-      guard let lt = latest as? [String: Any],
+      guard let lt = latest,
             let tag = lt["tag"] as? String, !tag.isEmpty,
             let localTag = local?["tag"] as? String,
-            tag != localTag else {
+            compareVersion(tag, localTag) > 0 else {
         updateNote = "Você está na versão mais recente."
         return
       }
