@@ -173,6 +173,20 @@ npm test
 
 Node 24, `node --test`, zero deps além de `ws`.
 
+## Recursos (RAM / CPU)
+
+Medido em idle (app aberto, servindo a LAN — o uso diário típico):
+
+| Componente | RAM | CPU em idle |
+|-----------|-----|-------------|
+| Mac app (SwiftUI) | ~105 MB | ~0% |
+| Server Node.js | ~33 MB | ~0% |
+| **Total** | **~140 MB** | **~0%** |
+
+- Em idle o server fica adormecido: só acorda com request (abrir PWA, sincronizar, broadcast UDP de descoberta a cada 6s) — por isso 0% de CPU.
+- O pico de CPU acontece só na ação (ativar app no Mac, trocar ícone) e dura menos de 1s.
+- Android/iPhone: a PWA não roda nada em background — o consumo é no Mac (o dock é o Mac).
+
 ## Apoio
 
 Gostou do Dokke e quer ajudar a manter? Qualquer valor é bem-vindo — café, energia, e tempo de dev pra próxima feature (spoiler: OBS Commander 🎥).
