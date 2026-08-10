@@ -9,6 +9,9 @@
     "mac:install": "cd mac && ./install.sh",
     "mac:open": "cd mac && ./install.sh --open"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "ws": "^8.21.1"
   },
