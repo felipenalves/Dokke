@@ -24,8 +24,12 @@ final class ServerManager: ObservableObject {
     ) { [weak self] _ in
       self?.stop()
     }
-    // Auto-start on init — WindowGroup onAppear may never fire for MenuBarExtra
-    start()
+    // Defer the first published state change until AppKit finishes mounting
+    // the scene; publishing synchronously from App initialization can abort
+    // SwiftUI with "setting value during update".
+    DispatchQueue.main.async { [weak self] in
+      self?.start()
+    }
   }
 
   /// Localiza o server.js — por override (env/UserDefaults), depois por caminhos

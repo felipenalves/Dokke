@@ -34,6 +34,8 @@ struct ContentView: View {
       .navigationTitle("Dokke")
     }
     .task {
+      try? await Task.sleep(nanoseconds: 300_000_000)
+      guard !Task.isCancelled else { return }
       await updater.check()
     }
     .sheet(isPresented: $showingReleaseNotes) {

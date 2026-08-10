@@ -53,7 +53,11 @@ final class DockStore: ObservableObject {
 
   init() {
     baseURL = Self.normalizeBase(baseURL)
-    Task { await refreshAll() }
+    Task { [weak self] in
+      try? await Task.sleep(nanoseconds: 300_000_000)
+      guard !Task.isCancelled else { return }
+      await self?.refreshAll()
+    }
     // health + devices: leve e frequente p/ feedback de “dispositivos conectados”
     timer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
       Task { @MainActor in await self?.pingStatus() }

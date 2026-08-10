@@ -57,6 +57,7 @@ final class DokkeUpdateManager: ObservableObject {
   }
 
   func check() async {
+    await Task.yield()
     guard !isBusy else { return }
     state = .checking
 
