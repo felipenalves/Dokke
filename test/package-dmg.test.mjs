@@ -190,3 +190,10 @@ test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   assert.match(script, /public_file/);
   assert.doesNotMatch(script, /cp -R [^\n]*public/);
 });
+
+test('builder do DMG não usa appdmg nem image-size vulneráveis', () => {
+  const script = fs.readFileSync(scriptPath, 'utf8');
+  assert.doesNotMatch(script, /appdmg|image-size/);
+  assert.match(script, /hdiutil create/);
+  assert.match(script, /write-dmg-ds-store\.mjs/);
+});

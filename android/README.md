@@ -54,8 +54,9 @@ cd android && ./gradlew assembleRelease
 
 Sem os quatro valores, o build de release falha claramente. Ele não gera debug
 no lugar do release e não há keystore ou segredo no repositório. O arquivo
-`../public/dokke.apk` atualmente versionado é um artefato legado assinado com
-certificado Debug; não o use como APK de release nem o anexe a uma release.
+`../public/dokke.apk` é o artefato de produção versionado; a keystore permanece
+fora do repositório. Instalações antigas assinadas com o certificado Debug
+precisam ser desinstaladas uma vez antes de instalar esta linha de produção.
 (Se `./gradlew` não existir, gere com: `gradle wrapper --gradle-version 8.5`.)
 
 ## Instalar no J5 (via adb)

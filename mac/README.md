@@ -41,13 +41,9 @@ Pré-req: macOS 14+, Xcode CLT (`xcode-select --install`), server `node server.j
 
 ### Auditoria de dependências de build
 
-`npm audit --omit=dev` deve permanecer limpo. A auditoria completa atualmente
-aponta dois HIGH em `image-size`, transitivo de `appdmg`, usado somente durante
-a geração do DMG; o runtime usa `ws` e não recebe essa dependência. Não há
-correção compatível: o `appdmg` atual (`0.6.6`) exige a linha vulnerável, e
-`npm audit fix --force` troca para `appdmg@0.1.0`, que é uma quebra incompatível
-com o spec atual e com o Node suportado. O audit completo permanece visível e
-não é mascarado.
+`npm audit` e `npm audit --omit=dev` devem permanecer limpos. O builder usa
+`hdiutil` e `ds-store` diretamente; `appdmg` e `image-size` não fazem mais
+parte da árvore de dependências.
 
 ## Desinstalar
 

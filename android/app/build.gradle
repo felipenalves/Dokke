@@ -35,8 +35,8 @@ android {
         applicationId = "com.dokke.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.2.5"
+        versionCode = 9
+        versionName = "0.2.6"
     }
 
     compileOptions {
@@ -75,7 +75,7 @@ def verifyDokkeReleaseSigning = tasks.register("verifyDokkeReleaseSigning") {
             )
         }
         def storeFile = file(releaseSigningValues["DOKKE_RELEASE_STORE_FILE"])
-        if (!storeFile.isFile) {
+        if (!storeFile.isFile()) {
             throw new GradleException("Release Android bloqueado: keystore não encontrada em ${storeFile.absolutePath}")
         }
     }

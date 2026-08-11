@@ -1,6 +1,6 @@
 {
   "name": "dokke",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "appdmg": "^0.6.6",
+    "ds-store": "^0.1.6",
     "playwright": "^1.62.1"
   }
 }

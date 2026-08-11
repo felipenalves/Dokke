@@ -20,8 +20,8 @@
 
 ## T-001 — Implementar o builder do instalador [concluida]
 - Refs: US-001, AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009, AC-010, AC-011, AC-012, AC-013
-- Arquivos: mac/package-dmg.sh, mac/dmg-background.svg, mac/dmg-background.png, package.json, package-lock.json
-- Notas: appdmg grava o fundo, posições e visualização no `.DS_Store`; o script continua sendo a interface pública do build.
+- Arquivos: mac/package-dmg.sh, mac/write-dmg-ds-store.mjs, mac/dmg-background.svg, mac/dmg-background.png, package.json, package-lock.json
+- Notas: `hdiutil` cria o volume e `ds-store` grava o fundo, posições e visualização no `.DS_Store`; o script continua sendo a interface pública do build.
 
 ## T-002 — Provar o artefato montado [concluida]
 - Refs: AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009, AC-011, AC-012, AC-013

@@ -117,8 +117,8 @@ Como pessoa instalando o Dokke, quero uma janela limpa e previsível, para enten
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-001 | O builder `appdmg` é aceitável para persistir o `.DS_Store` do volume | confirmada | Builder validado em DMG montado no macOS |
-| ASM-002 | A altura configurada no appdmg exclui a barra de título | confirmada | 378pt de conteúdo + 22pt de barra = 400pt |
+| ASM-001 | `hdiutil` com `ds-store` é aceitável para persistir o `.DS_Store` do volume | confirmada | Builder validado em DMG montado no macOS |
+| ASM-002 | A altura configurada no `.DS_Store` exclui a barra de título | confirmada | 378pt de conteúdo + 22pt de barra = 400pt |
 
 ## Perguntas em aberto
 

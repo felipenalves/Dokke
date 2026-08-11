@@ -1,11 +1,11 @@
 {
   "feature": "instalador-dmg-layout",
-  "timestamp": "2026-08-10T21:11:30.760Z",
-  "gitRev": "2cbf27e",
+  "timestamp": "2026-08-11T03:01:33.458Z",
+  "gitRev": "a36a80c",
   "command": "node --test --test-reporter=tap",
   "reporter": "tap",
   "exitCode": 0,
-  "testsParsed": 115,
+  "testsParsed": 116,
   "results": {
     "AC-001": {
       "status": "pass",
