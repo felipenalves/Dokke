@@ -20,4 +20,11 @@ mac/dist/
 
 # Xcode user state (gerado localmente, não vai pro git)
 ios/Dokke.xcodeproj/xcuserdata/
+
+# Processo interno do mantenedor, não faz parte da distribuição pública
+.spec/
+onpspec.config.json
+
+# Página de instalação (artefatos locais do Vite)
+docs/dist/
 ios/Dokke.xcodeproj/project.xcworkspace/xcuserdata/

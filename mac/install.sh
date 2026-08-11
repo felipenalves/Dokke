@@ -55,7 +55,7 @@ cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev
 # não acha o server.js (cwd do Launchpad é /) e o dock morre offline.
 SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
 mkdir -p "${SRV_DIR}"
-cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
+cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
 
 # Keep the server bundle explicit. `public/` can contain ignored backups,
 # logs, and local build output that must never become public app content.

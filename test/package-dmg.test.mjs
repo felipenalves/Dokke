@@ -157,6 +157,7 @@ test('@spec:AC-009 app mantém servidor embutido e executável', macOnly, async 
   const app = path.join(current.mountPoint, 'Dokke.app');
   assert.equal(fs.statSync(path.join(app, 'Contents', 'MacOS', 'Dokke')).mode & 0o111, 0o111);
   assert.ok(fs.existsSync(path.join(app, 'Contents', 'Resources', 'Dokke', 'server.js')));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(app, 'Contents', 'Resources', 'Dokke', 'config.json'), 'utf8')), { pinned: [] });
 });
 
 test('@spec:AC-010 bash -n passa', async () => {

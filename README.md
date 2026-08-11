@@ -24,6 +24,26 @@ Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositi
 
 A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (qualquer Android, iPhone, outro Mac).
 
+## Instalação
+
+Para instalar sem terminal, abra a [página de instalação](https://felipenalves.github.io/Dokke/).
+
+### Mac — host principal
+
+[Baixar Dokke para macOS](https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg) → abra o `.dmg` → arraste o Dokke para Aplicativos → abra o app.
+
+O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros dispositivos na mesma rede.
+
+### Android
+
+[Baixar o APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) e instalar. Depois, abra o Dokke no Mac e use o link e o PIN exibidos na aba **Sobre** para conectar o celular.
+
+### iPhone
+
+O iPhone usa a PWA pelo navegador. Abra o link exibido na aba **Sobre** no Safari e escolha **Adicionar à Tela de Início**. O iPhone exige uma URL HTTPS; a página de instalação explica o caminho atual.
+
+> Windows ainda não está disponível. O botão aparecerá na página quando houver uma versão instalável.
+
 ## Como funciona
 
 ```
@@ -58,7 +78,9 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 | Android | Kotlin, WebView wrapper (APK pré-buildado incluído) |
 | Sync | WebSocket (push em tempo real, sem polling) + broadcast UDP (descoberta) |
 
-## Quick start
+## Desenvolver a partir do código
+
+Esta seção é para quem quer compilar ou contribuir. Para apenas instalar, use a [página de instalação](https://felipenalves.github.io/Dokke/).
 
 ### Mac app (recomendado)
 
@@ -162,6 +184,10 @@ Abra a URL no Safari → compartilhar → **"Adicionar à tela de início"** →
 O servidor escuta em todas as interfaces (os dispositivos acessam pela rede), então todo
 `/api/*` exige um **pin de 4 dígitos** — exceto `/health`, `/api/probe` e `/api/auth`.
 Requests vindos de **loopback** (o app Dokke no Mac) passam direto.
+
+A configuração é individual para cada usuário. No macOS, o arquivo persistente fica em
+`~/Library/Application Support/Dokke/config.json`; o `config.json` dentro do bundle é
+apenas um seed vazio e não contém a lista de apps de quem empacotou o release.
 
 - O pin é gerado no primeiro boot e fica em `.j5-pin` (fixo até regenerar).
 - **Aba "Sobre" no app Dokke**: mostra o código e o botão "Gerar novo código" (regenerar

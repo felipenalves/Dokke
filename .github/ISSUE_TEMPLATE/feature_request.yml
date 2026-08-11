@@ -1,0 +1,28 @@
+name: Feature request
+description: Sugira uma melhoria para o Dokke.
+title: "[Ideia] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para ideias abertas ou ainda não detalhadas, prefira [Discussions](https://github.com/felipenalves/Dokke/discussions/categories/ideas).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Que situação você quer resolver?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Como o Dokke poderia resolver isso?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas

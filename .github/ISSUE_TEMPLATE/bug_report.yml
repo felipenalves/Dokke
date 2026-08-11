@@ -1,0 +1,42 @@
+name: Bug report
+description: Relate um problema reproduzível no Dokke.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use esta Issue para um problema reproduzível. Para dúvidas de instalação, use Discussions.
+  - type: input
+    id: version
+    attributes:
+      label: Versão
+      description: Informe a versão do Dokke e o dispositivo afetado.
+      placeholder: v0.2.6 — macOS 14 / Android 12
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      description: Liste os passos exatos até o problema acontecer.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que esperava acontecer
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: O que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou imagens
+      description: Remova PINs, tokens, IPs públicos e dados pessoais antes de colar.

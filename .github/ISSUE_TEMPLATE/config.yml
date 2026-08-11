@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dúvida ou ajuda para instalar
+    url: https://github.com/felipenalves/Dokke/discussions/categories/q-a
+    about: Pergunte à comunidade antes de abrir um bug.
+  - name: Ideia ou sugestão
+    url: https://github.com/felipenalves/Dokke/discussions/categories/ideas
+    about: Discuta a ideia com a comunidade.
