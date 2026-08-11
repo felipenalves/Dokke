@@ -49,6 +49,18 @@ previsível em diferentes orientações de tela.
 - Testes automatizados cobrindo os novos fluxos de gesto, ícones, PWA e
   atualização.
 
+### Downloads
+
+- [Dokke para macOS — DMG](https://github.com/felipenalves/Dokke/releases/download/v0.2.7/Dokke-macOS.dmg)
+- [Dokke para Android — APK](https://github.com/felipenalves/Dokke/releases/download/v0.2.7/dokke.apk)
+
+### Checksums SHA-256
+
+```text
+1cc3f6b49dd5ef0c8b1c4074e1c2280438040f270a9f0e33f2173037e97a1e15  Dokke-macOS.dmg
+4d1a61a65ba2df805adcbafaa195081fb40dec121a2e3cec61b83faa789cbb7f  dokke.apk
+```
+
 ### Validação
 
 - 122 testes automatizados passando.
