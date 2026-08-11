@@ -7,6 +7,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -39,6 +41,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -52,8 +55,9 @@ class MainActivity : ComponentActivity() {
     private var updateDownloadId: Long? = null
     private var pendingUpdateVersion: String? = null
     private var updateReceiverRegistered = false
+    private var updateExpectedVersion: String? = null
 
-    private val updateApkUrl = "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk"
+    private val updateApkBaseUrl = "https://github.com/felipenalves/Dokke/releases/download"
     private val updateMime = "application/vnd.android.package-archive"
     private val updateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -76,6 +80,11 @@ class MainActivity : ComponentActivity() {
                 val uri = manager.getUriForDownloadedFile(id)
                 if (uri == null) {
                     showUpdateMessage("O arquivo da atualização não está disponível.")
+                    return
+                }
+                if (!validateDownloadedApk(uri)) {
+                    showUpdateMessage("A atualização não corresponde ao Dokke instalado.")
+                    manager.remove(id)
                     return
                 }
                 installDownloadedApk(uri)
@@ -361,13 +370,18 @@ class MainActivity : ComponentActivity() {
             showUpdateMessage("A atualização já está sendo baixada.")
             return
         }
-        val safeVersion = version.trim().replace(Regex("[^0-9A-Za-z._-]"), "")
-        if (safeVersion.isEmpty()) {
+        val releaseTag = UpdateVersion.releaseTag(version)
+        if (releaseTag == null) {
             showUpdateMessage("Versão de atualização inválida.")
             return
         }
+        val versionName = releaseTag.removePrefix("v")
+        if (!UpdateVersion.isNewer(versionName, BuildConfig.VERSION_NAME)) {
+            showUpdateMessage("O Dokke já está atualizado.")
+            return
+        }
         if (!canInstallPackages()) {
-            pendingUpdateVersion = safeVersion
+            pendingUpdateVersion = versionName
             AlertDialog.Builder(this)
                 .setTitle("Permitir atualização")
                 .setMessage("Para atualizar o Dokke, permita que este app instale a nova versão.")
@@ -376,7 +390,7 @@ class MainActivity : ComponentActivity() {
                 .show()
             return
         }
-        enqueueUpdate(safeVersion)
+        enqueueUpdate(versionName)
     }
 
     private fun canInstallPackages(): Boolean {
@@ -392,9 +406,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueUpdate(version: String) {
+        val releaseTag = UpdateVersion.releaseTag(version) ?: run {
+            showUpdateMessage("Versão de atualização inválida.")
+            return
+        }
         val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val filename = "dokke-update-$version.apk"
-        val request = DownloadManager.Request(Uri.parse(updateApkUrl))
+        val apkUrl = "$updateApkBaseUrl/$releaseTag/dokke.apk"
+        val request = DownloadManager.Request(Uri.parse(apkUrl))
             .setTitle("Atualização do Dokke")
             .setDescription("Baixando a versão $version")
             .setMimeType(updateMime)
@@ -402,8 +421,66 @@ class MainActivity : ComponentActivity() {
             .setAllowedOverRoaming(false)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, filename)
+        updateExpectedVersion = version
         updateDownloadId = manager.enqueue(request)
         Toast.makeText(this, "Baixando a atualização…", Toast.LENGTH_LONG).show()
+    }
+
+    private fun validateDownloadedApk(uri: Uri): Boolean {
+        val validationFile = File(cacheDir, "dokke-update-validation.apk")
+        return try {
+            val input = contentResolver.openInputStream(uri) ?: return false
+            input.use { source -> validationFile.outputStream().use { target -> source.copyTo(target) } }
+
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNATURES
+            }
+            val archive = packageManager.getPackageArchiveInfo(validationFile.absolutePath, flags) ?: return false
+            if (archive.packageName != packageName) return false
+
+            val archiveVersion = archive.versionName ?: return false
+            if (!UpdateVersion.isNewer(archiveVersion, BuildConfig.VERSION_NAME)) return false
+            updateExpectedVersion?.let { expected ->
+                if (archiveVersion != expected) return false
+            }
+
+            val installed = packageManager.getPackageInfo(packageName, flags)
+            val archiveCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                archive.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                archive.versionCode.toLong()
+            }
+            val installedCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                installed.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                installed.versionCode.toLong()
+            }
+            if (archiveCode <= installedCode) return false
+            signaturesMatch(installed, archive)
+        } catch (e: Exception) {
+            Log.e("Dokke", "Falha ao validar APK de atualização", e)
+            false
+        } finally {
+            validationFile.delete()
+        }
+    }
+
+    private fun signaturesMatch(installed: PackageInfo, archive: PackageInfo): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val installedSigs = installed.signingInfo.apkContentsSigners.map { it.toCharsString() }.toSet()
+            val archiveSigs = archive.signingInfo.apkContentsSigners.map { it.toCharsString() }.toSet()
+            return installedSigs.isNotEmpty() && installedSigs == archiveSigs
+        }
+        @Suppress("DEPRECATION")
+        val installedSigs = installed.signatures.map { it.toCharsString() }.toSet()
+        @Suppress("DEPRECATION")
+        val archiveSigs = archive.signatures.map { it.toCharsString() }.toSet()
+        return installedSigs.isNotEmpty() && installedSigs == archiveSigs
     }
 
     private fun installDownloadedApk(uri: Uri) {

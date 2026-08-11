@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ff8a38" />
+    <title>Dokke — de celular velho a produto real</title>
+    <link rel="icon" type="image/png" href="/dokke-icon.png" />
+    <style>
+      :root {
+        --orange: #ff8a38;
+        --orange-deep: #d9782f;
+        --cream: #fff8f1;
+        --paper: #f7f4ef;
+        --ink: #1d1d1f;
+        --muted: #77747d;
+        --line: rgba(29, 29, 31, .13);
+        --green: #2eaa63;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { background: var(--paper); }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        overflow: hidden;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      a { color: inherit; }
+
+      button,
+      a { -webkit-tap-highlight-color: transparent; }
+
+      button { font: inherit; }
+
+      .deck-shell {
+        position: relative;
+        min-height: 100svh;
+        isolation: isolate;
+      }
+
+      .progress {
+        position: fixed;
+        z-index: 20;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: rgba(29, 29, 31, .08);
+      }
+
+      .progress span {
+        display: block;
+        width: 0;
+        height: 100%;
+        background: var(--orange);
+        transition: width .35s ease;
+      }
+
+      .deck-topbar,
+      .deck-controls {
+        position: fixed;
+        z-index: 10;
+        right: 28px;
+        left: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .deck-topbar {
+        top: 22px;
+        color: rgba(29, 29, 31, .54);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .deck-brand {
+        color: var(--ink);
+        letter-spacing: -.04em;
+        text-decoration: none;
+        text-transform: none;
+      }
+
+      .deck-counter { font-variant-numeric: tabular-nums; }
+
+      .deck-controls {
+        bottom: 20px;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .control-button {
+        display: inline-grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .72);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        transition: border-color .2s ease, background .2s ease, transform .2s ease;
+      }
+
+      .control-button:hover {
+        border-color: rgba(29, 29, 31, .35);
+        background: #fff;
+        transform: translateY(-1px);
+      }
+
+      .control-button:focus-visible,
+      a:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: 4px; }
+
+      .slide {
+        display: none;
+        position: relative;
+        min-height: 100svh;
+        padding: clamp(86px, 10vh, 120px) clamp(28px, 7vw, 112px) clamp(90px, 11vh, 130px);
+        overflow: hidden;
+      }
+
+      .slide.is-active {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        animation: enter .4s ease both;
+      }
+
+      @keyframes enter {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .slide::before {
+        position: absolute;
+        z-index: -1;
+        top: 10%;
+        right: 7%;
+        width: 24vw;
+        height: 24vw;
+        max-width: 360px;
+        max-height: 360px;
+        border: 1px solid rgba(29, 29, 31, .08);
+        border-radius: 50%;
+        content: "";
+        opacity: .7;
+      }
+
+      .slide::after {
+        position: absolute;
+        z-index: -1;
+        right: 14%;
+        bottom: 15%;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--orange);
+        box-shadow: 26px 13px 0 rgba(255, 138, 56, .35), -17px 31px 0 rgba(255, 138, 56, .2);
+        content: "";
+      }
+
+      .slide--cover {
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .68) 75%),
+          linear-gradient(128deg, #ff9b4e 0%, #ffc28b 47%, #fff8f1 100%);
+      }
+
+      .slide--cover::before {
+        top: 11%;
+        right: 9%;
+        border-color: rgba(255, 255, 255, .5);
+      }
+
+      .slide--dark {
+        background: var(--ink);
+        color: #fff;
+      }
+
+      .slide--dark::before { border-color: rgba(255, 255, 255, .12); }
+      .slide--dark::after { background: #fff; box-shadow: 26px 13px 0 rgba(255, 255, 255, .22), -17px 31px 0 rgba(255, 255, 255, .12); }
+
+      .slide--orange {
+        background: var(--orange);
+      }
+
+      .slide--orange::before { border-color: rgba(255, 255, 255, .45); }
+      .slide--orange::after { background: var(--ink); box-shadow: 26px 13px 0 rgba(29, 29, 31, .23), -17px 31px 0 rgba(29, 29, 31, .12); }
+
+      .slide--dark .eyebrow,
+      .slide--orange .eyebrow { color: rgba(255, 255, 255, .54); }
+
+      .slide--dark .muted,
+      .slide--orange .muted { color: rgba(255, 255, 255, .62); }
+
+      .eyebrow {
+        margin: 0;
+        color: rgba(29, 29, 31, .53);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p { margin-top: 0; }
+
+      h1,
+      h2 {
+        max-width: 980px;
+        margin-bottom: 0;
+        font-size: clamp(52px, 9vw, 132px);
+        font-weight: 760;
+        letter-spacing: -.085em;
+        line-height: .9;
+      }
+
+      h1 em,
+      h2 em {
+        color: rgba(29, 29, 31, .43);
+        font-style: normal;
+      }
+
+      .slide--dark h1 em,
+      .slide--dark h2 em { color: rgba(255, 255, 255, .4); }
+      .slide--orange h1 em,
+      .slide--orange h2 em { color: rgba(255, 255, 255, .55); }
+
+      h3 {
+        margin-bottom: 0;
+        font-size: clamp(24px, 3vw, 42px);
+        font-weight: 680;
+        letter-spacing: -.06em;
+        line-height: 1;
+      }
+
+      .lede {
+        max-width: 680px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: clamp(17px, 2vw, 24px);
+        line-height: 1.45;
+      }
+
+      .slide--dark .lede,
+      .slide--orange .lede { color: rgba(255, 255, 255, .68); }
+
+      .talk-track {
+        max-width: 680px;
+        margin: 32px 0 0;
+        padding-left: 16px;
+        border-left: 2px solid var(--orange);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .slide--dark .talk-track,
+      .slide--orange .talk-track { color: rgba(255, 255, 255, .62); }
+
+      .cover-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(220px, .8fr);
+        align-items: center;
+        gap: 7vw;
+      }
+
+      .cover-copy h1 { margin-top: 23px; }
+
+      .cover-icon {
+        display: grid;
+        width: min(25vw, 290px);
+        aspect-ratio: 1;
+        margin: 0 auto;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, .55);
+        border-radius: 33%;
+        background: rgba(255, 255, 255, .28);
+        box-shadow: 0 22px 60px rgba(195, 94, 30, .2);
+        transform: rotate(7deg);
+      }
+
+      .cover-icon img {
+        width: 78%;
+        border-radius: 28%;
+        box-shadow: 0 17px 30px rgba(29, 29, 31, .18);
+        transform: rotate(-7deg);
+      }
+
+      .cover-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 34px;
+      }
+
+      .pill {
+        display: inline-flex;
+        min-height: 31px;
+        align-items: center;
+        padding: 0 12px;
+        border: 1px solid rgba(29, 29, 31, .15);
+        border-radius: 999px;
+        color: rgba(29, 29, 31, .65);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .slide--dark .pill,
+      .slide--orange .pill { border-color: rgba(255, 255, 255, .2); color: rgba(255, 255, 255, .72); }
+
+      .slide-label {
+        position: absolute;
+        right: clamp(28px, 7vw, 112px);
+        bottom: clamp(90px, 11vh, 130px);
+        color: rgba(29, 29, 31, .34);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .15em;
+        text-transform: uppercase;
+      }
+
+      .slide--dark .slide-label,
+      .slide--orange .slide-label { color: rgba(255, 255, 255, .42); }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+        gap: clamp(36px, 7vw, 108px);
+        align-items: center;
+      }
+
+      .split h2 { font-size: clamp(48px, 7vw, 100px); }
+
+      .timeline {
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .timeline-item {
+        display: grid;
+        grid-template-columns: 105px minmax(0, 1fr);
+        gap: 22px;
+        padding: 22px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .timeline-item strong {
+        color: var(--orange-deep);
+        font-size: 10px;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+
+      .timeline-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .timeline-item b { color: var(--ink); }
+
+      .quote {
+        max-width: 930px;
+        margin: 34px 0 0;
+        color: var(--ink);
+        font-size: clamp(29px, 4.4vw, 64px);
+        font-weight: 650;
+        letter-spacing: -.065em;
+        line-height: 1.03;
+      }
+
+      .quote span { color: var(--orange-deep); }
+
+      .metric-row,
+      .card-grid,
+      .code-grid,
+      .future-grid {
+        display: grid;
+        gap: 14px;
+        margin-top: 42px;
+      }
+
+      .metric-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .code-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .future-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+      .metric,
+      .card,
+      .future-card {
+        min-height: 170px;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, .52);
+      }
+
+      .slide--dark .metric,
+      .slide--dark .card,
+      .slide--dark .future-card {
+        border-color: rgba(255, 255, 255, .14);
+        background: rgba(255, 255, 255, .06);
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--orange-deep);
+        font-size: clamp(34px, 4vw, 58px);
+        letter-spacing: -.08em;
+        line-height: .9;
+      }
+
+      .metric span,
+      .card p,
+      .future-card p {
+        display: block;
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .slide--dark .metric span,
+      .slide--dark .card p,
+      .slide--dark .future-card p { color: rgba(255, 255, 255, .62); }
+
+      .card strong,
+      .future-card strong {
+        color: var(--ink);
+        font-size: 18px;
+        letter-spacing: -.04em;
+      }
+
+      .slide--dark .card strong,
+      .slide--dark .future-card strong { color: #fff; }
+
+      .architecture {
+        display: grid;
+        grid-template-columns: minmax(160px, .85fr) 70px minmax(160px, .85fr) 70px minmax(160px, .85fr);
+        align-items: center;
+        gap: 13px;
+        margin-top: 42px;
+      }
+
+      .architecture-node {
+        min-height: 190px;
+        padding: 23px;
+        border: 1px solid rgba(255, 255, 255, .16);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, .08);
+      }
+
+      .architecture-node small {
+        color: rgba(255, 255, 255, .45);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+      }
+
+      .architecture-node h3 {
+        margin-top: 25px;
+        color: #fff;
+        font-size: 24px;
+      }
+
+      .architecture-node p {
+        margin: 12px 0 0;
+        color: rgba(255, 255, 255, .6);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .architecture-link {
+        color: var(--orange);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .architecture-link::after {
+        display: block;
+        margin-top: 8px;
+        color: rgba(255, 255, 255, .7);
+        content: "↔";
+        font-size: 26px;
+      }
+
+      .code-card {
+        padding: 22px;
+        border-radius: 22px;
+        background: var(--ink);
+        color: #fff;
+      }
+
+      .code-card small {
+        color: rgba(255, 255, 255, .45);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      pre {
+        margin: 20px 0 0;
+        overflow: auto;
+        color: #ffd1a9;
+        font: 13px/1.65 "SFMono-Regular", Consolas, monospace;
+        white-space: pre-wrap;
+      }
+
+      .ai-steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 42px;
+      }
+
+      .ai-step {
+        padding: 20px;
+        border-radius: 20px;
+        background: var(--ink);
+        color: #fff;
+      }
+
+      .ai-step b {
+        display: block;
+        color: var(--orange);
+        font-size: 11px;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .ai-step p {
+        margin: 28px 0 0;
+        color: rgba(255, 255, 255, .72);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .open-source-layout {
+        display: grid;
+        grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+        gap: 7vw;
+        align-items: start;
+      }
+
+      .open-source-layout h2 { font-size: clamp(50px, 7vw, 101px); }
+
+      .permission-list {
+        display: grid;
+        gap: 0;
+        border-top: 1px solid rgba(255, 255, 255, .14);
+      }
+
+      .permission {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 18px;
+        padding: 21px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, .14);
+      }
+
+      .permission strong { color: var(--orange); font-size: 14px; }
+
+      .permission p {
+        margin: 0;
+        color: rgba(255, 255, 255, .7);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .permission b { color: #fff; }
+
+      .community-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 42px;
+      }
+
+      .community-card {
+        min-height: 170px;
+        padding: 23px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, .55);
+      }
+
+      .community-card b {
+        display: block;
+        color: var(--orange-deep);
+        font-size: 10px;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+
+      .community-card h3 { margin-top: 25px; font-size: 23px; }
+
+      .community-card p {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .future-card {
+        min-height: 150px;
+        background: rgba(255, 255, 255, .62);
+      }
+
+      .future-card strong { display: block; }
+
+      .future-status {
+        display: inline-flex;
+        margin-bottom: 22px;
+        color: var(--orange-deep);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .link-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 34px;
+      }
+
+      .link-button {
+        display: inline-flex;
+        min-height: 43px;
+        align-items: center;
+        padding: 0 17px;
+        border-radius: 999px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: transform .2s ease, background .2s ease;
+      }
+
+      .link-button:hover { background: #333136; transform: translateY(-1px); }
+
+      .link-button--light {
+        border: 1px solid rgba(255, 255, 255, .2);
+        background: transparent;
+      }
+
+      .link-button--light:hover { background: rgba(255, 255, 255, .1); }
+
+      .final-line {
+        max-width: 950px;
+        margin: 30px 0 0;
+        color: var(--ink);
+        font-size: clamp(28px, 4.6vw, 67px);
+        font-weight: 680;
+        letter-spacing: -.07em;
+        line-height: 1.02;
+      }
+
+      .final-line em { color: rgba(29, 29, 31, .43); font-style: normal; }
+
+      @media (max-width: 900px) {
+        .cover-layout,
+        .split,
+        .open-source-layout { grid-template-columns: 1fr; gap: 42px; }
+        .cover-icon { width: 150px; margin: 0; }
+        .architecture { grid-template-columns: 1fr; }
+        .architecture-link::after { content: "↓"; }
+        .architecture-node { min-height: 0; }
+        .ai-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+
+      @media (max-width: 650px) {
+        body { overflow: auto; }
+        .deck-topbar { top: 16px; right: 17px; left: 17px; }
+        .deck-controls { right: 17px; bottom: 15px; }
+        .slide {
+          min-height: 100svh;
+          padding: 76px 17px 76px;
+        }
+        .slide.is-active { min-height: 100svh; }
+        h1, h2 { font-size: clamp(48px, 15vw, 82px); }
+        .split h2,
+        .open-source-layout h2 { font-size: clamp(48px, 14vw, 76px); }
+        .slide-label { right: 17px; bottom: 78px; }
+        .metric-row,
+        .card-grid,
+        .community-grid,
+        .future-grid,
+        .code-grid { grid-template-columns: 1fr; }
+        .metric,
+        .card,
+        .future-card,
+        .community-card { min-height: 0; }
+        .timeline-item { grid-template-columns: 72px minmax(0, 1fr); gap: 13px; }
+        .talk-track { font-size: 12px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; scroll-behavior: auto !important; transition: none !important; }
+      }
+
+      @media print {
+        body { overflow: visible; background: #fff; }
+        .deck-topbar,
+        .deck-controls,
+        .progress { display: none; }
+        .slide,
+        .slide.is-active { display: flex; min-height: 100vh; page-break-after: always; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck-shell">
+      <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+
+      <header class="deck-topbar">
+        <a class="deck-brand" href="/">Dokke</a>
+        <span class="deck-counter" id="deck-counter" aria-live="polite">01 / 15</span>
+      </header>
+
+      <main id="deck" aria-label="Tutorial do Dokke em slides">
+        <section class="slide slide--cover is-active" id="capa" data-label="a história">
+          <div class="cover-layout">
+            <div class="cover-copy">
+              <p class="eyebrow">Tutorial · construção com IA</p>
+              <h1>De celular velho a produto real.<br /><em>Esse é o Dokke.</em></h1>
+              <p class="lede">Como uma ideia simples, um Mac e um aparelho parado viraram um dock open source para produtividade.</p>
+              <div class="cover-meta"><span class="pill">macOS + Android</span><span class="pill">PWA</span><span class="pill">open source</span><span class="pill">v0.2.7</span></div>
+            </div>
+            <div class="cover-icon"><img src="/dokke-icon.png" alt="Ícone do Dokke" /></div>
+          </div>
+          <p class="talk-track">A promessa do vídeo: mostrar o resultado, contar a origem e explicar como construir algo parecido com IA — sem tratar a IA como mágica.</p>
+          <span class="slide-label">01 / começo</span>
+        </section>
+
+        <section class="slide" id="celular-velho" data-label="a origem">
+          <div class="split">
+            <div>
+              <p class="eyebrow">A origem</p>
+              <h2>Tudo começou com um celular velho.</h2>
+            </div>
+            <div>
+              <p class="quote">Um Galaxy J5 parado em casa ainda podia virar <span>alguma coisa útil.</span></p>
+              <p class="lede">A primeira pergunta não foi “qual app vamos criar?”. Foi: como transformar um aparelho esquecido em uma peça real do nosso dia a dia?</p>
+            </div>
+          </div>
+          <p class="talk-track">Conte a história pessoal. O celular velho é o ponto de entrada porque qualquer pessoa entende a sensação de ter tecnologia parada em uma gaveta.</p>
+          <span class="slide-label">02 / origem</span>
+        </section>
+
+        <section class="slide" id="a-virada" data-label="a virada">
+          <div class="split">
+            <div>
+              <p class="eyebrow">A ideia mudou de forma</p>
+              <h2>Servidor primeiro.<br /><em>Dock depois.</em></h2>
+            </div>
+            <div class="timeline">
+              <div class="timeline-item"><strong>01 / servidor</strong><p>A primeira ideia era transformar o celular velho em um <b>servidor</b> útil dentro de casa.</p></div>
+              <div class="timeline-item"><strong>02 / dock</strong><p>Depois veio a pergunta melhor: e se o celular fosse um <b>dock de apps</b> para controlar o Mac?</p></div>
+              <div class="timeline-item"><strong>03 / produto</strong><p>O que começou como experimento ganhou instalação, autenticação, PWA, APK e uma release pública.</p></div>
+            </div>
+          </div>
+          <p class="talk-track">Mostre que produto nasce de iteração. A ideia inicial não precisa estar perfeita; precisa gerar a próxima pergunta.</p>
+          <span class="slide-label">03 / virada</span>
+        </section>
+
+        <section class="slide slide--orange" id="o-video" data-label="o vídeo">
+          <p class="eyebrow">Quando a ideia saiu da gaveta</p>
+          <h2>O vídeo no Instagram abriu<br /><em>uma conversa maior.</em></h2>
+          <p class="lede">O alcance trouxe uma pergunta recorrente: “como um Android conversa com um MacBook?”</p>
+          <div class="metric-row">
+            <div class="metric"><strong>01</strong><span>um aparelho velho com uma nova função</span></div>
+            <div class="metric"><strong>02</strong><span>um Mac funcionando como host</span></div>
+            <div class="metric"><strong>∞</strong><span>possibilidades pedidas nos comentários</span></div>
+          </div>
+          <p class="talk-track">O vídeo não termina na demonstração. Os comentários viram pesquisa de produto: as pessoas mostram o que gostariam de controlar.</p>
+          <span class="slide-label">04 / comunidade</span>
+        </section>
+
+        <section class="slide" id="o-que-e" data-label="o produto">
+          <p class="eyebrow">O resultado</p>
+          <h2>Um dock do seu Mac,<br /><em>em qualquer tela.</em></h2>
+          <div class="card-grid">
+            <article class="card"><strong>Mac como host</strong><p>O app nativo inicia o servidor e disponibiliza os apps do Mac.</p></article>
+            <article class="card"><strong>Celular como controle</strong><p>Android usa APK; iPhone e outros devices podem usar a PWA.</p></article>
+            <article class="card"><strong>Produtividade local</strong><p>Sem conta e sem nuvem obrigatória: os dispositivos conversam na mesma rede.</p></article>
+          </div>
+          <p class="talk-track">Aqui entra a demonstração rápida do produto. Ainda não explique o código; primeiro deixe claro o que ele resolve.</p>
+          <span class="slide-label">05 / produto</span>
+        </section>
+
+        <section class="slide slide--dark" id="comunicacao" data-label="a comunicação">
+          <p class="eyebrow">Como Android e Mac se entendem</p>
+          <h2>Não é magia.<br /><em>É uma rede local.</em></h2>
+          <div class="architecture">
+            <div class="architecture-node"><small>host</small><h3>Mac</h3><p>App Dokke + servidor Node.js + apps instalados.</p></div>
+            <div class="architecture-link">WebSocket<br />HTTP</div>
+            <div class="architecture-node"><small>cliente</small><h3>Android</h3><p>APK ou PWA recebe o dock e envia ações.</p></div>
+            <div class="architecture-link">UDP<br />descoberta</div>
+            <div class="architecture-node"><small>resultado</small><h3>Um toque</h3><p>O Mac abre, foca e sincroniza o app escolhido.</p></div>
+          </div>
+          <p class="talk-track">Explique a sequência: o Mac anuncia que existe, o celular encontra o host, o WebSocket mantém o estado e a ação volta para o Mac.</p>
+          <span class="slide-label">06 / arquitetura</span>
+        </section>
+
+        <section class="slide" id="por-baixo" data-label="por baixo do produto">
+          <div class="split">
+            <div>
+              <p class="eyebrow">O fluxo em código</p>
+              <h2>Peças pequenas.<br /><em>Uma experiência só.</em></h2>
+              <p class="lede">A interface pode ser simples porque cada camada tem uma responsabilidade clara.</p>
+            </div>
+            <div class="code-grid">
+              <div class="code-card"><small>listar apps</small><pre>GET /api/apps
+
+→ apps fixados
+→ apps abertos
+→ ícones reais</pre></div>
+              <div class="code-card"><small>ativar app</small><pre>POST /api/apps/:name/activate
+
+→ celular envia ação
+→ Mac recebe
+→ app ganha foco</pre></div>
+              <div class="code-card"><small>tempo real</small><pre>WebSocket /ws
+
+→ estado sincronizado
+→ sem polling
+→ feedback imediato</pre></div>
+              <div class="code-card"><small>segurança</small><pre>PIN + cookie
+
+→ acesso local protegido
+→ tentativas limitadas
+→ sem segredo no APK</pre></div>
+            </div>
+          </div>
+          <span class="slide-label">07 / código</span>
+        </section>
+
+        <section class="slide slide--orange" id="ia" data-label="a IA no processo">
+          <p class="eyebrow">Construindo com IA</p>
+          <h2>A IA acelera.<br /><em>Você decide.</em></h2>
+          <p class="lede">O método não é pedir “faça um app”. É dividir o problema, testar cada camada e fazer a IA trabalhar com evidências.</p>
+          <div class="ai-steps">
+            <div class="ai-step"><b>01 / pensar</b><p>Defina o menor fluxo que prova a ideia.</p></div>
+            <div class="ai-step"><b>02 / construir</b><p>Peça uma mudança pequena e verificável.</p></div>
+            <div class="ai-step"><b>03 / depurar</b><p>Entregue logs reais e corrija a causa.</p></div>
+            <div class="ai-step"><b>04 / provar</b><p>Escreva testes antes de chamar de produto.</p></div>
+          </div>
+          <p class="talk-track">Mostre prompts reais do processo: planejar o MVP, implementar um endpoint, criar testes, ler um erro e revisar segurança. A IA participa; a responsabilidade continua sendo humana.</p>
+          <span class="slide-label">08 / método</span>
+        </section>
+
+        <section class="slide" id="mvp" data-label="o primeiro fluxo">
+          <div class="split">
+            <div>
+              <p class="eyebrow">Começar pequeno</p>
+              <h2>O primeiro MVP só precisava fazer uma coisa.</h2>
+            </div>
+            <div>
+              <p class="quote">Tocar no celular.<br /><span>Abrir no Mac.</span></p>
+              <p class="lede">Depois vieram PIN, descoberta automática, apps abertos, ícones reais, reordenação e empacotamento.</p>
+              <div class="link-row"><span class="pill">MVP</span><span class="pill">feedback</span><span class="pill">iteração</span></div>
+            </div>
+          </div>
+          <p class="talk-track">Essa é a lição para quem quer construir com um aparelho velho: não comece pelo sistema inteiro. Comece pelo gesto que torna o projeto útil.</p>
+          <span class="slide-label">09 / MVP</span>
+        </section>
+
+        <section class="slide slide--dark" id="open-source" data-label="open source">
+          <div class="open-source-layout">
+            <div>
+              <p class="eyebrow">Código aberto</p>
+              <h2>O Dokke não é uma caixa fechada.</h2>
+              <p class="lede">É código que você pode ler, rodar, alterar, adaptar e devolver para a comunidade.</p>
+            </div>
+            <div class="permission-list">
+              <div class="permission"><strong>01</strong><p><b>Fork.</b> Crie sua própria versão para o seu device ou fluxo de trabalho.</p></div>
+              <div class="permission"><strong>02</strong><p><b>Altere.</b> Mude a interface, adicione uma integração ou conecte outra ferramenta.</p></div>
+              <div class="permission"><strong>03</strong><p><b>Rode.</b> Instale as dependências, execute o servidor e entenda cada camada.</p></div>
+              <div class="permission"><strong>04</strong><p><b>Contribua.</b> Abra uma Issue, uma Discussion ou um Pull Request.</p></div>
+            </div>
+          </div>
+          <span class="slide-label">10 / liberdade</span>
+        </section>
+
+        <section class="slide" id="comunidade" data-label="construção coletiva">
+          <p class="eyebrow">O próximo recurso pode vir de você</p>
+          <h2>O app cresce<br /><em>com quem usa.</em></h2>
+          <div class="community-grid">
+            <article class="community-card"><b>BUG</b><h3>Encontrou um problema?</h3><p>Abra uma Issue com versão, dispositivo e passos para reproduzir.</p></article>
+            <article class="community-card"><b>IDEIA</b><h3>Imaginou uma feature?</h3><p>Abra uma Discussion em Ideas e explique o problema que ela resolve.</p></article>
+            <article class="community-card"><b>AJUDA</b><h3>Quer construir junto?</h3><p>Leia o CONTRIBUTING, teste, documente e envie uma melhoria.</p></article>
+          </div>
+          <p class="talk-track">A comunidade do Dokke acontece no GitHub. O feedback entra no radar, é analisado e pode virar funcionalidade nas próximas versões.</p>
+          <span class="slide-label">11 / comunidade</span>
+        </section>
+
+        <section class="slide" id="release" data-label="do código ao produto">
+          <div class="split">
+            <div>
+              <p class="eyebrow">Do projeto local à release</p>
+              <h2>Se funciona só na sua máquina, ainda é experimento.</h2>
+            </div>
+            <div>
+              <div class="timeline">
+                <div class="timeline-item"><strong>build</strong><p>Empacotar o app Mac em DMG e o cliente Android em APK.</p></div>
+                <div class="timeline-item"><strong>verify</strong><p>Testar comunicação, autenticação, instalação e comportamento real.</p></div>
+                <div class="timeline-item"><strong>release</strong><p>Publicar a versão <b>v0.2.7</b> com downloads e instruções claras.</p></div>
+                <div class="timeline-item"><strong>share</strong><p>Colocar uma página simples na frente para qualquer pessoa instalar.</p></div>
+              </div>
+            </div>
+          </div>
+          <p class="talk-track">O tutorial precisa mostrar o caminho inteiro: ideia, código, teste, pacote e distribuição. É isso que transforma um experimento em algo usável.</p>
+          <span class="slide-label">12 / release</span>
+        </section>
+
+        <section class="slide slide--orange" id="hoje" data-label="o que já existe">
+          <p class="eyebrow">Dokke hoje · v0.2.7</p>
+          <h2>O que já está<br /><em>na mão da comunidade.</em></h2>
+          <div class="card-grid">
+            <article class="card"><strong>Mac host</strong><p>App nativo que gerencia os apps e inicia o servidor.</p></article>
+            <article class="card"><strong>Android + PWA</strong><p>APK pronto e acesso pelo navegador no iPhone ou qualquer device.</p></article>
+            <article class="card"><strong>Apps abertos</strong><p>Veja o que está rodando no Mac e alterne direto pelo dock.</p></article>
+          </div>
+          <div class="link-row"><span class="pill">PIN de acesso</span><span class="pill">ícones reais</span><span class="pill">WebSocket</span><span class="pill">MIT</span></div>
+          <span class="slide-label">13 / agora</span>
+        </section>
+
+        <section class="slide" id="futuro" data-label="o que vem depois">
+          <p class="eyebrow">O roadmap nasce dos pedidos</p>
+          <h2>Mais produtividade,<br /><em>menos troca de tela.</em></h2>
+          <div class="future-grid">
+            <article class="future-card"><span class="future-status">spoiler</span><strong>OBS Studio</strong><p>Trocar cenas, iniciar gravação e acompanhar a live pelo celular.</p></article>
+            <article class="future-card"><span class="future-status">spoiler</span><strong>Volume e mídia</strong><p>Aumentar, reduzir, pausar e continuar o que está tocando no Mac.</p></article>
+            <article class="future-card"><span class="future-status">spoiler</span><strong>Teclado de emoji</strong><p>Usar a ideia da tecla de emoji do Mac sem trocar de tela.</p></article>
+            <article class="future-card"><span class="future-status">spoiler</span><strong>Apple Shortcuts</strong><p>Transformar ações repetidas em fluxos de trabalho de um toque.</p></article>
+            <article class="future-card"><span class="future-status">próxima plataforma</span><strong>Windows</strong><p>A versão está planejada para sair em breve. O primeiro ciclo nasceu no Mac porque é o ambiente disponível hoje.</p></article>
+            <article class="future-card"><span class="future-status">decisão aberta</span><strong>O que você faria?</strong><p>As próximas funções devem nascer do uso real e dos comentários da comunidade.</p></article>
+          </div>
+          <span class="slide-label">14 / futuro</span>
+        </section>
+
+        <section class="slide slide--dark" id="fechamento" data-label="comece também">
+          <p class="eyebrow">A ideia é maior que o app</p>
+          <p class="final-line">Pegue o que está parado.<br /><em>Dê uma função para isso.</em></p>
+          <p class="lede">O Dokke começou com um celular velho, ganhou forma com IA e continua aberto para ficar mais útil no dia a dia.</p>
+          <div class="link-row">
+            <a class="link-button" href="https://dokke.vercel.app/" target="_blank" rel="noreferrer">Baixar o Dokke ↗</a>
+            <a class="link-button link-button--light" href="https://github.com/felipenalves/Dokke" target="_blank" rel="noreferrer">Ver o código ↗</a>
+            <a class="link-button link-button--light" href="https://github.com/felipenalves/Dokke/discussions" target="_blank" rel="noreferrer">Comentar no GitHub ↗</a>
+          </div>
+          <p class="talk-track">Feche convidando a pessoa a experimentar, abrir o código e participar. O objetivo não é só instalar o Dokke; é mostrar que um projeto útil pode nascer de um aparelho esquecido.</p>
+          <span class="slide-label">15 / próximo passo</span>
+        </section>
+      </main>
+
+      <nav class="deck-controls" aria-label="Controles dos slides">
+        <button class="control-button" type="button" data-prev aria-label="Slide anterior">←</button>
+        <button class="control-button" type="button" data-next aria-label="Próximo slide">→</button>
+      </nav>
+    </div>
+
+    <script>
+      const slides = [...document.querySelectorAll(".slide")];
+      const counter = document.querySelector("#deck-counter");
+      const progress = document.querySelector("#progress-bar");
+      let current = 0;
+
+      const getIndexFromHash = () => {
+        const id = window.location.hash.slice(1);
+        const found = slides.findIndex((slide) => slide.id === id);
+        return found >= 0 ? found : 0;
+      };
+
+      const showSlide = (index, updateHash = true) => {
+        current = Math.max(0, Math.min(index, slides.length - 1));
+        slides.forEach((slide, slideIndex) => {
+          const active = slideIndex === current;
+          slide.classList.toggle("is-active", active);
+          slide.setAttribute("aria-hidden", String(!active));
+        });
+        counter.textContent = `${String(current + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
+        progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+        if (updateHash) history.replaceState(null, "", `#${slides[current].id}`);
+      };
+
+      document.querySelector("[data-prev]").addEventListener("click", () => showSlide(current - 1));
+      document.querySelector("[data-next]").addEventListener("click", () => showSlide(current + 1));
+
+      document.addEventListener("keydown", (event) => {
+        if (["ArrowRight", "PageDown", " "].includes(event.key)) {
+          event.preventDefault();
+          showSlide(current + 1);
+        }
+        if (["ArrowLeft", "PageUp"].includes(event.key)) {
+          event.preventDefault();
+          showSlide(current - 1);
+        }
+        if (event.key === "Home") showSlide(0);
+        if (event.key === "End") showSlide(slides.length - 1);
+      });
+
+      window.addEventListener("hashchange", () => showSlide(getIndexFromHash(), false));
+      showSlide(getIndexFromHash(), false);
+    </script>
+  </body>
+</html>

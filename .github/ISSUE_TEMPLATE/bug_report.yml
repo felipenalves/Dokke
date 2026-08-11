@@ -13,7 +13,7 @@ body:
     attributes:
       label: Versão
       description: Informe a versão do Dokke e o dispositivo afetado.
-      placeholder: v0.2.6 — macOS 14 / Android 12
+      placeholder: v0.2.7 — macOS 14 / Android 12
     validations:
       required: true
   - type: textarea

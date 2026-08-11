@@ -1,4 +1,4 @@
-const CACHE = "dokke-v12";
+const CACHE = "dokke-v13";
 const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", function(e) {
@@ -20,7 +20,7 @@ self.addEventListener("fetch", function(e) {
             url.pathname === "/" || url.pathname === "/index.html";
   if (nav) {
     e.respondWith(
-      fetch(e.request).then(function(resp) {
+      fetch(e.request, { cache: "no-store" }).then(function(resp) {
         if (resp && resp.status === 200 && resp.type === "basic") {
           var clone = resp.clone();
           caches.open(CACHE).then(function(c) { c.put(e.request, clone); });

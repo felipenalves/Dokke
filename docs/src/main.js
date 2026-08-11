@@ -100,7 +100,7 @@ document.querySelector("#app").innerHTML = `
         <p class="section-kicker">03 / próximos capítulos</p>
         <h2 id="roadmap-title">O que vem<br /><em>depois.</em></h2>
         <p class="roadmap-intro">O que já existe está marcado. O resto são os próximos atalhos para deixar o Mac ainda mais acessível.</p>
-        <div class="version-badge"><span></span> disponível agora · v0.2.6</div>
+        <div class="version-badge"><span></span> disponível agora · v0.2.7</div>
       </header>
 
       <div class="roadmap-list">

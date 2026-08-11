@@ -1,4 +1,7 @@
 import SwiftUI
+import AppKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
   case apps = "Apps"
@@ -117,33 +120,52 @@ struct AboutView: View {
       )
 
       VStack(alignment: .leading, spacing: 10) {
-        Text("Conectar outros dispositivos")
+        Text("Abrir em outro dispositivo")
           .font(.headline)
         if let ip = ServerManager.lanIPv4() {
-          HStack(spacing: 8) {
-            Text("http://\(ip):3000")
-              .font(.system(size: 15, weight: .semibold, design: .monospaced))
-              .textSelection(.enabled)
-            Button {
-              NSPasteboard.general.clearContents()
-              NSPasteboard.general.setString("http://\(ip):3000", forType: .string)
-            } label: {
-              Image(systemName: "doc.on.doc")
+          let localURL = "http://\(ip):3000"
+          HStack(alignment: .center, spacing: 16) {
+            QRCodeView(value: localURL)
+              .frame(width: 132, height: 132)
+
+            VStack(alignment: .leading, spacing: 10) {
+              Text("Escaneie ou abra este endereço")
+                .font(.caption.weight(.semibold))
+              Text(localURL)
+                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+              HStack(spacing: 8) {
+                Button {
+                  NSPasteboard.general.clearContents()
+                  NSPasteboard.general.setString(localURL, forType: .string)
+                } label: {
+                  Label("Copiar URL", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                Button {
+                  if let url = URL(string: localURL) {
+                    NSWorkspace.shared.open(url)
+                  }
+                } label: {
+                  Label("Abrir", systemImage: "arrow.up.right.square")
+                }
+                .buttonStyle(.bordered)
+              }
             }
-            .buttonStyle(.borderless)
-            .help("Copiar link")
           }
+          Text("Android, iPad e navegadores: use o QR code ou copie a URL. O Mac e o dispositivo precisam estar na mesma rede.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("iPhone/iPad como PWA: use uma URL HTTPS do túnel indicado no tutorial antes de adicionar à Tela de Início.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         } else {
           Text("Sem IP de rede detectado (offline?)")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        Text("Abra este link no Android, iPad ou qualquer navegador para usar o dock sem instalar nada.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Text("iPhone/iPad PWA: o iOS exige HTTPS — rode `cloudflared tunnel --url http://localhost:3000` e salve a URL no Safari.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
       .padding(16)
       .background(
@@ -269,6 +291,40 @@ struct AboutView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct QRCodeView: View {
+  let value: String
+
+  var body: some View {
+    Group {
+      if let image = makeImage(from: value) {
+        Image(nsImage: image)
+          .interpolation(.none)
+          .resizable()
+          .scaledToFit()
+      } else {
+        Image(systemName: "qrcode")
+          .font(.system(size: 58))
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(10)
+    .background(.white)
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+  }
+
+  private func makeImage(from value: String) -> NSImage? {
+    let filter = CIFilter.qrCodeGenerator()
+    filter.message = Data(value.utf8)
+    filter.correctionLevel = "M"
+    guard let output = filter.outputImage else { return nil }
+
+    let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+    let context = CIContext()
+    guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+    return NSImage(cgImage: cgImage, size: NSSize(width: scaled.extent.width, height: scaled.extent.height))
   }
 }
 

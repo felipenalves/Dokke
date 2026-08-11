@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listApps, scanAppsDirs } from "../apps.js";
+import { canonicalAppNameFromBundlePath, listApps, scanAppsDirs } from "../apps.js";
 
 test("listApps parseia saída real do lsappinfo", () => {
   const fake = ` 3) "Finder" ASN:0x0-0x3003:
@@ -42,6 +42,11 @@ test("listApps com entrada sem pid mantém pid/type null", () => {
   assert.deepEqual(listApps(fake), [{ name: "Central de Controle", pid: null, type: null }]);
 });
 
+test("canonicalAppNameFromBundlePath usa o bundle como identidade estável", () => {
+  assert.equal(canonicalAppNameFromBundlePath("/System/Applications/Calendar.app"), "Calendar");
+  assert.equal(canonicalAppNameFromBundlePath("/usr/sbin/controlcenter"), null);
+});
+
 test("scanAppsDirs lista apps com nome, path e icon", async () => {
   const dir = await mkdtemp(join(tmpdir(), "j5-scan-"));
   try {
@@ -51,10 +56,13 @@ test("scanAppsDirs lista apps com nome, path e icon", async () => {
     await writeFile(join(dir, "B.app", "Contents", "Resources", "b.png"), "png");
     await mkdir(join(dir, "NoIcon.app", "Contents", "Resources"), { recursive: true });
     await mkdir(join(dir, "not-an-app"));
+    await mkdir(join(dir, "Utilities", "Nested.app", "Contents", "Resources"), { recursive: true });
+    await writeFile(join(dir, "Utilities", "Nested.app", "Contents", "Resources", "nested.icns"), "icns");
     // inventário otimista: icon=true sempre (404 no endpoint → monograma)
     assert.deepEqual(await scanAppsDirs([dir]), [
       { name: "A", path: join(dir, "A.app"), icon: true },
       { name: "B", path: join(dir, "B.app"), icon: true },
+      { name: "Nested", path: join(dir, "Utilities", "Nested.app"), icon: true },
       { name: "NoIcon", path: join(dir, "NoIcon.app"), icon: true },
     ]);
   } finally { await rm(dir, { recursive: true, force: true }); }

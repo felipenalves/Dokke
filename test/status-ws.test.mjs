@@ -145,3 +145,25 @@ test("WS /ws responde ao ping reenviando o estado atual", async () => {
     await close();
   }
 });
+
+test("WS remove app fechado sem esperar vários segundos", async () => {
+  let running = [{ name: "Notes", pid: 3, type: "Foreground" }];
+  const { port, close } = await startServer({
+    port: 0,
+    config: { pinned: [] },
+    appTools: { listAppProcesses: async () => running },
+  });
+  let c = null;
+  try {
+    c = connect(port);
+    await c.waitFor((d) => d.type === "apps" && d.running.length === 1);
+    running = [];
+    const started = Date.now();
+    const apps = await c.waitFor((d) => d.type === "apps" && d.running.length === 0, 3500);
+    assert.ok(Date.now() - started < 3000, "app fechado deve desaparecer em até 3s");
+    assert.deepEqual(apps.running, []);
+  } finally {
+    if (c) { try { c.ws.close(); } catch (e) {} }
+    await close();
+  }
+});

@@ -14,14 +14,54 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
+    assert.match(html, /\.vdots\{[\s\S]*safe-area-inset-right/, "V-Dots devem respeitar a safe area lateral");
+    assert.doesNotMatch(html, /html\.land-secondary \.vdots\{/, "V-Dots não devem migrar para a esquerda em landscape-secondary");
+    assert.match(html, /body\{[\s\S]*position: fixed;\s*inset: 0;/, "body deve cobrir o viewport inteiro do iPad");
+    assert.match(html, /body\{[\s\S]*top: calc\(-1px - env\(safe-area-inset-top/, "body deve avançar pela safe area do iPad");
+    assert.match(html, /main\{[\s\S]*position: fixed;\s*inset:\s*0;/, "main deve ficar preso ao viewport, sem fresta no canto");
+    assert.match(html, /contextmenu[\s\S]*preventDefault/, "cards não devem abrir o menu nativo de imagem");
+    assert.match(html, /-webkit-touch-callout: none/, "cards não devem abrir callout no toque longo");
+    assert.match(html, /img\.draggable = false/, "ícones não devem ser arrastáveis");
+    assert.match(html, /\.bg\{[\s\S]*right: calc\(-32px - env\(safe-area-inset-right/, "fundo deve cobrir a borda lateral do PWA");
+    assert.match(html, /const HEALTH_OK = 15000, APPS_OK = 2500/, "fallback de apps deve atualizar rápido sem WebSocket");
     assert.match(html, /id="launchpad"/, "html deve ter o launchpad");
+    assert.match(html, /\.launchpad\{[\s\S]*touch-action: none;[\s\S]*overscroll-behavior: none;/, "pager não deve deixar o Safari roubar o gesto vertical");
+    assert.match(html, /launchpad\.style\.scrollBehavior = "auto"/, "pager deve seguir o dedo sem smooth acumulado");
+    assert.match(html, /function animateHorizontalSnap\(target, duration\)/, "pager deve ter encaixe com duração controlada");
+    assert.match(html, /const IS_ANDROID_WEBVIEW/, "Android WebView deve ter caminho próprio");
+    assert.match(html, /const ANDROID_NATIVE_PAGER = IS_ANDROID_WEBVIEW/, "Android deve usar o pager nativo");
+    assert.match(html, /\.android-webview \.launchpad\{[\s\S]*touch-action: pan-x;/, "Android deve deixar o WebView conduzir o arrasto horizontal");
+    assert.match(html, /if \(launchpad\) launchpad\.scrollLeft = hStart - hDx/, "pager Android deve acompanhar o dedo pelo scroll nativo");
+    assert.match(html, /IS_ANDROID_WEBVIEW \? \(dir \? 140 : 90\)/, "Android deve usar encaixe mais curto sem perder a suavidade");
+    assert.match(html, /function syncDots\(pageIdx\)/, "dots devem ter sincronização independente do evento scroll");
+    assert.match(html, /launchpad\.addEventListener\("scroll"/, "dots devem acompanhar o scroll nativo do Android");
+    assert.match(html, /nativeLaunchpadGesture/, "gesto horizontal Android deve ficar fora do ponteiro capturado");
+    assert.match(html, /const HV_FLICK = 0\.32/, "flick horizontal deve responder a arrastos rápidos sem exigir força");
+    assert.match(html, /const HPAGE_RATIO = 0\.18/, "arrasto lento deve trocar antes de ocupar um quarto da tela");
     assert.match(html, /OBS Commander/, "html deve conter o drawer OBS Commander");
     assert.match(html, /function tileLong/, "long-press no launchpad fixa/desfixa favorito");
     assert.doesNotMatch(html, /Recentes\.\.\./, "tela 2 sem título Recentes...");
     assert.doesNotMatch(html, /\.screens\.up/, "sem classe .up com transform CSS (tranco)");
     assert.match(html, /function goScreen/, "troca de tela final via goScreen (sem setY fixo)");
     assert.match(html, /body\.is-recents/, "troca de tela por classe opacity (não empilha telas)");
+    assert.match(html, /#screenRecents\{[\s\S]*transform: translate3d\(0, 100%, 0\)/, "tela 2 deve começar fora da viewport");
+    assert.match(html, /body\.is-recents #screenApps\{[\s\S]*transform: translate3d\(0, -100%, 0\)/, "tela 1 deve permanecer fora quando tela 2 estiver ativa");
+    assert.match(html, /function clearDrag\(\)[\s\S]*is-recents[\s\S]*translate3d\(0, -100%, 0\)/, "limpeza do gesto não pode trazer a tela inativa de volta");
     assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
+    assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
+    assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(2\.5vmin, 12px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
+    assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
+    assert.match(html, /orientation: portrait\) and \(max-width:699px\)[\s\S]*--app-tile: min\(44vw, 22vh, 190px\)/, "celular em retrato deve aproveitar melhor a largura");
+    assert.match(html, /orientation: landscape\) and \(max-height:500px\)[\s\S]*--app-tile: min\(40vmin, 21vw, 180px\)/, "celular deitado deve manter folga vertical no A02");
+    assert.match(html, /function setLayer\(on, axis\)/, "camadas GPU devem ser escolhidas pelo eixo do gesto");
+    assert.match(html, /setLayer\(true, "horizontal"\)/, "slide horizontal deve promover apenas a faixa de apps");
+    assert.match(html, /setLayer\(true, "vertical"\)/, "slide vertical deve promover as telas");
+    assert.match(html, /body\.swiping \.atile \.aglass[\s\S]*box-shadow: inset/, "slide deve reduzir repintura pesada no Android");
+    assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
+    assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
+    assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
+    assert.match(html, /IS_ANDROID_WEBVIEW \? \(dir \? 140 : 90\)/, "Android deve encaixar o pager em menos tempo");
+    assert.match(html, /transform: rotate\(var\(--icon-turn\)\);/, "ícones não devem ganhar uma textura GPU extra");
     assert.doesNotMatch(html, /layoutTimeTravel|centerTimeTravel|bindTimeTravel|favscroll|favrow/, "Time Travel v01 removido (deck v03)");
     assert.match(html, /"Apps abertos"/, "tela 2 com título Apps abertos");
     assert.doesNotMatch(html, /tzone-pin|tdivider/, "tela 2 v03 sem split pinados/divisor antigo");
@@ -34,7 +74,40 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="upDownload"/, "aviso de atualização deve ter ação explícita");
     assert.match(html, /DokkeAndroid\.requestUpdate/, "Android deve controlar o download da atualização");
     assert.match(html, /cmpVer\(rel\.tag, apkNow\)/, "APK deve comparar a versão instalada com a release");
+    assert.match(html, /function loadIcon/, "ícones devem ter cache compartilhado entre as telas");
+    assert.match(html, /const ICON_REV = "4"/, "ícones em alta resolução devem invalidar o cache antigo do navegador");
+    assert.match(html, /if \(img && !img\.src\) img\.src = iconPath\(name\)/, "o card deve apontar para o endpoint do ícone sem esperar o blob");
+    assert.match(html, /running\.forEach\(function\(a\)[\s\S]*?primeIcon\(a\.name\)/, "ícones de apps recém-abertos devem ser aquecidos antes da montagem da tela 2");
+    assert.match(html, /primeIcon\(name\)/, "o clique deve adiantar o carregamento do ícone da tela 2");
+    assert.match(html, /@keyframes appPress/, "o toque no app deve ter feedback visual");
+    assert.match(html, /@keyframes touchRipple/, "o toque deve criar um ripple no ponto pressionado");
+    assert.match(html, /--press-x/, "o ripple deve nascer na coordenada do toque");
+    assert.match(html, /pressFeedback\(el, e\)/, "o feedback deve receber o evento de toque");
+    const buttonStart = html.indexOf("function makeBtn");
+    const buttonEnd = html.indexOf("// ---------- actions", buttonStart);
+    assert.doesNotMatch(html.slice(buttonStart, buttonEnd), /pointercancel[\s\S]*remove\("is-activating"\)/, "pointercancel não deve apagar o feedback antes do timer");
+    assert.match(html, /--icon-turn/, "a orientação deve girar o conteúdo dentro do glass");
+    assert.match(html, /translate3d\(0, /, "slide vertical deve usar composição 3D");
+    assert.doesNotMatch(html, /#screenApps\{ opacity:|#screenRecents\{ opacity:/, "slide não deve animar opacidade junto com a posição");
+    const settleStart = html.indexOf("function settleTo(nextName)");
+    const settleEnd = html.indexOf("function settleAndCommit", settleStart);
+    assert.ok(settleStart >= 0 && settleEnd > settleStart, "settleTo deve existir isolada");
+    assert.doesNotMatch(html.slice(settleStart, settleEnd), /goScreen\(nextName\)/, "troca de camada só deve ocorrer depois do slide");
+    assert.match(html, /let recentsRenderPending = false/, "render da tela 2 deve ter estado pendente");
+    assert.match(html, /body\.classList\.contains\("swiping"\)[\s\S]*recentsRenderPending/, "render da tela 2 não deve ocorrer durante o gesto");
+    assert.doesNotMatch(html, /landscape = next;\s*renderLaunchpad\(true\)/, "rotação não deve reconstruir a tela 1");
     assert.match(html, /function favLong[\s\S]*?textContent = "\\\"" \+ name/, "nome de app no modal deve entrar via textContent");
+    assert.match(html, /function modal\(html, beforeMount, kind\)/, "modal deve aceitar variação visual sem duplicar a lógica");
+    assert.match(html, /classList\.toggle\("confirm-scrim", isConfirm\)/, "confirmação deve usar scrim próprio do Dokke");
+    assert.match(html, /className = "aglass confirm-icon"/, "confirmação deve mostrar o ícone real do app");
+    assert.match(html, /\}, "confirm"\);/, "remoção de favorito deve abrir a confirmação visual correta");
+    assert.match(html, /function syncIconOrientation\(\)[\s\S]*setProperty\("--icon-turn", "0deg"\)/, "ícones reais devem permanecer na orientação normal");
+    assert.match(html, /hOriginInLaunchpad = !!\(e\.target[\s\S]*closest\("\.launchpad"\)\)/, "gesto horizontal deve guardar a origem antes do pointer capture do Android");
+    assert.match(html, /if \(!hOriginInLaunchpad && !hOriginInDeck\) return/, "gesto Android não deve depender do target capturado");
+    assert.match(html, /hOriginInDeck = !!\(e\.target[\s\S]*closest\("\.deck"\)\)/, "gesto iniciado sobre um app da tela 2 deve guardar a origem");
+    assert.match(html, /nativeDeckGesture = hOriginInDeck/, "dock deve deixar o arraste horizontal nativo e reservar o vertical para a troca de tela");
+    assert.doesNotMatch(html.slice(html.indexOf("function bindDeckGestures()"), html.indexOf("function renderRecents()")), /pointerdown[\s\S]*stopPropagation/, "dock não pode bloquear o gesto vertical sobre os ícones");
+    assert.match(html, /if \(nativeLaunchpadGesture \|\| nativeDeckGesture\)/, "gesto vertical deve assumir o ponteiro depois de sair do arraste horizontal nativo");
     assert.match(html, /scene\.dataset\.scene = s[\s\S]*?scene\.textContent = s/, "nome de cena deve entrar via DOM, não HTML cru");
     assert.doesNotMatch(html, /data-scene=\\\"" \+ s/, "nome de cena não pode ser concatenado em atributo HTML");
   } finally { await close(); }
@@ -53,6 +126,20 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /viewport-fit=cover/, "viewport-fit=cover deve estar no viewport meta");
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
+  } finally { await close(); }
+});
+
+test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    const match = html.match(/function rubberDy\(dy\)\{([\s\S]*?)\n    \}/);
+    assert.ok(match, "rubberDy deve existir");
+    const rubberDy = new Function("dy", "state", "h", "RUBBER", match[1]);
+    assert.equal(rubberDy(200, { screen: "recents" }, () => 800, 28), 200,
+      "o retorno deve seguir o dedo, não ficar preso no rubber band");
+    assert.equal(rubberDy(-200, { screen: "recents" }, () => 800, 28), -28,
+      "o overscroll para cima continua limitado");
   } finally { await close(); }
 });
 
@@ -75,6 +162,7 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
+    assert.match(js, /dokke-v13/, "service worker deve invalidar o cache antigo da UI");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");
     assert.match(js, /install/, "sw.js deve ter evento install");
     assert.match(js, /activate/, "sw.js deve ter evento activate");

@@ -3,13 +3,71 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { convertToPng, realIconService, scanAppsDirs } from "../apps.js";
+import { deflateSync, inflateSync } from "node:zlib";
+import { convertToPng, findIconFile, normalizePngIcon, realIconService, scanAppsDirs } from "../apps.js";
+
+function pngChunk(type, data) {
+  const name = Buffer.from(type, "latin1");
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  name.copy(out, 4);
+  data.copy(out, 8);
+  let crc = 0xffffffff;
+  for (let i = 4; i < 8 + data.length; i++) {
+    crc ^= out[i];
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length);
+  return out;
+}
+
+function rgbaPng(width, height, pixels) {
+  const scanlines = Buffer.alloc(height * (width * 4 + 1));
+  for (let y = 0; y < height; y++) {
+    const row = y * (width * 4 + 1);
+    pixels.copy(scanlines, row + 1, y * width * 4, (y + 1) * width * 4);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(scanlines)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+function alphaBounds(buf) {
+  const width = buf.readUInt32BE(16), height = buf.readUInt32BE(20);
+  let off = 8;
+  const chunks = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString("latin1", off + 4, off + 8);
+    if (type === "IDAT") chunks.push(buf.subarray(off + 8, off + 8 + len));
+    off += len + 12;
+  }
+  const raw = inflateSync(Buffer.concat(chunks));
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    const row = y * (width * 4 + 1) + 1;
+    for (let x = 0; x < width; x++) {
+      if (raw[row + x * 4 + 3] <= 8) continue;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+  }
+  return { width, height, minX, minY, maxX, maxY };
+}
 
 test("convertToPng chama sips com args corretos e resolve", async () => {
   const calls = [];
   const exec = async (cmd, args) => { calls.push([cmd, args]); };
   await convertToPng("/x/App.icns", "/out/app.png", exec);
-  assert.deepEqual(calls, [["sips", ["-s", "format", "png", "-Z", "128", "/x/App.icns", "--out", "/out/app.png"]]]);
+  assert.deepEqual(calls, [["sips", ["-s", "format", "png", "-Z", "512", "/x/App.icns", "--out", "/out/app.png"]]]);
 });
 
 test("convertToPng propaga erro do exec", async () => {
@@ -48,6 +106,35 @@ test("realIconService gera monograma para app desconhecido", async () => {
   assert.ok(Buffer.isBuffer(buf), "deve retornar um buffer PNG");
   assert.ok(buf.length > 0, "buffer não deve estar vazio");
   assert.equal(buf[0], 0x89, "deve começar com magic number PNG");
+});
+
+test("normalizePngIcon equaliza margens transparentes no canvas", () => {
+  const pixels = Buffer.alloc(4 * 4 * 4);
+  for (let y = 1; y <= 2; y++) {
+    for (let x = 1; x <= 2; x++) {
+      const i = (y * 4 + x) * 4;
+      pixels[i] = 255; pixels[i + 1] = 100; pixels[i + 2] = 20; pixels[i + 3] = 255;
+    }
+  }
+  const normalized = normalizePngIcon(rgbaPng(4, 4, pixels), 32);
+  assert.deepEqual(alphaBounds(normalized), {
+    width: 32, height: 32, minX: 1, minY: 1, maxX: 30, maxY: 30,
+  });
+});
+
+test("realIconService resolve nome localizado do app para o bundle original", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-icon-alias-"));
+  const appPath = join(dir, "Calendar.app");
+  const bytes = Buffer.from("calendar-png");
+  try {
+    await mkdir(join(appPath, "Contents", "Resources"), { recursive: true });
+    await writeFile(join(appPath, "Contents", "Resources", "calendar.png"), bytes);
+    const svc = realIconService({
+      scan: async () => [{ name: "Calendar", path: appPath, icon: true }],
+      cacheDir: join(dir, ".icon-cache"),
+    });
+    assert.deepEqual(await svc.getIconPng("Calendário"), bytes);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test("realIconService serve png direto sem chamar exec", async () => {
@@ -150,5 +237,18 @@ test("findIconFile respeita CFBundleIconFile do Info.plist (e não a ordem do re
       const svc = realIconService({ scan: async () => apps, exec, cacheDir: join(dir, ".cache") });
       assert.deepEqual([...await svc.getIconPng(apps[0].name)], [...png], "ícone resolvido via CFBundleIconFile");
     }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("findIconFile aceita CFBundleIconFile PNG e ignora PNG auxiliar", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-plist-png-"));
+  const appPath = join(dir, "NotionLike.app");
+  try {
+    await mkdir(join(appPath, "Contents", "Resources"), { recursive: true });
+    await writeFile(join(appPath, "Contents", "Resources", "menuBar.png"), "auxiliar");
+    await writeFile(join(appPath, "Contents", "Resources", "icon-production.png"), "real");
+    await writeFile(join(appPath, "Contents", "Info.plist"),
+      "<?xml version=\"1.0\"?><plist><dict><key>CFBundleIconFile</key><string>icon-production.png</string></dict></plist>");
+    assert.equal(await findIconFile(appPath), join(appPath, "Contents", "Resources", "icon-production.png"));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

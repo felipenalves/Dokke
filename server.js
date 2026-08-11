@@ -134,7 +134,9 @@ function readBody(req, res) {
   });
 }
 
-const STATUS_POLL_MS = 6000;
+// Estado dos apps precisa parecer instantâneo na tela 2. O lsappinfo tem cache
+// próprio de 1,5 s em apps.js, então este intervalo não cria um fork por frame.
+const STATUS_POLL_MS = 1500;
 
 /**
  * Descoberta automática de servidor (UDP broadcast) — o APK Android manda

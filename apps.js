@@ -4,13 +4,13 @@ import { readFile, readdir, mkdir, writeFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { inflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 
 const ex = promisify(execFile);
 const LSAPPINFO = "/usr/bin/lsappinfo";
 const ICON_CACHE_DIR = join(import.meta.dirname, ".icon-cache");
-/** Ícone servido no máximo 128px — menos RAM no browser e no Node. */
-export const ICON_MAX_PX = 128;
+/** Ícone servido em até 512px para acompanhar telas de alta densidade. */
+export const ICON_MAX_PX = 512;
 /** TTL do inventário de apps (scan de /Applications). */
 export const INSTALLED_APPS_TTL_MS = 120_000;
 /** Cap do cache PNG em memória (LRU). Disco continua cacheando o resto. */
@@ -29,6 +29,33 @@ const SYSTEM_APP_PATHS = [
   ["Finder", "/System/Library/CoreServices/Finder.app"],
 ];
 
+// lsappinfo usa o nome localizado que aparece no sistema (ex.: Calendário),
+// enquanto o bundle normalmente mantém o nome original (Calendar). O ícone
+// precisa resolver os dois nomes para não cair no monograma.
+const LOCALIZED_APP_ALIASES = new Map([
+  ["calendario", "Calendar"],
+  ["calculadora", "Calculator"],
+  ["notas", "Notes"],
+  ["fotos", "Photos"],
+  ["tempo", "Weather"],
+  ["previsao do tempo", "Weather"],
+  ["loja de apps", "App Store"],
+]);
+
+function normalizeAppLabel(value) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function resolveIconAppName(name, apps) {
+  if (apps.has(name)) return name;
+  const alias = LOCALIZED_APP_ALIASES.get(normalizeAppLabel(name));
+  return alias && apps.has(alias) ? alias : name;
+}
+
 /** Cache de inventário: evita N× readdir quando a UI pede 80 ícones de uma vez. */
 let installedCache = { at: 0, apps: null, promise: null };
 /** Cache de running (lsappinfo): evita fork de processo a cada poll / por cliente. */
@@ -39,12 +66,14 @@ export function clearInstalledAppsCache() {
   installedCache = { at: 0, apps: null, promise: null };
 }
 
-export function listApps(raw) {
+function parseApps(raw, includeBundlePath = false) {
   const apps = [];
   let cur = null;
   for (const line of raw.split("\n")) {
     const nm = line.match(/^\s*\d+\)\s+"([^"]+)"/);
     if (nm) { cur = { name: nm[1].trim(), pid: null, type: null }; apps.push(cur); continue; }
+    const bp = line.match(/^\s*bundle path="([^"]+)"/);
+    if (bp && cur && includeBundlePath) cur.bundlePath = bp[1];
     const pd = line.match(/^\s*pid\s*=\s*(\d+)/);
     if (pd && cur) {
       cur.pid = Number(pd[1]);
@@ -55,6 +84,15 @@ export function listApps(raw) {
   return apps;
 }
 
+export function listApps(raw) {
+  return parseApps(raw);
+}
+
+export function canonicalAppNameFromBundlePath(bundlePath) {
+  const match = String(bundlePath || "").match(/\/([^/]+)\.app\/?$/i);
+  return match ? match[1] : null;
+}
+
 export async function listAppProcesses() {
   const now = Date.now();
   if (runningCache.value && now - runningCache.at < RUNNING_TTL_MS) return runningCache.value;
@@ -63,7 +101,14 @@ export async function listAppProcesses() {
     try {
       const { stdout } = await ex(LSAPPINFO, []);
       // UI só precisa de apps em primeiro plano — corta 50+ helpers do payload
-      return listApps(stdout).filter(a => !a.type || a.type === "Foreground");
+      return parseApps(stdout, true)
+        .filter(a => !a.type || a.type === "Foreground")
+        .map(a => {
+          // lsappinfo localiza o nome (Calendário), mas o bundle path é a
+          // identidade estável usada pelo inventário e pelo endpoint de ícone.
+          const canonical = canonicalAppNameFromBundlePath(a.bundlePath);
+          return canonical ? { name: canonical, pid: a.pid, type: a.type } : { name: a.name, pid: a.pid, type: a.type };
+        });
     } catch {
       return [];
     }
@@ -98,7 +143,7 @@ async function bundleIconName(appPath) {
     const { stdout } = await ex("plutil", ["-convert", "json", "-o", "-", join(appPath, "Contents", "Info.plist")]);
     const info = JSON.parse(stdout);
     const raw = info && info.CFBundleIconFile;
-    if (typeof raw === "string" && raw) return raw.endsWith(".icns") ? raw : raw + ".icns";
+    if (typeof raw === "string" && raw) return /\.[a-z0-9]+$/i.test(raw) ? raw : raw + ".icns";
   } catch {}
   return null;
 }
@@ -107,13 +152,13 @@ export async function findIconFile(appPath) {
   try {
     const resDir = join(appPath, "Contents", "Resources");
     const files = await readdir(resDir);
+    const named = await bundleIconName(appPath);
+    if (named) {
+      const hit = files.find(f => f.toLowerCase() === named.toLowerCase());
+      if (hit && /\.(icns|png)$/i.test(hit)) return join(resDir, hit);
+    }
     const icns = files.filter(f => f.toLowerCase().endsWith(".icns"));
     if (icns.length) {
-      const named = await bundleIconName(appPath);
-      if (named) {
-        const hit = icns.find(f => f.toLowerCase() === named.toLowerCase());
-        if (hit) return join(resDir, hit);
-      }
       const pref = ["appicon.icns", "app.icns", "icon.icns"];
       for (let i = 0; i < pref.length; i++) {
         const hit = icns.find(f => f.toLowerCase() === pref[i]);
@@ -121,30 +166,51 @@ export async function findIconFile(appPath) {
       }
       return join(resDir, icns[0]);
     }
-    const png = files.find(f => f.toLowerCase().endsWith(".png"));
+    const pngs = files.filter(f => f.toLowerCase().endsWith(".png"));
+    const prefPng = ["appicon.png", "app.png", "icon.png", "icon-production.png"];
+    let png = null;
+    for (const pref of prefPng) {
+      const hit = pngs.find(f => f.toLowerCase() === pref);
+      if (hit) { png = hit; break; }
+    }
+    if (!png) png = pngs[0];
     return png ? join(resDir, png) : null;
   } catch {
     return null;
   }
 }
 
+async function findAppBundles(dir, depth = 0) {
+  let entries;
+  try { entries = await readdir(dir, { withFileTypes: true }); } catch { return []; }
+  const found = [];
+  for (const entry of entries) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory() && entry.name.endsWith(".app")) {
+      found.push({ name: entry.name.slice(0, -4), path });
+    } else if (entry.isDirectory() && depth < 2 && !entry.name.startsWith(".")) {
+      found.push(...await findAppBundles(path, depth + 1));
+    }
+  }
+  return found;
+}
+
+/**
+ * Descoberta macOS: procura bundles em /Applications, /System/Applications
+ * e ~/Applications, inclusive em subpastas. A UI nunca conhece esses paths;
+ * cada plataforma só precisa implementar este mesmo contrato {name,path}.
+ */
 export async function scanAppsDirs(dirs, includeSystemApps = false) {
   const seen = new Set();
   const apps = [];
   for (const dir of dirs) {
-    let entries;
-    try { entries = await readdir(dir); } catch { continue; }
-    const batch = [];
-    for (const entry of entries) {
-      if (!entry.endsWith(".app")) continue;
-      const key = entry.toLowerCase();
+    const batch = await findAppBundles(dir);
+    for (const bundle of batch) {
+      const key = bundle.name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      batch.push(entry);
-    }
-    // inventário mínimo: sem readdir de Resources (ícone assume true; 404 → monograma)
-    for (const entry of batch) {
-      apps.push({ name: entry.slice(0, -4), path: join(dir, entry), icon: true });
+      // inventário mínimo: sem readdir de Resources (ícone assume true; 404 → monograma)
+      apps.push({ name: bundle.name, path: bundle.path, icon: true });
     }
   }
   if (includeSystemApps) {
@@ -178,7 +244,7 @@ export async function listInstalledApps() {
 }
 
 export async function convertToPng(sourcePath, outPath, exec, maxPx = ICON_MAX_PX) {
-  // -Z = fit longest side; ícone de dock não precisa de 1024px
+  // -Z = fit longest side; 512px cobre tiles grandes e telas de alta densidade.
   await exec("sips", ["-s", "format", "png", "-Z", String(maxPx), sourcePath, "--out", outPath]);
 }
 
@@ -259,8 +325,147 @@ function monogramHash(name) {
   return h;
 }
 
+function paeth(a, b, c) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : (pb <= pc ? b : c);
+}
+
+/** Decodifica o PNG RGBA não-interlaçado gerado pelo sips. */
+function decodeRgbaPng(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 33 || buf.readUInt32BE(0) !== 0x89504e47) return null;
+  let off = 8;
+  let width = 0, height = 0, bitDepth = 0, colorType = 0, interlace = 0;
+  const idat = [];
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString("latin1", off + 4, off + 8);
+    const start = off + 8;
+    if (start + len + 4 > buf.length) return null;
+    if (type === "IHDR") {
+      width = buf.readUInt32BE(start);
+      height = buf.readUInt32BE(start + 4);
+      bitDepth = buf[start + 8];
+      colorType = buf[start + 9];
+      interlace = buf[start + 12];
+    } else if (type === "IDAT") {
+      idat.push(buf.subarray(start, start + len));
+    } else if (type === "IEND") {
+      break;
+    }
+    off = start + len + 4;
+  }
+  const channels = colorType === 6 ? 4 : (colorType === 4 ? 2 : (colorType === 2 ? 3 : 0));
+  if (!width || !height || bitDepth !== 8 || !channels || interlace !== 0 || !idat.length) return null;
+  const stride = width * channels;
+  const raw = inflateSync(Buffer.concat(idat));
+  if (raw.length < height * (stride + 1)) return null;
+  const decoded = Buffer.alloc(width * height * channels);
+  let src = 0;
+  for (let y = 0; y < height; y++) {
+    const filter = raw[src++];
+    const row = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const left = x >= channels ? decoded[row + x - channels] : 0;
+      const up = y > 0 ? decoded[row - stride + x] : 0;
+      const upLeft = y > 0 && x >= channels ? decoded[row - stride + x - channels] : 0;
+      const value = raw[src++];
+      if (filter === 0) decoded[row + x] = value;
+      else if (filter === 1) decoded[row + x] = (value + left) & 255;
+      else if (filter === 2) decoded[row + x] = (value + up) & 255;
+      else if (filter === 3) decoded[row + x] = (value + Math.floor((left + up) / 2)) & 255;
+      else if (filter === 4) decoded[row + x] = (value + paeth(left, up, upLeft)) & 255;
+      else return null;
+    }
+  }
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < width * height; i++) {
+    const from = i * channels, to = i * 4;
+    if (channels === 4) decoded.copy(pixels, to, from, from + 4);
+    else if (channels === 2) {
+      pixels[to] = decoded[from]; pixels[to + 1] = decoded[from]; pixels[to + 2] = decoded[from]; pixels[to + 3] = decoded[from + 1];
+    } else {
+      pixels[to] = decoded[from]; pixels[to + 1] = decoded[from + 1]; pixels[to + 2] = decoded[from + 2]; pixels[to + 3] = 255;
+    }
+  }
+  return { width, height, pixels };
+}
+
+function pngChunk(type, data) {
+  const name = Buffer.from(type, "latin1");
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  name.copy(out, 4);
+  data.copy(out, 8);
+  let crc = 0xffffffff;
+  for (let i = 4; i < 8 + data.length; i++) {
+    crc ^= out[i];
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length);
+  return out;
+}
+
+/**
+ * Recorta margens transparentes e reencaixa a arte em um canvas fixo.
+ * Calendar e Notion, por exemplo, têm bounds visuais diferentes no ICNS.
+ */
+export function normalizePngIcon(buf, maxPx = ICON_MAX_PX) {
+  const decoded = decodeRgbaPng(buf);
+  if (!decoded) return buf;
+  const { width, height, pixels } = decoded;
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (pixels[(y * width + x) * 4 + 3] <= 8) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < minX || maxY < minY) return buf;
+
+  const frame = Math.max(1, Math.round(maxPx * 0.94));
+  const cropW = maxX - minX + 1, cropH = maxY - minY + 1;
+  const scale = Math.min(frame / cropW, frame / cropH);
+  const outW = Math.max(1, Math.round(cropW * scale));
+  const outH = Math.max(1, Math.round(cropH * scale));
+  const canvas = Buffer.alloc(maxPx * maxPx * 4);
+  const left = Math.floor((maxPx - outW) / 2), top = Math.floor((maxPx - outH) / 2);
+  for (let y = 0; y < outH; y++) {
+    const sy = Math.min(cropH - 1, Math.floor(y / scale));
+    for (let x = 0; x < outW; x++) {
+      const sx = Math.min(cropW - 1, Math.floor(x / scale));
+      const from = ((minY + sy) * width + minX + sx) * 4;
+      const to = ((top + y) * maxPx + left + x) * 4;
+      pixels.copy(canvas, to, from, from + 4);
+    }
+  }
+
+  const stride = maxPx * 4;
+  const scanlines = Buffer.alloc(maxPx * (stride + 1));
+  for (let y = 0; y < maxPx; y++) {
+    const row = y * (stride + 1);
+    canvas.copy(scanlines, row + 1, y * stride, (y + 1) * stride);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(maxPx, 0);
+  ihdr.writeUInt32BE(maxPx, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  return Buffer.concat([
+    signature,
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(scanlines, { level: 6 })),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 async function monogramPng(name, execFn, cacheDir, maxPx) {
-  const cacheFile = join(cacheDir, `mono-${createHash("sha1").update(name).digest("hex")}.png`);
+  const key = createHash("sha1").update(name).digest("hex");
+  const cacheFile = join(cacheDir, `mono-${key}-z${maxPx}.png`);
   try { return await readFile(cacheFile); } catch {}
 
   const initials = monogramInitials(name);
@@ -276,7 +481,7 @@ async function monogramPng(name, execFn, cacheDir, maxPx) {
     dominant-baseline="central">${initials.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</text>
 </svg>`;
 
-  const tmpSvg = join(cacheDir, `mono-${monogramHash(name)}.svg`);
+  const tmpSvg = join(cacheDir, `mono-${monogramHash(name)}-z${maxPx}.svg`);
   await mkdir(cacheDir, { recursive: true });
   await writeFile(tmpSvg, svg);
   try {
@@ -293,6 +498,9 @@ async function monogramPng(name, execFn, cacheDir, maxPx) {
 export function realIconService(deps = {}) {
   const {
     scan = listInstalledApps,
+    // Adaptador por plataforma: macOS usa Contents/Resources; o futuro
+    // Windows poderá injetar um resolvedor de .exe/.lnk sem mudar a API HTTP.
+    findIcon = findIconFile,
     exec = ex,
     cacheDir = ICON_CACHE_DIR,
     ttlMs = INSTALLED_APPS_TTL_MS,
@@ -339,13 +547,13 @@ export function realIconService(deps = {}) {
     }
 
     const apps = await resolveApps();
-    const app = apps.get(name);
+    const app = apps.get(resolveIconAppName(name, apps));
 
     let src = null;
     if (app) {
       src = iconPathByApp.get(name);
       if (src === undefined) {
-        src = await findIconFile(app.path);
+        src = await findIcon(app.path);
         iconPathByApp.set(name, src);
       }
     }
@@ -363,6 +571,7 @@ export function realIconService(deps = {}) {
             buf = await readFile(out);
           }
         }
+        if (buf) buf = normalizePngIcon(buf, maxPx);
         if (buf && pngIsEmpty(buf)) {
           buf = null;
           iconPathByApp.delete(name);
