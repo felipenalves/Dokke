@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/github/v/release/felipenalves/Dokke?label=release&color=4f46e5">
   <img src="https://img.shields.io/github/downloads/felipenalves/Dokke/total?label=downloads&color=0891b2">
   <img src="https://img.shields.io/github/stars/felipenalves/Dokke?style=social">
-  <img src="https://img.shields.io/badge/tests-100%20passing-22c55e">
+  <img src="https://img.shields.io/badge/tests-116%20passing-22c55e">
   <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=nodedotjs&logoColor=white">
   <img src="https://img.shields.io/badge/Android-5.0%2B-3ddc84?logo=android&logoColor=white">
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white">
@@ -26,7 +26,7 @@ A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo ú
 
 ## Instalação
 
-Para instalar sem terminal, abra a [página de instalação](https://felipenalves.github.io/Dokke/).
+Para instalar sem terminal, abra a [página de instalação](https://dokke.vercel.app/).
 
 ### Mac — host principal
 
@@ -80,7 +80,7 @@ O iPhone usa a PWA pelo navegador. Abra o link exibido na aba **Sobre** no Safar
 
 ## Desenvolver a partir do código
 
-Esta seção é para quem quer compilar ou contribuir. Para apenas instalar, use a [página de instalação](https://felipenalves.github.io/Dokke/).
+Esta seção é para quem quer compilar ou contribuir. Para apenas instalar, use a [página de instalação](https://dokke.vercel.app/).
 
 ### Mac app (recomendado)
 

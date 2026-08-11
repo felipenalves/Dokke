@@ -27,4 +27,5 @@ onpspec.config.json
 
 # Página de instalação (artefatos locais do Vite)
 docs/dist/
+.vercel/
 ios/Dokke.xcodeproj/project.xcworkspace/xcuserdata/
