@@ -34,6 +34,10 @@ Para instalar sem terminal, abra a [página de instalação](https://dokke.verce
 
 O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros dispositivos na mesma rede.
 
+> **Se o macOS bloquear a primeira abertura:** abra **Ajustes do Sistema →
+> Privacidade e Segurança → Segurança → Abrir Mesmo Assim → Abrir**. Essa
+> confirmação é necessária porque o Dokke é distribuído fora da App Store.
+
 ### Android
 
 [Baixar o APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) e instalar. Depois, abra o Dokke no Mac e use o link e o PIN exibidos na aba **Sobre** para conectar o celular.
@@ -95,9 +99,10 @@ Esta seção é para quem quer compilar ou contribuir. Para apenas instalar, use
 > duplicadas com comportamentos diferentes.
 >
 > **Primeira abertura:** se o macOS mostrar um aviso do tipo *"Dokke não pode ser aberto
-> porque vem de um desenvolvedor não identificado"*, é só: **clique com o botão direito
-> no Dokke.app → Abrir → confirme**. Na primeira vez o macOS pede essa confirmação;
-> depois disso o app abre normalmente.
+> porque vem de um desenvolvedor não identificado"*, clique com o botão direito no
+> `Dokke.app` → **Abrir** → confirme. Se a opção não aparecer, use **Ajustes do
+> Sistema → Privacidade e Segurança → Segurança → Abrir Mesmo Assim → Abrir**.
+> Depois dessa confirmação o app abre normalmente.
 
 Ou build do source (requer macOS 14+, Xcode CLT e Node.js 20+):
 

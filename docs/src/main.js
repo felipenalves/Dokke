@@ -190,7 +190,7 @@ document.querySelector("#app").innerHTML = `
         </details>
         <details>
           <summary>O que faço se o macOS bloquear o app?</summary>
-          <p>Clique com o botão direito no Dokke, escolha Abrir e confirme. Esse aviso pode aparecer na primeira abertura de um app distribuído fora da App Store.</p>
+          <p>Clique com o botão direito no <b>Dokke.app</b>, escolha <b>Abrir</b> e confirme. Se essa opção não aparecer, abra <b>Ajustes do Sistema → Privacidade e Segurança → Segurança → Abrir Mesmo Assim → Abrir</b>. Esse aviso pode aparecer porque o Dokke é distribuído fora da App Store.</p>
         </details>
         <details>
           <summary>Já existe uma versão para Windows?</summary>
