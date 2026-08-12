@@ -69,7 +69,7 @@ previsível em diferentes orientações de tela.
 ### Checksums SHA-256
 
 ```text
-9111e7029fda8673d4bd3d3c2143f40509c971fb21ee98843dde4933db85889d  Dokke-macOS.dmg
+585c49b5d999729111fa098555b4421d19572516c7242bc19a6dcd57ba6393cc  Dokke-macOS.dmg
 4d1a61a65ba2df805adcbafaa195081fb40dec121a2e3cec61b83faa789cbb7f  dokke.apk
 ```
 
