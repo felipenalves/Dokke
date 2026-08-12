@@ -162,6 +162,38 @@ test("Android atualizado não exibe o banner de atualização do Mac host", asyn
   }
 });
 
+test("falha ao ler versão do Android não cai no banner do Mac", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      window.DokkeAndroid = {
+        appVersion: () => { throw new Error("bridge indisponível"); },
+        requestUpdate: () => {}
+      };
+    });
+    await page.route("**/api/version", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          local: { tag: "v0.2.6", apkVersion: "0.2.6" },
+          latest: { tag: "v0.2.7", apkUrl: "https://example.test/dokke.apk" }
+        })
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(350);
+    const shown = await page.locator("#upBanner").evaluate(el => el.classList.contains("show"));
+    assert.equal(shown, false, "Android sem versão legível não pode herdar o alerta do Mac");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
 test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
   const { port, close } = await startServer(0);
   try {

@@ -52,6 +52,8 @@ previsível em diferentes orientações de tela.
   do Mac mesmo quando o APK já estava na versão atual.
 - Invalidado o cache antigo do Service Worker para que WebViews Android não
   continuem carregando a página anterior após a atualização.
+- Isolada a leitura da versão do APK: se o bridge Android falhar, a página não
+  cai no alerta de atualização do Mac.
 
 ### Distribuição
 
@@ -69,15 +71,15 @@ previsível em diferentes orientações de tela.
 ### Checksums SHA-256
 
 ```text
-585c49b5d999729111fa098555b4421d19572516c7242bc19a6dcd57ba6393cc  Dokke-macOS.dmg
+f020fb69d46cfc2d0ba03280df8092be7b3a6f7cb3078843c18920334ecd91bc  Dokke-macOS.dmg
 4d1a61a65ba2df805adcbafaa195081fb40dec121a2e3cec61b83faa789cbb7f  dokke.apk
 ```
 
 ### Validação
 
-- 125 testes automatizados passando.
+- 126 testes automatizados passando.
 - `git diff --check` sem problemas.
-- DMG macOS e APK Android gerados a partir desta versão.
+- DMG macOS reconstruída; APK Android mantido, pois não houve alteração nativa.
 - Checksums SHA-256 publicados junto dos artefatos do GitHub Release.
 
 Relate bugs e proponha melhorias nas

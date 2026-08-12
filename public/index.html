@@ -2518,24 +2518,29 @@
           setTimeout(function(){ checkVersion(attempt + 1); }, 1500);
           return;
         }
-        // Android só avisa depois que a release existe no GitHub.
-        try {
-          const android = window.DokkeAndroid;
-          const isAndroid = !!(android && typeof android.requestUpdate === "function");
-          const apkNow = isAndroid && typeof android.appVersion === "function"
-            ? String(android.appVersion() || "").trim()
-            : "";
-          if (apkNow && rel && rel.tag && cmpVer(rel.tag, apkNow) > 0){
+        // Android só avisa depois que a release existe no GitHub. O Android e
+        // o Mac têm ciclos de release independentes: qualquer falha ao ler a
+        // versão do APK deve encerrar este fluxo, sem cair no alerta do Mac.
+        const android = window.DokkeAndroid;
+        const isAndroid = !!(android && typeof android.requestUpdate === "function");
+        if (isAndroid) {
+          let apkNow = "";
+          try {
+            apkNow = typeof android.appVersion === "function"
+              ? String(android.appVersion() || "").trim()
+              : "";
+          } catch (e) {
+            return;
+          }
+          if (!apkNow || !rel || !rel.tag) return;
+          if (cmpVer(rel.tag, apkNow) > 0){
             showUpBanner("Nova atualização do Dokke",
               "Versão " + rel.tag + " disponível. Escolha quando baixar.",
               rel.apkUrl || "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk",
               rel.tag);
-            return;
           }
-          // O Android e o Mac têm ciclos de release independentes. Se o APK
-          // já está atualizado, não pode herdar o alerta de um Mac host antigo.
-          if (isAndroid) return;
-        } catch (e) {}
+          return;
+        }
         // Mac (servidor embutido) desatualizado
         if (rel && rel.tag && cmpVer(rel.tag, v.local.tag) > 0){
           showUpBanner("App do Mac desatualizado",
