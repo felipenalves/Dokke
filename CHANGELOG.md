@@ -50,6 +50,8 @@ previsível em diferentes orientações de tela.
   encerramentos inesperados.
 - Corrigido o banner no Android que continuava avisando sobre uma atualização
   do Mac mesmo quando o APK já estava na versão atual.
+- Invalidado o cache antigo do Service Worker para que WebViews Android não
+  continuem carregando a página anterior após a atualização.
 
 ### Distribuição
 
@@ -67,7 +69,7 @@ previsível em diferentes orientações de tela.
 ### Checksums SHA-256
 
 ```text
-e94232b1516fbcd327d4046438aa6c573421f6ad5c4292dda729a82c3e3fc8ca  Dokke-macOS.dmg
+9111e7029fda8673d4bd3d3c2143f40509c971fb21ee98843dde4933db85889d  Dokke-macOS.dmg
 4d1a61a65ba2df805adcbafaa195081fb40dec121a2e3cec61b83faa789cbb7f  dokke.apk
 ```
 

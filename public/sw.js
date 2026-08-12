@@ -1,4 +1,4 @@
-const CACHE = "dokke-v13";
+const CACHE = "dokke-v14";
 const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", function(e) {
@@ -14,6 +14,9 @@ self.addEventListener("activate", function(e) {
 self.addEventListener("fetch", function(e) {
   var url = new URL(e.request.url);
   if (url.pathname.indexOf("/api/") === 0 || url.pathname === "/health") return;
+  // O script do Service Worker nunca pode ficar preso no cache antigo;
+  // a revisão nova precisa chegar ao WebView para invalidar a UI.
+  if (url.pathname === "/sw.js") return;
   // navegação (HTML do app): NETWORK-FIRST — sempre traz a versão mais nova,
   // evita ficar servindo UI antiga em cache (dots/layout antigos no J5)
   var nav = (e.request && e.request.mode === "navigate") ||

@@ -195,7 +195,8 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v13/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v14/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");
     assert.match(js, /install/, "sw.js deve ter evento install");
     assert.match(js, /activate/, "sw.js deve ter evento activate");
