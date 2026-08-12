@@ -7,15 +7,15 @@ struct DokkeApp: App {
   @StateObject private var updater = DokkeUpdateManager()
 
   var body: some Scene {
-    WindowGroup("Dokke") {
+    WindowGroup("Dokke", id: "main") {
       ContentView()
         .environmentObject(store)
         .environmentObject(server)
         .environmentObject(updater)
-        .frame(minWidth: 760, idealWidth: 800, minHeight: 500, idealHeight: 520)
+        .frame(minWidth: 1080, idealWidth: 1280, minHeight: 680, idealHeight: 760)
     }
     .windowResizability(.contentSize)
-    .defaultSize(width: 800, height: 520)
+    .defaultSize(width: 1280, height: 760)
 
     MenuBarExtra("Dokke", systemImage: "square.grid.2x2") {
       MenuBarView()

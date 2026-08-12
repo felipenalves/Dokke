@@ -5,13 +5,13 @@ import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
   case apps = "Apps"
-  case about = "Sobre"
+  case about = "Conectar"
 
   var id: String { rawValue }
 
   var icon: String {
     switch self {
-    case .apps: return "app.fill"
+    case .apps: return "square.grid.2x2.fill"
     case .about: return "info.circle"
     }
   }
@@ -21,40 +21,47 @@ struct ContentView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var updater: DokkeUpdateManager
   @State private var selection: SidebarItem? = .apps
-  @State private var showingReleaseNotes = false
-
   var body: some View {
-    VStack(spacing: 0) {
-      if let release = updater.release {
-        UpdateBanner(release: release, showingReleaseNotes: $showingReleaseNotes)
-      }
-
-      NavigationSplitView {
-        sidebar
-      } detail: {
-        detail
-      }
-      .navigationTitle("Dokke")
+    NavigationSplitView {
+      sidebar
+    } detail: {
+      detail
     }
+    .navigationTitle("Dokke")
+    .background(DokkeTheme.canvas.ignoresSafeArea())
+    .toolbarBackground(DokkeTheme.canvas, for: .windowToolbar)
+    .toolbarColorScheme(.dark, for: .windowToolbar)
     .task {
       try? await Task.sleep(nanoseconds: 300_000_000)
       guard !Task.isCancelled else { return }
       await updater.check()
     }
-    .sheet(isPresented: $showingReleaseNotes) {
-      if let release = updater.release {
-        ReleaseNotesView(release: release)
-      }
-    }
   }
 
   private var sidebar: some View {
-    List(SidebarItem.allCases, selection: $selection) { item in
-      Label(item.rawValue, systemImage: item.icon)
-        .tag(item)
+    VStack(alignment: .leading, spacing: 4) {
+      ForEach(SidebarItem.allCases, id: \.self) { item in
+        Button {
+          selection = item
+        } label: {
+          Label(item.rawValue, systemImage: item.icon)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(selection == item ? DokkeTheme.selection : .clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityLabel(item.rawValue)
+        .accessibilityValue(selection == item ? "Selecionado" : "")
+      }
+      Spacer()
     }
-    .listStyle(.sidebar)
-    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+    .padding(.horizontal, 8)
+    .padding(.top, 10)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationSplitViewColumnWidth(min: 148, ideal: 168, max: 196)
   }
 
   @ViewBuilder
@@ -75,222 +82,216 @@ struct AboutView: View {
   @EnvironmentObject private var server: ServerManager
   @EnvironmentObject private var updater: DokkeUpdateManager
   @State private var showingReleaseNotes = false
+  @State private var showingResetPinConfirmation = false
+  private let aboutContentMaxWidth: CGFloat = 980
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
-        Text("Sobre")
-          .font(.title.bold())
-
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(spacing: 10) {
-          Circle()
-            .fill(store.online ? Color.green : Color.red.opacity(0.85))
-            .frame(width: 10, height: 10)
-          Text(store.online ? "Servidor Online" : "Servidor Offline")
-            .font(.headline)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Conectar outro dispositivo")
+            .font(.title.bold())
+          Text("Use o código abaixo no app ou navegador que você quer conectar ao Dokke.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
+
+        VStack(spacing: 16) {
+          Text("Código de acesso")
+            .font(.headline)
+          AccessCodeView(code: store.pinCode) {
+            showingResetPinConfirmation = true
+          }
+          if let err = store.pinError {
+            Text(err)
+              .font(.caption)
+              .foregroundStyle(.red)
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(22)
+        .background(
+          RoundedRectangle(cornerRadius: 16)
+            .fill(.quaternary)
+        )
+
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Abrir em outro dispositivo")
+            .font(.headline)
+          if let ip = ServerManager.lanIPv4() {
+            let localURL = "http://\(ip):3000"
+            HStack(alignment: .center, spacing: 16) {
+              QRCodeView(value: localURL)
+                .frame(width: 112, height: 112)
+
+              VStack(alignment: .leading, spacing: 10) {
+                Text("Escaneie ou abra este endereço")
+                  .font(.caption.weight(.semibold))
+                Text(localURL)
+                  .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                  .textSelection(.enabled)
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.7)
+                HStack(spacing: 8) {
+                  Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(localURL, forType: .string)
+                  } label: {
+                    Label("Copiar URL", systemImage: "doc.on.doc")
+                  }
+                  .buttonStyle(.bordered)
+                  Button {
+                    if let url = URL(string: localURL) {
+                      NSWorkspace.shared.open(url)
+                    }
+                  } label: {
+                    Label("Abrir", systemImage: "arrow.up.right.square")
+                  }
+                  .buttonStyle(.bordered)
+                }
+              }
+            }
+            Text("O Mac e o dispositivo precisam estar na mesma rede. Para iPhone/iPad, use uma URL HTTPS do túnel antes de adicionar à Tela de Início.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else {
+            Text("Sem IP de rede detectado (offline?)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .padding(16)
+        .background(
+          RoundedRectangle(cornerRadius: 12)
+            .fill(.quaternary)
+        )
+
+        HStack(spacing: 16) {
+          HStack(spacing: 8) {
+            Circle()
+              .fill(store.online ? Color.green : Color.red.opacity(0.85))
+              .frame(width: 9, height: 9)
+            Text(store.online ? "Servidor online" : "Servidor offline")
+              .font(.subheadline.weight(.semibold))
+          }
+          Text("\(store.devices) dispositivos")
+          Text("\(store.pinned.count) fixados")
+          Spacer()
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
 
         if !store.online, let err = server.lastError ?? store.lastError {
           Text(err)
             .font(.caption)
             .foregroundStyle(.red)
         }
-      }
-      .padding(16)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(.quaternary)
-      )
 
-      VStack(alignment: .leading, spacing: 10) {
-        LabeledContent("Dispositivos (WS)") {
-          Text("\(store.devices)")
-            .fontWeight(.semibold)
-            .foregroundStyle(store.devices > 0 ? .green : .secondary)
-        }
-        LabeledContent("Apps Fixados") {
-          Text("\(store.pinned.count)")
-        }
-      }
-      .padding(16)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(.quaternary)
-      )
-
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Abrir em outro dispositivo")
-          .font(.headline)
-        if let ip = ServerManager.lanIPv4() {
-          let localURL = "http://\(ip):3000"
-          HStack(alignment: .center, spacing: 16) {
-            QRCodeView(value: localURL)
-              .frame(width: 132, height: 132)
-
-            VStack(alignment: .leading, spacing: 10) {
-              Text("Escaneie ou abra este endereço")
-                .font(.caption.weight(.semibold))
-              Text(localURL)
-                .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                .textSelection(.enabled)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-              HStack(spacing: 8) {
-                Button {
-                  NSPasteboard.general.clearContents()
-                  NSPasteboard.general.setString(localURL, forType: .string)
-                } label: {
-                  Label("Copiar URL", systemImage: "doc.on.doc")
-                }
-                .buttonStyle(.bordered)
-                Button {
-                  if let url = URL(string: localURL) {
-                    NSWorkspace.shared.open(url)
-                  }
-                } label: {
-                  Label("Abrir", systemImage: "arrow.up.right.square")
-                }
-                .buttonStyle(.bordered)
-              }
-            }
-          }
-          Text("Android, iPad e navegadores: use o QR code ou copie a URL. O Mac e o dispositivo precisam estar na mesma rede.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Text("iPhone/iPad como PWA: use uma URL HTTPS do túnel indicado no tutorial antes de adicionar à Tela de Início.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        } else {
-          Text("Sem IP de rede detectado (offline?)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      .padding(16)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(.quaternary)
-      )
-
-      VStack(alignment: .leading, spacing: 10) {
-        HStack {
-          Text("Atualizações")
-            .font(.headline)
-          Spacer()
-          if updater.state == .checking {
-            ProgressView().controlSize(.small)
-          }
-        }
-        Text("Versão instalada: \(updater.currentVersion)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        if let message = updater.statusMessage {
-          if updater.release == nil {
-            Text(message)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          } else {
-            Text(message)
-              .font(.caption)
-              .foregroundStyle(.orange)
-          }
-        }
-        if let release = updater.release {
-          HStack(spacing: 8) {
-            Label("Nova versão \(release.tag)", systemImage: "arrow.down.circle.fill")
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Text("Atualizações")
               .font(.subheadline.weight(.semibold))
-              .foregroundStyle(.orange)
-            Button {
-              showingReleaseNotes = true
-            } label: {
-              Label("Mudanças", systemImage: "doc.text")
+            Spacer()
+            if updater.state == .checking {
+              ProgressView().controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            Button {
-              Task { await updater.downloadAndInstall() }
-            } label: {
-              Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
+          }
+          if let release = updater.release {
+            HStack(spacing: 8) {
+              Label("Nova versão \(release.tag)", systemImage: "arrow.down.circle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+              Spacer()
+              Button("Mudanças") {
+                showingReleaseNotes = true
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+              Button("Baixar e instalar") {
+                Task { await updater.downloadAndInstall() }
+              }
+              .buttonStyle(.borderedProminent)
+              .controlSize(.small)
+              .disabled(updater.isBusy)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .disabled(updater.isBusy)
+          } else {
+            HStack {
+              Text("Versão instalada: \(updater.currentVersion)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button("Verificar atualizações") {
+                Task { await updater.check() }
+              }
+              .buttonStyle(.bordered)
+              .controlSize(.small)
+              .disabled(updater.isBusy)
+            }
           }
-        } else if case .failed = updater.state {
-          Button {
-            Task { await updater.check() }
-          } label: {
-            Label("Verificar novamente", systemImage: "arrow.clockwise")
+          if let message = updater.statusMessage {
+            if updater.release == nil {
+              Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+              Text(message)
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
           }
-          .buttonStyle(.bordered)
-          .controlSize(.small)
         }
+        .padding(.top, 4)
       }
-      .padding(16)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(.quaternary)
-      )
-      .sheet(isPresented: $showingReleaseNotes) {
-        if let release = updater.release {
-          ReleaseNotesView(release: release)
-        }
-      }
-
-      VStack(alignment: .leading, spacing: 10) {
-        HStack {
-          Text("Código de acesso")
-            .font(.headline)
-          Spacer()
-          Button("Gerar novo código") {
-            Task { await store.resetPin() }
-          }
-          .buttonStyle(.link)
-        }
-        HStack(spacing: 8) {
-          Text(store.pinCode ?? "—")
-            .font(.system(size: 28, weight: .bold, design: .monospaced))
-            .tracking(4)
-          Text("Digite no dispositivo (Android, iPhone) para acessar o dock.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        if let err = store.pinError {
-          Text(err)
-            .font(.caption)
-            .foregroundStyle(.red)
-        }
-      }
-      .padding(16)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(.quaternary)
-      )
-
-      VStack(alignment: .leading, spacing: 8) {
-        Text("Base URL")
-          .font(.headline)
-        TextField("http://127.0.0.1:3000", text: $store.baseURL)
-          .textFieldStyle(.roundedBorder)
-      }
-
-      Text("O servidor inicia automaticamente ao abrir o Dokke.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
-      Button {
-        Task { await store.refreshAll() }
-      } label: {
-        Label("Atualizar", systemImage: "arrow.clockwise")
-      }
-      .buttonStyle(.bordered)
-
-      }
-      .padding(20)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(28)
+      .frame(maxWidth: aboutContentMaxWidth, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .center)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(DokkeTheme.canvas.ignoresSafeArea())
+    .confirmationDialog("Gerar novo código?", isPresented: $showingResetPinConfirmation, titleVisibility: .visible) {
+      Button("Gerar novo código", role: .destructive) {
+        Task { await store.resetPin() }
+      }
+      Button("Cancelar", role: .cancel) {}
+    } message: {
+      Text("Os dispositivos conectados precisarão digitar o novo código.")
+    }
+    .sheet(isPresented: $showingReleaseNotes) {
+      if let release = updater.release {
+        ReleaseNotesView(release: release)
+      }
+    }
+  }
+}
+
+private struct AccessCodeView: View {
+  let code: String?
+  let onRegenerate: () -> Void
+
+  private var digits: [String] {
+    let characters = Array((code ?? "").prefix(4))
+    return (0..<4).map { index in
+      index < characters.count ? String(characters[index]) : "—"
+    }
+  }
+
+  var body: some View {
+    VStack(spacing: 14) {
+      HStack(spacing: 10) {
+        ForEach(Array(digits.enumerated()), id: \.offset) { _, digit in
+          Text(digit)
+            .font(.system(size: 42, weight: .bold, design: .monospaced))
+            .frame(width: 64, height: 76)
+            .background(.quaternary)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+      }
+      Text("Digite este código no dispositivo conectado")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Button("Gerar novo código", action: onRegenerate)
+        .buttonStyle(.link)
+    }
   }
 }
 
@@ -325,55 +326,6 @@ private struct QRCodeView: View {
     let context = CIContext()
     guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
     return NSImage(cgImage: cgImage, size: NSSize(width: scaled.extent.width, height: scaled.extent.height))
-  }
-}
-
-private struct UpdateBanner: View {
-  @EnvironmentObject private var updater: DokkeUpdateManager
-  let release: DokkeRelease
-  @Binding var showingReleaseNotes: Bool
-
-  var body: some View {
-    HStack(spacing: 12) {
-      Image(systemName: "arrow.down.circle.fill")
-        .font(.title3)
-        .foregroundStyle(.orange)
-      VStack(alignment: .leading, spacing: 2) {
-        Text("Nova atualização disponível")
-          .font(.subheadline.weight(.semibold))
-        Text("Dokke \(release.tag) está pronto para baixar e instalar.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-      Spacer(minLength: 12)
-      Button {
-        showingReleaseNotes = true
-      } label: {
-        Label("Mudanças", systemImage: "doc.text")
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      Button {
-        Task { await updater.downloadAndInstall() }
-      } label: {
-        if updater.state == .downloading {
-          Label("Baixando...", systemImage: "arrow.down.circle")
-        } else if updater.state == .installing {
-          Label("Instalando...", systemImage: "gearshape")
-        } else {
-          Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
-        }
-      }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.small)
-      .disabled(updater.isBusy)
-    }
-    .padding(.horizontal, 20)
-    .padding(.vertical, 10)
-    .background(.orange.opacity(0.12))
-    .overlay(alignment: .bottom) {
-      Divider()
-    }
   }
 }
 
@@ -415,12 +367,20 @@ private struct ReleaseNotesView: View {
 }
 
 struct MenuBarView: View {
+  @Environment(\.openWindow) private var openWindow
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var server: ServerManager
+  @EnvironmentObject private var updater: DokkeUpdateManager
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(store.online ? "Dokke online" : "Dokke offline")
+      HStack(spacing: 8) {
+        Circle()
+          .fill(store.online ? Color.green : Color.red.opacity(0.85))
+          .frame(width: 8, height: 8)
+        Text(store.online ? "Dokke online" : "Dokke offline")
+          .fontWeight(.semibold)
+      }
       Text("Dispositivos: \(store.devices) · Fixados: \(store.pinned.count)")
         .foregroundStyle(.secondary)
       if let note = store.lastSyncNote {
@@ -429,8 +389,25 @@ struct MenuBarView: View {
           .foregroundStyle(.secondary)
       }
       Divider()
-      Button("Atualizar") {
+      Button("Abrir Dokke") {
+        openWindow(id: "main")
+      }
+      Button("Sincronizar agora") {
         Task { await store.refreshAll() }
+      }
+      if let release = updater.release {
+        Divider()
+        Text("Atualização \(release.tag) disponível")
+          .font(.caption.weight(.semibold))
+        Button("Baixar e instalar") {
+          Task { await updater.downloadAndInstall() }
+        }
+        .disabled(updater.isBusy)
+      } else {
+        Button("Verificar atualizações") {
+          Task { await updater.check() }
+        }
+        .disabled(updater.isBusy)
       }
       Divider()
       Button("Sair") {

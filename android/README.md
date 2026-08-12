@@ -1,8 +1,8 @@
-# Dokke — App Android (wrapper WebView)
+# Dokke — App Android (companion nativo + PWA)
 
-App fino que carrega a UI do **Dokke** (já construída em `../public/index.html`) em tela
-cheia, sem a chrome do navegador. Reaproveita 100% do front-end — nenhum código da UI é
-reescrito.
+App fino que faz a descoberta e a conexão com o Mac nativamente e carrega a UI do
+**Dokke** (já construída em `../public/index.html`) em tela cheia, sem a chrome do
+navegador. Reaproveita 100% do front-end — nenhum código da UI é reescrito.
 
 ## O que faz
 - WebView em tela cheia/imersiva, fundo preto (#0a0a12) combinando com o app.
@@ -20,8 +20,12 @@ Edite `app/src/main/res/values/server_url.xml` com o IP do Mac na sua rede, ou
 sobrescreva em runtime pela chave `server_url` em `SharedPreferences("prefs")`.
 
 > **Auto-descoberta**: o app pergunta na rede via UDP broadcast (porta 3001, protocolo
-> `dokke:discover`) e o servidor responde com o IP atual. Se o IP do Mac mudar (queda de
+> `dokke:discover`) e o servidor responde com o IP atual. A resposta UDP só é aceita
+> depois que o APK confirma `GET /health` como Dokke. Se o IP do Mac mudar (queda de
 > luz, DHCP), o device acha o servidor sozinho e grava a URL nova — o IP do XML é só fallback.
+
+O APK persiste somente o endpoint HTTP(S) validado. O PIN e o cookie continuam no
+WebView; a camada nativa não bypassa o pareamento.
 
 ## Build (precisa de Java + Android SDK)
 ```sh

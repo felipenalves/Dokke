@@ -5,8 +5,8 @@ struct DockIcon: View {
   let name: String
   @State private var isHovered = false
 
-  private let iconSize: CGFloat = 96
-  private let cornerRadius: CGFloat = 18
+  private let iconSize: CGFloat = 72
+  private let cornerRadius: CGFloat = 16
 
   var body: some View {
     VStack(spacing: 8) {
@@ -16,7 +16,7 @@ struct DockIcon: View {
         .font(.system(size: 11))
         .lineLimit(1)
         .truncationMode(.middle)
-        .frame(width: 120)
+        .frame(width: 88)
         .foregroundStyle(.primary)
         .multilineTextAlignment(.center)
     }
