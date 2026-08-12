@@ -2520,7 +2520,11 @@
         }
         // Android só avisa depois que a release existe no GitHub.
         try {
-          const apkNow = window.DokkeAndroid && window.DokkeAndroid.appVersion();
+          const android = window.DokkeAndroid;
+          const isAndroid = !!(android && typeof android.requestUpdate === "function");
+          const apkNow = isAndroid && typeof android.appVersion === "function"
+            ? String(android.appVersion() || "").trim()
+            : "";
           if (apkNow && rel && rel.tag && cmpVer(rel.tag, apkNow) > 0){
             showUpBanner("Nova atualização do Dokke",
               "Versão " + rel.tag + " disponível. Escolha quando baixar.",
@@ -2528,6 +2532,9 @@
               rel.tag);
             return;
           }
+          // O Android e o Mac têm ciclos de release independentes. Se o APK
+          // já está atualizado, não pode herdar o alerta de um Mac host antigo.
+          if (isAndroid) return;
         } catch (e) {}
         // Mac (servidor embutido) desatualizado
         if (rel && rel.tag && cmpVer(rel.tag, v.local.tag) > 0){

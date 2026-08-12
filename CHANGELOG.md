@@ -41,6 +41,16 @@ previsível em diferentes orientações de tela.
 - O APK de release continua separado de builds Debug e usa incremento de
   `versionCode` para o Android aceitar a atualização.
 
+### Correções de manutenção do release
+
+- Safari voltou a aparecer no inventário de apps: no macOS ele pode ser
+  exposto como symlink para o Cryptex, e esse caso agora é reconhecido.
+- O `ServerManager` agora preserva no `/tmp/dokke-server.log` cada tentativa
+  de inicialização, incluindo caminhos ausentes, erros de `Process.run()` e
+  encerramentos inesperados.
+- Corrigido o banner no Android que continuava avisando sobre uma atualização
+  do Mac mesmo quando o APK já estava na versão atual.
+
 ### Distribuição
 
 - Site atualizado para apontar para `v0.2.7` usando os links permanentes da
@@ -57,13 +67,13 @@ previsível em diferentes orientações de tela.
 ### Checksums SHA-256
 
 ```text
-1cc3f6b49dd5ef0c8b1c4074e1c2280438040f270a9f0e33f2173037e97a1e15  Dokke-macOS.dmg
+e94232b1516fbcd327d4046438aa6c573421f6ad5c4292dda729a82c3e3fc8ca  Dokke-macOS.dmg
 4d1a61a65ba2df805adcbafaa195081fb40dec121a2e3cec61b83faa789cbb7f  dokke.apk
 ```
 
 ### Validação
 
-- 122 testes automatizados passando.
+- 125 testes automatizados passando.
 - `git diff --check` sem problemas.
 - DMG macOS e APK Android gerados a partir desta versão.
 - Checksums SHA-256 publicados junto dos artefatos do GitHub Release.

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { chromium } from "playwright";
 import { startServer } from "../server.js";
 
 test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
@@ -127,6 +128,38 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
   } finally { await close(); }
+});
+
+test("Android atualizado não exibe o banner de atualização do Mac host", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      window.DokkeAndroid = {
+        appVersion: () => "0.2.7",
+        requestUpdate: () => {}
+      };
+    });
+    await page.route("**/api/version", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          local: { tag: "v0.2.6", apkVersion: "0.2.6" },
+          latest: { tag: "v0.2.7", apkUrl: "https://example.test/dokke.apk" }
+        })
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(350);
+    const shown = await page.locator("#upBanner").evaluate(el => el.classList.contains("show"));
+    assert.equal(shown, false, "APK atualizado não pode herdar o alerta do Mac host antigo");
+  } finally {
+    await browser.close();
+    await close();
+  }
 });
 
 test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {

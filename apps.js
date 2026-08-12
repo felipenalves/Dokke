@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, readdir, mkdir, writeFile, unlink } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile, unlink, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -186,7 +186,16 @@ async function findAppBundles(dir, depth = 0) {
   const found = [];
   for (const entry of entries) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory() && entry.name.endsWith(".app")) {
+    const isAppBundle = entry.name.endsWith(".app") && (entry.isDirectory() || entry.isSymbolicLink());
+    if (isAppBundle) {
+      // O macOS expõe alguns apps, como o Safari, como symlink para o Cryptex.
+      // Confirma o destino sem seguir symlinks de diretórios arbitrários e sem
+      // abrir espaço para loops durante a varredura.
+      try {
+        if (!(await stat(path)).isDirectory()) continue;
+      } catch {
+        continue;
+      }
       found.push({ name: entry.name.slice(0, -4), path });
     } else if (entry.isDirectory() && depth < 2 && !entry.name.startsWith(".")) {
       found.push(...await findAppBundles(path, depth + 1));

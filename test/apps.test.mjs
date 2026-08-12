@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { canonicalAppNameFromBundlePath, listApps, scanAppsDirs } from "../apps.js";
@@ -70,6 +70,23 @@ test("scanAppsDirs lista apps com nome, path e icon", async () => {
 
 test("scanAppsDirs com diretório inexistente retorna []", async () => {
   assert.deepEqual(await scanAppsDirs([join(tmpdir(), "j5-nao-existe-xyz")]), []);
+});
+
+test("scanAppsDirs inclui app bundle exposto como symlink", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-symlink-"));
+  const targetRoot = await mkdtemp(join(tmpdir(), "j5-cryptex-"));
+  try {
+    const target = join(targetRoot, "Safari.app");
+    const link = join(dir, "Safari.app");
+    await mkdir(join(target, "Contents", "Resources"), { recursive: true });
+    await writeFile(join(target, "Contents", "Resources", "Safari.icns"), "icns");
+    await symlink(target, link, "dir");
+    const apps = await scanAppsDirs([dir]);
+    assert.deepEqual(apps, [{ name: "Safari", path: link, icon: true }]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(targetRoot, { recursive: true, force: true });
+  }
 });
 
 test("scanAppsDirs deduplica nomes (primeiro vence) e ordena sem diferenciar maiúsculas", async () => {

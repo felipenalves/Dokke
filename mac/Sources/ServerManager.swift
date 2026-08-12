@@ -13,6 +13,7 @@ final class ServerManager: ObservableObject {
 
   private let serverPath: String?
   private let nodePath: String?
+  private static let logPath = "/tmp/dokke-server.log"
 
   init() {
     serverPath = Self.locateServer()
@@ -73,6 +74,28 @@ final class ServerManager: ObservableObject {
     return nil
   }
 
+  private static func openLog() -> FileHandle? {
+    let fm = FileManager.default
+    if let attrs = try? fm.attributesOfItem(atPath: logPath),
+       let size = attrs[.size] as? NSNumber,
+       size.intValue > 1_000_000 {
+      try? fm.removeItem(atPath: logPath)
+    }
+    if !fm.fileExists(atPath: logPath) {
+      fm.createFile(atPath: logPath, contents: nil)
+    }
+    guard let handle = FileHandle(forWritingAtPath: logPath) else { return nil }
+    handle.seekToEndOfFile()
+    return handle
+  }
+
+  private func appendLog(_ message: String) {
+    guard let handle = logFile else { return }
+    guard let data = message.data(using: .utf8) else { return }
+    handle.write(data)
+    handle.synchronizeFile()
+  }
+
   private static func canRunNode(at path: String) -> Bool {
     let proc = Process()
     let pipe = Pipe()
@@ -119,32 +142,35 @@ final class ServerManager: ObservableObject {
 
   func start() {
     guard !isRunning else { return }
+    intentionalStop = false
+    lastError = nil
+    logFile = Self.openLog()
+    appendLog("\n[startup] \(Date()) node=\(nodePath ?? "<missing>") server=\(serverPath ?? "<missing>")\n")
     guard let serverPath, let nodePath else {
       lastError = "Node ou server.js não foi encontrado. Reinstale o Dokke pelo DMG mais recente."
+      appendLog("[startup-error] Node ou server.js não foi encontrado\n")
+      logFile?.closeFile()
+      logFile = nil
       print("[dokke] server.js ou node não encontrado — defina DOKKE_SERVER / DOKKE_NODE (env) ou dokke.serverPath / dokke.nodePath (UserDefaults)")
       return
     }
-    intentionalStop = false
-    lastError = nil
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: nodePath)
     proc.arguments = [serverPath]
 
-    // Log to file for debugging
-    let logPath = "/tmp/dokke-server.log"
-    FileManager.default.createFile(atPath: logPath, contents: nil)
-    logFile = FileHandle(forWritingAtPath: logPath)
     proc.standardOutput = logFile
     proc.standardError = logFile
 
     proc.terminationHandler = { [weak self] process in
       DispatchQueue.main.async { [weak self] in
         guard let self = self else { return }
+        self.appendLog("[exit] status=\(process.terminationStatus)\n")
+        self.logFile?.closeFile()
         self.logFile = nil
         self.process = nil
         self.isRunning = false
         if !self.intentionalStop && process.terminationStatus != 0 {
-          self.lastError = "O servidor não conseguiu iniciar (código \(process.terminationStatus)). Veja /tmp/dokke-server.log."
+          self.lastError = "O servidor encerrou (código \(process.terminationStatus)). Veja /tmp/dokke-server.log."
         }
         if !self.intentionalStop { self.scheduleRestart() }
       }
@@ -157,6 +183,9 @@ final class ServerManager: ObservableObject {
       restartFailures = 0
       print("[dokke] server started pid=\(proc.processIdentifier)")
     } catch {
+      appendLog("[startup-error] \(error.localizedDescription)\n")
+      logFile?.closeFile()
+      logFile = nil
       lastError = "Não foi possível iniciar o servidor: \(error.localizedDescription)"
       print("[dokke] failed to start server: \(error)")
     }
@@ -168,12 +197,14 @@ final class ServerManager: ObservableObject {
     restartWork = nil
     guard let proc = process, proc.isRunning else {
       process = nil
+      logFile?.closeFile()
       logFile = nil
       return
     }
     proc.terminate()
     print("[dokke] server stopped")
     process = nil
+    logFile?.closeFile()
     logFile = nil
     isRunning = false
   }
