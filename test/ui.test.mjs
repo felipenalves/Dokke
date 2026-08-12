@@ -52,7 +52,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
     assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(2\.5vmin, 12px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
     assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
-    assert.match(html, /orientation: portrait\) and \(max-width:699px\)[\s\S]*--app-tile: min\(44vw, 22vh, 190px\)/, "celular em retrato deve aproveitar melhor a largura");
+    assert.match(html, /orientation: portrait\) and \(max-width:699px\)[\s\S]*--app-tile: min\(44vw, calc\(\(100dvh - var\(--dokke-safe-top\) - var\(--dokke-safe-bottom\) - 96px\) \/ 4\), 190px\)/, "celular em retrato deve caber no viewport standalone");
     assert.match(html, /orientation: landscape\) and \(max-height:500px\)[\s\S]*--app-tile: min\(40vmin, 21vw, 180px\)/, "celular deitado deve manter folga vertical no A02");
     assert.match(html, /function setLayer\(on, axis\)/, "camadas GPU devem ser escolhidas pelo eixo do gesto");
     assert.match(html, /setLayer\(true, "horizontal"\)/, "slide horizontal deve promover apenas a faixa de apps");
@@ -234,4 +234,51 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.match(js, /activate/, "sw.js deve ter evento activate");
     assert.match(js, /fetch/, "sw.js deve ter evento fetch");
   } finally { await close(); }
+});
+
+test("grid em retrato não corta cards quando o PWA tem safe area", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  const apps = Array.from({ length: 8 }, (_, i) => ({ name: `App ${i + 1}`, icon: false }));
+  const pinned = apps.map(app => app.name);
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 393, height: 852 },
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true,
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
+    });
+    await page.route("**/api/apps/installed", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, apps }),
+    }));
+    await page.route("**/api/apps", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, pinned, running: [], v: "0.2.7" }),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    // O Playwright não expõe safe-area-inset-*; estas dimensões reproduzem o
+    // recuo do status bar e do indicador Home do PWA em um iPhone moderno.
+    await page.addStyleTag({ content: ":root{--dokke-safe-top:59px;--dokke-safe-bottom:44px}.screen{padding-top:59px !important}.dots{padding-bottom:44px !important}" });
+    await page.waitForFunction(() => document.querySelectorAll(".atile").length === 8);
+    const bounds = await page.evaluate(() => {
+      const pageRect = document.querySelector(".page").getBoundingClientRect();
+      const launchpad = document.querySelector(".launchpad").getBoundingClientRect();
+      const tiles = [...document.querySelectorAll(".page:first-child .atile")].map(el => el.getBoundingClientRect());
+      return {
+        page: { top: pageRect.top, bottom: pageRect.bottom },
+        launchpad: { top: launchpad.top, bottom: launchpad.bottom },
+        first: { top: tiles[0].top, bottom: tiles[0].bottom },
+        last: { top: tiles.at(-1).top, bottom: tiles.at(-1).bottom },
+      };
+    });
+    assert.ok(bounds.first.top >= bounds.launchpad.top - 0.5, "primeiro card não pode escapar pelo topo do pager");
+    assert.ok(bounds.last.bottom <= bounds.launchpad.bottom + 0.5, "último card não pode ser cortado pelo rodapé do PWA");
+  } finally {
+    await browser.close();
+    await close();
+  }
 });

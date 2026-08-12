@@ -25,6 +25,8 @@
     --red: #ff453a;
     --glass: rgba(255,255,255,.07);
     --edge: rgba(255,255,255,.10);
+    --dokke-safe-top: env(safe-area-inset-top, 0px);
+    --dokke-safe-bottom: env(safe-area-inset-bottom, 0px);
     --app-tile: 38vmin;
     --icon-turn: 0deg;
   }
@@ -174,8 +176,13 @@
   }
   @media (orientation: portrait) and (max-width:699px){
     /* Em celulares, a régua é limitada pela largura e pelas quatro linhas.
-       O 38vmin anterior deixava muito espaço vazio nas laterais. */
-    :root{ --app-tile: min(44vw, 22vh, 190px); }
+       O 38vmin anterior deixava muito espaço vazio nas laterais. O limite
+       vertical desconta stage, dots, gaps e safe area do PWA standalone; sem
+       isso o último glass escapava alguns pixels pelo rodapé do iPhone. */
+    :root{ --app-tile: min(44vw, calc((100vh - var(--dokke-safe-top) - var(--dokke-safe-bottom) - 96px) / 4), 190px); }
+    @supports (height: 100dvh){
+      :root{ --app-tile: min(44vw, calc((100dvh - var(--dokke-safe-top) - var(--dokke-safe-bottom) - 96px) / 4), 190px); }
+    }
   }
   /* WebView antigo (ex.: Android 6 sem grid): fallback flex 2x4 */
   @supports not (display: grid){
