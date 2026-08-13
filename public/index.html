@@ -211,8 +211,9 @@
   body.swiping .aglass::before,
   body.swiping .aglass::after{ opacity: 0; }
   .android-webview .aglass{
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 3px 8px rgba(0,0,0,.28);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 2px 5px rgba(0,0,0,.24);
   }
+  .android-webview .aglass::before{ display: none; }
   .android-webview .launchpad{
     touch-action: pan-x;
     -webkit-overflow-scrolling: touch;
@@ -233,6 +234,7 @@
   }
   .atile.is-activating .aglass::after, .dcard.is-activating .aglass::after{
     animation: touchRipple .38s cubic-bezier(.22,.61,.36,1);
+    will-change: transform, opacity;
   }
   @media (prefers-reduced-motion: reduce){
     .atile.is-activating .aglass, .dcard.is-activating .aglass,
@@ -265,7 +267,6 @@
     transform: translate(-50%, -50%) scale(.2);
     pointer-events: none;
     z-index: 2;
-    will-change: transform, opacity;
   }
   .aglass .gicon, .aglass img.aicon{
     object-fit: cover;
@@ -866,6 +867,28 @@
 
   // ---------- login wall (pin de acesso) ----------
   let authed = false, loginOpen = false;
+  function syncLoginViewport(){
+    const scrim = $("loginScrim");
+    const vv = window.visualViewport;
+    if (!scrim || !loginOpen || !vv || vv.height >= window.innerHeight - 80){
+      if (scrim){
+        scrim.style.top = "";
+        scrim.style.bottom = "";
+        scrim.style.height = "";
+      }
+      return;
+    }
+    // Android WebView mantém o layout viewport alto e reduz só o visual viewport
+    // quando o teclado abre. Sem este recuo o card fica centrado atrás do IME.
+    const top = Number.isFinite(vv.offsetTop) ? Math.max(0, vv.offsetTop) : 0;
+    scrim.style.top = top + "px";
+    scrim.style.bottom = "auto";
+    scrim.style.height = Math.max(0, vv.height) + "px";
+  }
+  if (window.visualViewport){
+    window.visualViewport.addEventListener("resize", syncLoginViewport);
+    window.visualViewport.addEventListener("scroll", syncLoginViewport);
+  }
   function showLogin(){
     if (loginOpen) return;
     loginOpen = true;
@@ -875,6 +898,7 @@
     // trava a orientação em retrato só enquanto a auth está aberta
     document.body.classList.add("is-login");
     lockPortrait();
+    syncLoginViewport();
     if (pin) setTimeout(function(){ pin.focus(); }, 80);
   }
   function hideLogin(){
@@ -1830,20 +1854,52 @@
     } catch (e) { ok = false; }
     state.online = ok;
     if (prev && !ok) toast("Mac desconectado", "err");
-    if (!prev && ok) toast("Mac conectado");
+    if (!prev && ok) toast("Dispositivo conectado");
     healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
     healthT = setTimeout(loadHealth, healthBackoff);
   }
 
   let pinnedSig = "";
   let recentsRenderPending = false;
+  let launchpadRenderPending = false;
+  let pendingViewsTimer = null;
+  function cancelPendingViewsTimer(){
+    if (pendingViewsTimer){ clearTimeout(pendingViewsTimer); pendingViewsTimer = null; }
+  }
   function flushPendingRecents(){
-    if (!recentsRenderPending || document.body.classList.contains("swiping")) return;
-    requestAnimationFrame(function(){
-      if (!recentsRenderPending || document.body.classList.contains("swiping")) return;
-      recentsRenderPending = false;
-      renderRecents();
-    });
+    if ((!recentsRenderPending && !launchpadRenderPending) || document.body.classList.contains("swiping")) return;
+    if (pendingViewsTimer) return;
+    // Atualizações recebidas durante o settle não podem disputar o último
+    // frame da animação. As telas já estão estáveis quando este pequeno atraso
+    // vence; na próxima troca o pending é preparado antes do movimento.
+    pendingViewsTimer = setTimeout(function(){
+      pendingViewsTimer = null;
+      if (document.body.classList.contains("swiping")) return;
+      if (launchpadRenderPending){
+        launchpadRenderPending = false;
+        renderLaunchpad(true);
+      }
+      if (recentsRenderPending && deckPid == null){
+        recentsRenderPending = false;
+        renderRecents();
+      }
+    }, IS_ANDROID_WEBVIEW ? 120 : 0);
+  }
+  function renderPendingRecentsBeforeTransition(){
+    if (!recentsRenderPending || deckPid != null) return;
+    // A tela 2 ainda está fora da viewport. Montá-la antes do settle tira a
+    // criação dos cards do frame final da animação vertical.
+    cancelPendingViewsTimer();
+    recentsRenderPending = false;
+    renderRecents();
+  }
+  function renderPendingLaunchpadBeforeTransition(){
+    if (!launchpadRenderPending) return;
+    // A tela 1 ainda está fora da viewport. O rebuild fica antes do settle,
+    // nunca no frame em que ela termina de entrar.
+    cancelPendingViewsTimer();
+    launchpadRenderPending = false;
+    renderLaunchpad(true);
   }
   function applyAppsPayload(pinned, running){
     if (!Array.isArray(pinned) || !Array.isArray(running)) return false;
@@ -1852,7 +1908,10 @@
     pinnedSig = nextSig;
     state.pinned = pinned;
     state.running = running;
-    if (pinnedChanged) renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+    if (pinnedChanged){
+      if (document.body.classList.contains("swiping")) launchpadRenderPending = true;
+      else renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+    }
     const key = recentsKey();
     if (recentsKeyPrev === null || key !== recentsKeyPrev){
       recentsKeyPrev = key;
@@ -1865,7 +1924,9 @@
         warmed.add(a.name);
         primeIcon(a.name);
       });
-      if (document.body.classList.contains("swiping")) recentsRenderPending = true;
+      if (document.body.classList.contains("swiping")){
+        recentsRenderPending = true;
+      }
       else renderRecents();
     }
     updateStatuses();
@@ -2062,13 +2123,27 @@
         screenRecents.style.transition = "";
       }
     }
+    let swipeClearRaf = null;
     function setLayer(on, axis){
+      if (swipeClearRaf){
+        cancelAnimationFrame(swipeClearRaf);
+        swipeClearRaf = null;
+      }
       try {
         const g = on && axis === "vertical" ? "transform" : "";
         for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
       } catch (err) {}
-      try { document.body.classList.toggle("swiping", !!on); } catch (err) {}
-      if (!on) flushPendingRecents();
+      if (on){
+        try { document.body.classList.add("swiping"); } catch (err) {}
+        return;
+      }
+      // A remoção síncrona restaura sombras e pseudo-elementos de todos os
+      // cards exatamente no frame em que a tela termina de entrar.
+      swipeClearRaf = requestAnimationFrame(function(){
+        swipeClearRaf = null;
+        try { document.body.classList.remove("swiping"); } catch (err) {}
+        flushPendingRecents();
+      });
     }
     let dragRaf = null, dragDy = null;
     function dragTo(dy){
@@ -2193,6 +2268,11 @@
       settling = true;
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
+      if (nextName === "recents"){
+        renderPendingRecentsBeforeTransition();
+      } else if (nextName === "apps"){
+        renderPendingLaunchpadBeforeTransition();
+      }
       void screensEl.offsetHeight;
       // Calcula a posição final usando a tela atual como referência. Antes o
       // estado era trocado primeiro e applyDrag usava o eixo errado, causando

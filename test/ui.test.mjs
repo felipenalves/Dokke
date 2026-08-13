@@ -14,6 +14,8 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
+    assert.match(html, /toast\("Dispositivo conectado"\)/, "o status deve identificar o dispositivo conectado");
+    assert.doesNotMatch(html, /toast\("Mac conectado"\)/, "o status não deve atribuir a conexão ao Mac");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
     assert.match(html, /\.vdots\{[\s\S]*safe-area-inset-right/, "V-Dots devem respeitar a safe area lateral");
     assert.doesNotMatch(html, /html\.land-secondary \.vdots\{/, "V-Dots não devem migrar para a esquerda em landscape-secondary");
@@ -55,9 +57,15 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /orientation: portrait\) and \(max-width:699px\)[\s\S]*--app-tile: min\(44vw, calc\(\(100dvh - var\(--dokke-safe-top\) - var\(--dokke-safe-bottom\) - 96px\) \/ 4\), 190px\)/, "celular em retrato deve caber no viewport standalone");
     assert.match(html, /orientation: landscape\) and \(max-height:500px\)[\s\S]*--app-tile: min\(40vmin, 21vw, 180px\)/, "celular deitado deve manter folga vertical no A02");
     assert.match(html, /function setLayer\(on, axis\)/, "camadas GPU devem ser escolhidas pelo eixo do gesto");
+    const layerStart = html.indexOf("function setLayer(on, axis)");
+    const layerEnd = html.indexOf("let dragRaf", layerStart);
+    assert.match(html.slice(layerStart, layerEnd), /if \(on\)[\s\S]*return;[\s\S]*requestAnimationFrame/, "efeitos pesados devem ser restaurados depois do frame final");
     assert.match(html, /setLayer\(true, "horizontal"\)/, "slide horizontal deve promover apenas a faixa de apps");
     assert.match(html, /setLayer\(true, "vertical"\)/, "slide vertical deve promover as telas");
     assert.match(html, /body\.swiping \.atile \.aglass[\s\S]*box-shadow: inset/, "slide deve reduzir repintura pesada no Android");
+    assert.match(html, /\.android-webview \.aglass\{[\s\S]*0 2px 5px rgba\(0,0,0,\.24\)/, "Android deve manter o glass com sombra externa leve");
+    assert.match(html, /\.android-webview \.aglass::before\{\s*display: none;/, "Android deve evitar o highlight extra dos cards");
+    assert.match(html, /\.atile\.is-activating \.aglass::after, \.dcard\.is-activating \.aglass::after\{[\s\S]*will-change: transform, opacity/, "ripple só deve ganhar camada GPU durante o toque");
     assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
     assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
     assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
@@ -95,7 +103,14 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.ok(settleStart >= 0 && settleEnd > settleStart, "settleTo deve existir isolada");
     assert.doesNotMatch(html.slice(settleStart, settleEnd), /goScreen\(nextName\)/, "troca de camada só deve ocorrer depois do slide");
     assert.match(html, /let recentsRenderPending = false/, "render da tela 2 deve ter estado pendente");
+    assert.match(html, /let launchpadRenderPending = false/, "render da tela 1 deve ter estado pendente");
+    assert.match(html, /function renderPendingRecentsBeforeTransition\(\)/, "tela 2 pendente deve ser preparada antes da animação vertical");
+    assert.match(html, /function renderPendingLaunchpadBeforeTransition\(\)/, "tela 1 pendente deve ser preparada antes da animação vertical");
     assert.match(html, /body\.classList\.contains\("swiping"\)[\s\S]*recentsRenderPending/, "render da tela 2 não deve ocorrer durante o gesto");
+    assert.match(html, /body\.classList\.contains\("swiping"\)[\s\S]*launchpadRenderPending/, "render da tela 1 não deve ocorrer durante o gesto");
+    const settleBody = html.slice(settleStart, settleEnd);
+    assert.match(settleBody, /if \(nextName === "recents"\)\{[\s\S]*renderPendingRecentsBeforeTransition\(\);[\s\S]*void screensEl\.offsetHeight;/, "render pendente deve sair do frame final da transição");
+    assert.match(settleBody, /if \(nextName === "apps"\)\{[\s\S]*renderPendingLaunchpadBeforeTransition\(\);[\s\S]*void screensEl\.offsetHeight;/, "render pendente do launchpad deve sair do frame final da transição");
     assert.doesNotMatch(html, /landscape = next;\s*renderLaunchpad\(true\)/, "rotação não deve reconstruir a tela 1");
     assert.match(html, /function favLong[\s\S]*?textContent = "\\\"" \+ name/, "nome de app no modal deve entrar via textContent");
     assert.match(html, /function modal\(html, beforeMount, kind\)/, "modal deve aceitar variação visual sem duplicar a lógica");
@@ -128,6 +143,48 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
   } finally { await close(); }
+});
+
+test("login reposiciona o cartão dentro do visual viewport quando o teclado abre", async () => {
+  const { port, close } = await startServer({ port: 0, trustLoopback: false });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 411, height: 888 },
+      deviceScaleFactor: 1,
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.addInitScript(() => {
+      const listeners = {};
+      const visualViewport = {
+        height: 888,
+        width: 411,
+        offsetTop: 0,
+        addEventListener(type, listener) { (listeners[type] ||= []).push(listener); },
+        removeEventListener() {},
+      };
+      Object.defineProperty(window, "visualViewport", { configurable: true, value: visualViewport });
+      window.__setKeyboardViewport = height => {
+        visualViewport.height = height;
+        listeners.resize?.forEach(listener => listener());
+      };
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.locator("#loginScrim.show").waitFor();
+    await page.evaluate(() => window.__setKeyboardViewport(596));
+
+    const bounds = await page.evaluate(() => {
+      const scrim = document.querySelector("#loginScrim").getBoundingClientRect();
+      const button = document.querySelector("#loginGo").getBoundingClientRect();
+      return { scrimBottom: scrim.bottom, buttonBottom: button.bottom };
+    });
+    assert.ok(bounds.scrimBottom <= 596.5, "scrim deve acompanhar a altura visível quando o teclado abre");
+    assert.ok(bounds.buttonBottom <= 596.5, "botão Conectar deve continuar visível acima do teclado");
+  } finally {
+    await browser.close();
+    await close();
+  }
 });
 
 test("Android atualizado não exibe o banner de atualização do Mac host", async () => {
