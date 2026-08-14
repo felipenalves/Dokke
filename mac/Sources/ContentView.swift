@@ -48,9 +48,9 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .foregroundStyle(selection == item ? Color.white : Color.white.opacity(0.58))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(selection == item ? DokkeTheme.selection : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityLabel(item.rawValue)
@@ -58,10 +58,10 @@ struct ContentView: View {
       }
       Spacer()
     }
-    .padding(.horizontal, 8)
-    .padding(.top, 10)
+    .padding(.horizontal, 14)
+    .padding(.top, 0)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .navigationSplitViewColumnWidth(min: 148, ideal: 168, max: 196)
+    .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 216)
   }
 
   @ViewBuilder
@@ -109,13 +109,13 @@ struct AboutView: View {
           }
         }
         .frame(maxWidth: .infinity)
-        .padding(22)
+        .padding(16)
         .background(
           RoundedRectangle(cornerRadius: 16)
             .fill(.quaternary)
         )
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
           Text("Abrir em outro dispositivo")
             .font(.headline)
           if let ip = ServerManager.lanIPv4() {
@@ -160,9 +160,10 @@ struct AboutView: View {
               .foregroundStyle(.secondary)
           }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
-          RoundedRectangle(cornerRadius: 12)
+          RoundedRectangle(cornerRadius: 16)
             .fill(.quaternary)
         )
 
@@ -292,6 +293,7 @@ private struct AccessCodeView: View {
       Button("Gerar novo código", action: onRegenerate)
         .buttonStyle(.link)
     }
+    .frame(maxWidth: .infinity)
   }
 }
 

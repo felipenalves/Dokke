@@ -12,10 +12,10 @@ struct DokkeApp: App {
         .environmentObject(store)
         .environmentObject(server)
         .environmentObject(updater)
-        .frame(minWidth: 1080, idealWidth: 1280, minHeight: 680, idealHeight: 760)
+        .frame(minWidth: 840, idealWidth: 980, minHeight: 540, idealHeight: 628)
     }
     .windowResizability(.contentSize)
-    .defaultSize(width: 1280, height: 760)
+    .defaultSize(width: 980, height: 628)
 
     MenuBarExtra("Dokke", systemImage: "square.grid.2x2") {
       MenuBarView()

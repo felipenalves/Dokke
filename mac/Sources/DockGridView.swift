@@ -9,9 +9,13 @@ struct DockGridView: View {
   @State private var isReordering = false
 
   private let pageSize = 8
-  private let tileSize: CGFloat = 72
+  private let tileSize: CGFloat = 64
   private let tileSpacing: CGFloat = 22
-  private let pageHeight: CGFloat = 292
+  private let pageHeight: CGFloat = 244
+  private let carouselGap: CGFloat = 24
+  private let carouselPeekRatio: CGFloat = 0.60
+  private let carouselMaxPageWidth: CGFloat = 444
+  private let carouselMinPageWidth: CGFloat = 360
 
   private var displayedPinned: [String] {
     draftPinned ?? store.pinned
@@ -41,7 +45,7 @@ struct DockGridView: View {
         dockPages
       }
     }
-    .padding(.horizontal, 22)
+    .padding(.horizontal, 20)
     .padding(.top, 8)
     .padding(.bottom, 18)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -73,7 +77,7 @@ struct DockGridView: View {
 
       VStack(spacing: 18) {
         ScrollView(.horizontal) {
-          LazyHStack(alignment: .center, spacing: 18) {
+          LazyHStack(alignment: .center, spacing: carouselGap) {
             ForEach(Array(pages.enumerated()), id: \.offset) { index, names in
               pageContent(names: names, isLast: index == pages.count - 1)
                 .frame(width: pageWidth, height: cardHeight)
@@ -96,9 +100,8 @@ struct DockGridView: View {
   }
 
   private func carouselPageWidth(for availableWidth: CGFloat) -> CGFloat {
-    let gap: CGFloat = 18
-    let peek: CGFloat = 40
-    return min(480, max(348, (availableWidth - gap - peek) / 2))
+    let dominant = (availableWidth - carouselGap) / (1 + carouselPeekRatio)
+    return min(carouselMaxPageWidth, max(carouselMinPageWidth, dominant))
   }
 
   private func pageDots(count: Int) -> some View {
@@ -137,18 +140,18 @@ struct DockGridView: View {
         appGrid(names: names, isLast: isLast)
       }
     }
-    .padding(.horizontal, 28)
-    .padding(.vertical, 22)
+    .padding(.horizontal, 24)
+    .padding(.vertical, 24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(DokkeTheme.page)
-    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
   }
 
   private func appGrid(names: [String], isLast: Bool) -> some View {
     let columns = Array(repeating: GridItem(.flexible(minimum: tileSize), spacing: tileSpacing), count: 4)
     let used = names.count + (isLast ? 1 : 0)
 
-    return LazyVGrid(columns: columns, alignment: .center, spacing: 22) {
+    return LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
       ForEach(names, id: \.self) { name in
         appTile(name: name)
       }

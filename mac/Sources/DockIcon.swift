@@ -5,7 +5,7 @@ struct DockIcon: View {
   let name: String
   @State private var isHovered = false
 
-  private let iconSize: CGFloat = 72
+  private let iconSize: CGFloat = 64
   private let cornerRadius: CGFloat = 16
 
   var body: some View {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum DokkeTheme {
-  static let canvas = Color(red: 0.135, green: 0.095, blue: 0.09)
-  static let page = Color(red: 0.075, green: 0.035, blue: 0.018)
-  static let selection = Color.white.opacity(0.18)
+  static let canvas = Color(red: 0.161, green: 0.129, blue: 0.125)
+  static let page = Color(red: 0.106, green: 0.067, blue: 0.027)
+  static let selection = Color(red: 0.039, green: 0.388, blue: 0.851)
 }
