@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <b>Português</b> | <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/github/v/release/felipenalves/Dokke?label=release&color=4f46e5">
   <img src="https://img.shields.io/github/downloads/felipenalves/Dokke/total?label=downloads&color=0891b2">
   <img src="https://img.shields.io/github/stars/felipenalves/Dokke?style=social">

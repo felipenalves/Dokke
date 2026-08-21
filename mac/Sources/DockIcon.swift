@@ -25,7 +25,7 @@ struct DockIcon: View {
     .onHover { isHovered = $0 }
     .onTapGesture { /* future: launch app */ }
     .contextMenu {
-      Button("Remover do Dock") {
+      Button(I18n.removeFromDock) {
         Task { await store.unpin(name) }
       }
     }

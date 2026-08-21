@@ -20,10 +20,10 @@ struct AppPickerSheet: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack {
-        Text("Adicionar Apps")
+        Text(I18n.addAppsSheetTitle)
           .font(.headline)
         Spacer()
-        Button("Concluir") { dismiss() }
+        Button(I18n.done) { dismiss() }
           .buttonStyle(.borderedProminent)
       }
       .padding(16)
@@ -33,7 +33,7 @@ struct AppPickerSheet: View {
       HStack {
         Image(systemName: "magnifyingglass")
           .foregroundStyle(.secondary)
-        TextField("Buscar apps...", text: $search)
+        TextField(I18n.searchAppsPlaceholder, text: $search)
           .textFieldStyle(.plain)
         if !search.isEmpty {
           Button { search = "" } label: {
@@ -55,9 +55,9 @@ struct AppPickerSheet: View {
 
       if filteredApps.isEmpty {
         ContentUnavailableView(
-          search.isEmpty ? "Nenhum app encontrado" : "Sem resultados",
+          search.isEmpty ? I18n.noAppsFound : I18n.noResults,
           systemImage: "app.dashed",
-          description: Text(search.isEmpty ? "O servidor não retornou apps instalados." : "Tente uma busca diferente.")
+          description: Text(search.isEmpty ? I18n.noInstalledAppsDesc : I18n.tryDifferentSearch)
         )
       } else {
         List(filteredApps) { app in
@@ -91,11 +91,11 @@ struct AppPickerSheet: View {
       Spacer()
 
       if store.isPinned(app.name) {
-        Label("Adicionado", systemImage: "checkmark.circle.fill")
+        Label(I18n.added, systemImage: "checkmark.circle.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
-        Button("Adicionar") {
+        Button(I18n.add) {
           Task { await store.pin(app.name) }
         }
         .buttonStyle(.bordered)

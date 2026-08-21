@@ -47,11 +47,11 @@ final class DokkeUpdateManager: ObservableObject {
   var statusMessage: String? {
     switch state {
     case .idle: return nil
-    case .checking: return "Verificando atualizações..."
-    case .available: return "Nova versão disponível."
-    case .downloading: return "Baixando a atualização..."
-    case .installing: return "Instalando a atualização..."
-    case .upToDate: return "Você está na versão mais recente."
+    case .checking: return I18n.checkingUpdates
+    case .available: return I18n.newVersionAvailable
+    case .downloading: return I18n.downloadingUpdate
+    case .installing: return I18n.installingUpdate
+    case .upToDate: return I18n.upToDate
     case .failed(let message): return message
     }
   }
@@ -67,7 +67,7 @@ final class DokkeUpdateManager: ObservableObject {
       request.setValue("Dokke/\(currentVersion)", forHTTPHeaderField: "User-Agent")
       let (data, response) = try await URLSession.shared.data(for: request)
       guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-        throw UpdateError.network("O GitHub não respondeu corretamente.")
+        throw UpdateError.network(I18n.gitHubBadResponse)
       }
 
       let dto = try JSONDecoder().decode(GitHubReleaseDTO.self, from: data)
@@ -80,12 +80,12 @@ final class DokkeUpdateManager: ObservableObject {
       guard let asset = dto.assets.first(where: { $0.name == "Dokke-macOS.dmg" }),
             let digest = asset.digest?.replacingOccurrences(of: "sha256:", with: "")
       else {
-        throw UpdateError.invalidRelease("A release não contém um instalador macOS válido.")
+        throw UpdateError.invalidRelease(I18n.invalidMacRelease)
       }
 
       release = DokkeRelease(
         tag: dto.tagName,
-        notes: dto.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Sem notas de versão.",
+        notes: dto.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? I18n.noReleaseNotes,
         dmgURL: asset.browserDownloadURL,
         sha256: digest.lowercased(),
         htmlURL: dto.htmlURL
@@ -109,7 +109,7 @@ final class DokkeUpdateManager: ObservableObject {
       let request = URLRequest(url: release.dmgURL)
       let (downloadedURL, response) = try await URLSession.shared.download(for: request)
       guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-        throw UpdateError.network("Não foi possível baixar a atualização.")
+        throw UpdateError.network(I18n.downloadFailed)
       }
 
       let dmgURL = workspace.appendingPathComponent("Dokke-macOS.dmg")
@@ -124,7 +124,7 @@ final class DokkeUpdateManager: ObservableObject {
 
       let sourceApp = mountPoint.appendingPathComponent("Dokke.app", isDirectory: true)
       guard fileManager.fileExists(atPath: sourceApp.path) else {
-        throw UpdateError.invalidRelease("O instalador não contém o Dokke.app.")
+        throw UpdateError.invalidRelease(I18n.dmgNoApp)
       }
 
       let stagedApp = workspace.appendingPathComponent("Dokke.app", isDirectory: true)
@@ -134,10 +134,10 @@ final class DokkeUpdateManager: ObservableObject {
 
       let targetApp = Bundle.main.bundleURL.standardizedFileURL
       guard targetApp.lastPathComponent == "Dokke.app" else {
-        throw UpdateError.install("O Dokke precisa estar instalado como um aplicativo para ser atualizado.")
+        throw UpdateError.install(I18n.mustBeInstalledApp)
       }
       guard fileManager.isWritableFile(atPath: targetApp.deletingLastPathComponent().path) else {
-        throw UpdateError.install("Sem permissão para atualizar a pasta do Dokke. Mova o app para Aplicativos e tente novamente.")
+        throw UpdateError.install(I18n.noPermissionUpdate)
       }
 
       try scheduleReplacement(stagedApp: stagedApp, targetApp: targetApp, workspace: workspace)
