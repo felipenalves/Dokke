@@ -24,7 +24,7 @@ struct DockGridView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack {
-        Text("Apps fixados")
+        Text(I18n.pinnedAppsTitle)
           .font(.title2.bold())
         Spacer()
         if store.loading {
@@ -36,7 +36,7 @@ struct DockGridView: View {
           Image(systemName: "arrow.clockwise")
         }
         .buttonStyle(.borderless)
-        .help("Refresh")
+        .help(I18n.refresh)
       }
 
       if !store.online {
@@ -155,13 +155,13 @@ struct DockGridView: View {
             .font(.title)
             .foregroundStyle(.secondary)
         }
-        Text("Adicionar")
+        Text(I18n.add)
           .font(.caption2)
           .foregroundStyle(.secondary)
       }
     }
     .buttonStyle(.plain)
-    .help("Adicionar apps ao dock")
+    .help(I18n.addAppsHelp)
   }
 
   private var emptyDock: some View {
@@ -169,12 +169,12 @@ struct DockGridView: View {
       Image(systemName: "app.dashed")
         .font(.system(size: 40))
         .foregroundStyle(.secondary)
-      Text("Nenhum app fixado")
+      Text(I18n.noPinnedApps)
         .font(.headline)
-      Text("Clique em + para adicionar apps ao dock")
+      Text(I18n.clickPlusToAdd)
         .font(.subheadline)
         .foregroundStyle(.secondary)
-      Button("Adicionar Apps") { showPicker = true }
+      Button(I18n.addAppsButton) { showPicker = true }
         .buttonStyle(.bordered)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -185,9 +185,9 @@ struct DockGridView: View {
 
   private var offlineView: some View {
     ContentUnavailableView(
-      "Servidor Offline",
+      I18n.serverOffline,
       systemImage: "wifi.slash",
-      description: Text("Inicie o servidor Dokke e verifique o URL em About.")
+      description: Text(I18n.offlineServerDesc)
     )
   }
 }

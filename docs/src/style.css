@@ -124,6 +124,43 @@ a { color: inherit; }
 .github-link:hover { background: #000; transform: translateY(-1px); }
 .download-link span { font-size: 17px; font-weight: 400; line-height: .7; }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.docs-lang-btn {
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.docs-lang-btn:hover {
+  color: var(--ink);
+}
+
+.docs-lang-btn.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
 .github-icon {
   width: 16px;
   height: 16px;

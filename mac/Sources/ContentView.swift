@@ -5,9 +5,16 @@ import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
   case apps = "Apps"
-  case about = "Sobre"
+  case about = "About"
 
   var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .apps: return I18n.sidebarApps
+    case .about: return I18n.sidebarAbout
+    }
+  }
 
   var icon: String {
     switch self {
@@ -50,7 +57,7 @@ struct ContentView: View {
 
   private var sidebar: some View {
     List(SidebarItem.allCases, selection: $selection) { item in
-      Label(item.rawValue, systemImage: item.icon)
+      Label(item.label, systemImage: item.icon)
         .tag(item)
     }
     .listStyle(.sidebar)
@@ -79,7 +86,7 @@ struct AboutView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
-        Text("Sobre")
+        Text(I18n.aboutTitle)
           .font(.title.bold())
 
       VStack(alignment: .leading, spacing: 12) {
@@ -87,7 +94,7 @@ struct AboutView: View {
           Circle()
             .fill(store.online ? Color.green : Color.red.opacity(0.85))
             .frame(width: 10, height: 10)
-          Text(store.online ? "Servidor Online" : "Servidor Offline")
+          Text(store.online ? I18n.serverOnline : I18n.serverOffline)
             .font(.headline)
         }
 
@@ -104,12 +111,12 @@ struct AboutView: View {
       )
 
       VStack(alignment: .leading, spacing: 10) {
-        LabeledContent("Dispositivos (WS)") {
+        LabeledContent(I18n.devicesWS) {
           Text("\(store.devices)")
             .fontWeight(.semibold)
             .foregroundStyle(store.devices > 0 ? .green : .secondary)
         }
-        LabeledContent("Apps Fixados") {
+        LabeledContent(I18n.pinnedApps) {
           Text("\(store.pinned.count)")
         }
       }
@@ -120,7 +127,7 @@ struct AboutView: View {
       )
 
       VStack(alignment: .leading, spacing: 10) {
-        Text("Abrir em outro dispositivo")
+        Text(I18n.openOnOtherDevice)
           .font(.headline)
         if let ip = ServerManager.lanIPv4() {
           let localURL = "http://\(ip):3000"
@@ -129,7 +136,7 @@ struct AboutView: View {
               .frame(width: 132, height: 132)
 
             VStack(alignment: .leading, spacing: 10) {
-              Text("Escaneie ou abra este endereço")
+              Text(I18n.scanOrOpenAddress)
                 .font(.caption.weight(.semibold))
               Text(localURL)
                 .font(.system(size: 15, weight: .semibold, design: .monospaced))
@@ -141,7 +148,7 @@ struct AboutView: View {
                   NSPasteboard.general.clearContents()
                   NSPasteboard.general.setString(localURL, forType: .string)
                 } label: {
-                  Label("Copiar URL", systemImage: "doc.on.doc")
+                  Label(I18n.copyURL, systemImage: "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
                 Button {
@@ -149,20 +156,20 @@ struct AboutView: View {
                     NSWorkspace.shared.open(url)
                   }
                 } label: {
-                  Label("Abrir", systemImage: "arrow.up.right.square")
+                  Label(I18n.open, systemImage: "arrow.up.right.square")
                 }
                 .buttonStyle(.bordered)
               }
             }
           }
-          Text("Android, iPad e navegadores: use o QR code ou copie a URL. O Mac e o dispositivo precisam estar na mesma rede.")
+          Text(I18n.helpAndroidNetwork)
             .font(.caption)
             .foregroundStyle(.secondary)
-          Text("iPhone/iPad como PWA: use uma URL HTTPS do túnel indicado no tutorial antes de adicionar à Tela de Início.")
+          Text(I18n.helpPwaTunnel)
             .font(.caption)
             .foregroundStyle(.secondary)
         } else {
-          Text("Sem IP de rede detectado (offline?)")
+          Text(I18n.noNetworkIP)
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -175,14 +182,14 @@ struct AboutView: View {
 
       VStack(alignment: .leading, spacing: 10) {
         HStack {
-          Text("Atualizações")
+          Text(I18n.updates)
             .font(.headline)
           Spacer()
           if updater.state == .checking {
             ProgressView().controlSize(.small)
           }
         }
-        Text("Versão instalada: \(updater.currentVersion)")
+        Text(I18n.installedVersion(updater.currentVersion))
           .font(.caption)
           .foregroundStyle(.secondary)
         if let message = updater.statusMessage {
@@ -198,20 +205,20 @@ struct AboutView: View {
         }
         if let release = updater.release {
           HStack(spacing: 8) {
-            Label("Nova versão \(release.tag)", systemImage: "arrow.down.circle.fill")
+            Label(I18n.newVersion(release.tag), systemImage: "arrow.down.circle.fill")
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(.orange)
             Button {
               showingReleaseNotes = true
             } label: {
-              Label("Mudanças", systemImage: "doc.text")
+              Label(I18n.changes, systemImage: "doc.text")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             Button {
               Task { await updater.downloadAndInstall() }
             } label: {
-              Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
+              Label(I18n.downloadAndInstall, systemImage: "arrow.down.circle.fill")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -221,7 +228,7 @@ struct AboutView: View {
           Button {
             Task { await updater.check() }
           } label: {
-            Label("Verificar novamente", systemImage: "arrow.clockwise")
+            Label(I18n.checkAgain, systemImage: "arrow.clockwise")
           }
           .buttonStyle(.bordered)
           .controlSize(.small)
@@ -240,10 +247,10 @@ struct AboutView: View {
 
       VStack(alignment: .leading, spacing: 10) {
         HStack {
-          Text("Código de acesso")
+          Text(I18n.accessCode)
             .font(.headline)
           Spacer()
-          Button("Gerar novo código") {
+          Button(I18n.generateNewCode) {
             Task { await store.resetPin() }
           }
           .buttonStyle(.link)
@@ -252,7 +259,7 @@ struct AboutView: View {
           Text(store.pinCode ?? "—")
             .font(.system(size: 28, weight: .bold, design: .monospaced))
             .tracking(4)
-          Text("Digite no dispositivo (Android, iPhone) para acessar o dock.")
+          Text(I18n.typeOnDeviceHint)
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -275,14 +282,14 @@ struct AboutView: View {
           .textFieldStyle(.roundedBorder)
       }
 
-      Text("O servidor inicia automaticamente ao abrir o Dokke.")
+      Text(I18n.serverAutoStarts)
         .font(.caption)
         .foregroundStyle(.secondary)
 
       Button {
         Task { await store.refreshAll() }
       } label: {
-        Label("Atualizar", systemImage: "arrow.clockwise")
+        Label(I18n.refresh, systemImage: "arrow.clockwise")
       }
       .buttonStyle(.bordered)
 
@@ -339,9 +346,9 @@ private struct UpdateBanner: View {
         .font(.title3)
         .foregroundStyle(.orange)
       VStack(alignment: .leading, spacing: 2) {
-        Text("Nova atualização disponível")
+        Text(I18n.newUpdateAvailable)
           .font(.subheadline.weight(.semibold))
-        Text("Dokke \(release.tag) está pronto para baixar e instalar.")
+        Text(I18n.readyToDownload(release.tag))
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -349,7 +356,7 @@ private struct UpdateBanner: View {
       Button {
         showingReleaseNotes = true
       } label: {
-        Label("Mudanças", systemImage: "doc.text")
+        Label(I18n.changes, systemImage: "doc.text")
       }
       .buttonStyle(.bordered)
       .controlSize(.small)
@@ -357,11 +364,11 @@ private struct UpdateBanner: View {
         Task { await updater.downloadAndInstall() }
       } label: {
         if updater.state == .downloading {
-          Label("Baixando...", systemImage: "arrow.down.circle")
+          Label(I18n.downloading, systemImage: "arrow.down.circle")
         } else if updater.state == .installing {
-          Label("Instalando...", systemImage: "gearshape")
+          Label(I18n.installing, systemImage: "gearshape")
         } else {
-          Label("Baixar e instalar", systemImage: "arrow.down.circle.fill")
+          Label(I18n.downloadAndInstall, systemImage: "arrow.down.circle.fill")
         }
       }
       .buttonStyle(.borderedProminent)
@@ -391,13 +398,13 @@ private struct ReleaseNotesView: View {
     VStack(alignment: .leading, spacing: 16) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
-          Text("O que mudou")
+          Text(I18n.whatChanged)
             .font(.title2.bold())
           Text("Dokke \(release.tag)")
             .foregroundStyle(.secondary)
         }
         Spacer()
-        Button("Fechar") {
+        Button(I18n.close) {
           dismiss()
         }
         .buttonStyle(.bordered)
@@ -420,8 +427,8 @@ struct MenuBarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(store.online ? "Dokke online" : "Dokke offline")
-      Text("Dispositivos: \(store.devices) · Fixados: \(store.pinned.count)")
+      Text(store.online ? I18n.dokkeOnline : I18n.dokkeOffline)
+      Text(I18n.menuDevices(devices: store.devices, pinned: store.pinned.count))
         .foregroundStyle(.secondary)
       if let note = store.lastSyncNote {
         Text(note)
@@ -429,11 +436,11 @@ struct MenuBarView: View {
           .foregroundStyle(.secondary)
       }
       Divider()
-      Button("Atualizar") {
+      Button(I18n.refresh) {
         Task { await store.refreshAll() }
       }
       Divider()
-      Button("Sair") {
+      Button(I18n.quit) {
         server.stop()
         NSApplication.shared.terminate(nil)
       }
