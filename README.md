@@ -24,6 +24,10 @@ Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositi
 
 A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (qualquer Android, iPhone, outro Mac).
 
+<p align="center">
+  <img src="docs/assets/dokke-iphone.png" alt="Dokke rodando em um iPhone" width="900">
+</p>
+
 ## Instalação
 
 Para instalar sem terminal, abra a [página de instalação](https://dokke.vercel.app/).
