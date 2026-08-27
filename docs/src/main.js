@@ -5,7 +5,7 @@ const downloads = {
   android: "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk",
 };
 const communityUrl = "https://documenteclub.vercel.app/";
-const dokkeIcon = `${import.meta.env.BASE_URL}dokke-icon.png`;
+const dokkeHeroIcon = `${import.meta.env.BASE_URL}dokke-hero.webp`;
 
 const patternLine = "> > > 0 0 1 0 > > 0 0 0 > > > 1 0 0 > 0 1 0 > > > 0 0";
 const pattern = Array.from({ length: 15 }, (_, index) => {
@@ -35,9 +35,9 @@ document.querySelector("#app").innerHTML = `
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-emblem" aria-hidden="true">
-          <img class="hero-icon" src="${dokkeIcon}" alt="" />
-        </div>
+        <button type="button" class="hero-emblem" aria-label="Pressionar o ícone do Dokke">
+          <img class="hero-icon" src="${dokkeHeroIcon}" alt="" />
+        </button>
 
         <p class="eyebrow">DOKKE · SEU MAC, EM QUALQUER TELA</p>
         <h1 id="hero-title">Os apps do seu Mac.<br /><em>Em qualquer tela.</em></h1>
@@ -210,3 +210,88 @@ document.querySelector("#app").innerHTML = `
     </nav>
   </footer>
 `;
+
+const heroEmblem = document.querySelector(".hero-emblem");
+const heroSection = document.querySelector(".hero");
+const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+if (heroEmblem && heroSection && finePointer.matches) {
+  let frame = 0;
+  let motionX = 0;
+  let motionY = 0;
+  let rotation = 0;
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const renderMotion = () => {
+    frame = 0;
+
+    if (reducedMotion.matches) {
+      heroEmblem.style.setProperty("--hero-mx", "0px");
+      heroEmblem.style.setProperty("--hero-my", "0px");
+      heroEmblem.style.setProperty("--hero-rotate", "0deg");
+      return;
+    }
+
+    heroEmblem.style.setProperty("--hero-mx", `${motionX.toFixed(2)}px`);
+    heroEmblem.style.setProperty("--hero-my", `${motionY.toFixed(2)}px`);
+    heroEmblem.style.setProperty("--hero-rotate", `${rotation.toFixed(2)}deg`);
+  };
+
+  const scheduleMotion = () => {
+    if (!frame) frame = requestAnimationFrame(renderMotion);
+  };
+
+  const resetHeroMotion = () => {
+    motionX = 0;
+    motionY = 0;
+    rotation = 0;
+    heroEmblem.classList.remove("is-hero-tracking", "is-hero-pressed");
+    scheduleMotion();
+  };
+
+  const setHeroPressed = (pressed) => {
+    if (reducedMotion.matches) return;
+    heroEmblem.classList.toggle("is-hero-pressed", pressed);
+  };
+
+  const releaseHeroPress = () => setHeroPressed(false);
+
+  heroEmblem.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    setHeroPressed(true);
+  });
+
+  heroEmblem.addEventListener("pointerup", releaseHeroPress);
+  heroEmblem.addEventListener("pointercancel", releaseHeroPress);
+  heroEmblem.addEventListener("pointerleave", releaseHeroPress);
+
+  heroEmblem.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setHeroPressed(true);
+  });
+
+  heroEmblem.addEventListener("keyup", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    releaseHeroPress();
+  });
+
+  heroSection.addEventListener("pointermove", (event) => {
+    if (reducedMotion.matches || (event.pointerType && event.pointerType !== "mouse")) return;
+
+    const bounds = heroSection.getBoundingClientRect();
+    const normalizedX = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const normalizedY = (event.clientY - bounds.top) / bounds.height - 0.5;
+
+    motionX = clamp(normalizedX * 8, -4, 4);
+    motionY = clamp(normalizedY * 8, -4, 4);
+    rotation = clamp(normalizedX * 4, -2, 2);
+    heroEmblem.classList.add("is-hero-tracking");
+    scheduleMotion();
+  });
+
+  heroSection.addEventListener("pointerleave", resetHeroMotion);
+  reducedMotion.addEventListener("change", resetHeroMotion);
+}

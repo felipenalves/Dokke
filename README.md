@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/icon-512.png" width="120" alt="Dokke">
+  <img src="docs/public/dokke-icon.png" width="120" alt="Dokke">
 </p>
 
 <h1 align="center">Dokke</h1>
