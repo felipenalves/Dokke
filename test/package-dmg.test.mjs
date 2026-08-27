@@ -192,6 +192,14 @@ test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   assert.doesNotMatch(script, /cp -R [^\n]*public/);
 });
 
+test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Release', () => {
+  const script = fs.readFileSync(installScriptPath, 'utf8');
+  assert.match(script, /MAX_BUNDLE_SIZE_MB=121/);
+  assert.match(script, /find .*node-bin\/node/);
+  assert.match(script, /node_count.*-ne 1/);
+  assert.match(script, /bundle_kib.*MAX_BUNDLE_SIZE_MB/);
+});
+
 test('builder do DMG não usa appdmg nem image-size vulneráveis', () => {
   const script = fs.readFileSync(scriptPath, 'utf8');
   assert.doesNotMatch(script, /appdmg|image-size/);

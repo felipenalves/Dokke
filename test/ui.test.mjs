@@ -14,6 +14,11 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
+    assert.match(
+      html,
+      /\.login-card\{[\s\S]*background: linear-gradient\(165deg, rgba\(255,255,255,\.18\), rgba\(255,255,255,\.07\) 55%, rgba\(255,255,255,\.12\)\);/,
+      "painel de conexão deve ter opacidade suficiente para preservar a leitura"
+    );
     assert.match(html, /toast\("Dispositivo conectado"\)/, "o status deve identificar o dispositivo conectado");
     assert.doesNotMatch(html, /toast\("Mac conectado"\)/, "o status não deve atribuir a conexão ao Mac");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
@@ -62,10 +67,22 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html.slice(layerStart, layerEnd), /if \(on\)[\s\S]*return;[\s\S]*requestAnimationFrame/, "efeitos pesados devem ser restaurados depois do frame final");
     assert.match(html, /setLayer\(true, "horizontal"\)/, "slide horizontal deve promover apenas a faixa de apps");
     assert.match(html, /setLayer\(true, "vertical"\)/, "slide vertical deve promover as telas");
-    assert.match(html, /body\.swiping \.atile \.aglass[\s\S]*box-shadow: inset/, "slide deve reduzir repintura pesada no Android");
+    assert.match(html, /body\.swiping \.launchpad\{[\s\S]*scroll-snap-type: none/, "slide deve desativar o snap durante o gesto");
+    assert.doesNotMatch(html, /body\.swiping \.atile \.aglass|body\.swiping \.dcard \.aglass|body\.swiping \.aglass::before/, "trocar de página não deve alterar visualmente o card-glass");
     assert.match(html, /\.android-webview \.aglass\{[\s\S]*0 2px 5px rgba\(0,0,0,\.24\)/, "Android deve manter o glass com sombra externa leve");
     assert.match(html, /\.android-webview \.aglass::before\{\s*display: none;/, "Android deve evitar o highlight extra dos cards");
-    assert.match(html, /\.atile\.is-activating \.aglass::after, \.dcard\.is-activating \.aglass::after\{[\s\S]*will-change: transform, opacity/, "ripple só deve ganhar camada GPU durante o toque");
+    assert.doesNotMatch(html, /@keyframes touchRipple|\.aglass::after/, "toque não deve criar brilho/ripple branco");
+    assert.doesNotMatch(html, /\.atile:active\{\s*background:/, "toque não deve pintar um fundo extra no tile");
+    assert.match(html, /function triggerHaptic\(\)/, "toque deve ter uma camada única de feedback háptico");
+    assert.match(html, /navigator\.vibrate\(8\)/, "PWA deve solicitar uma vibração curta quando suportado");
+    assert.match(html, /window\.DokkeAndroid[\s\S]*performHapticFeedback/, "APK deve usar o bridge nativo de haptic");
+    const deckGestureStart = html.indexOf("function bindDeckGestures()");
+    const deckGestureEnd = html.indexOf("function renderRecents()", deckGestureStart);
+    const deckGesture = html.slice(deckGestureStart, deckGestureEnd);
+    const deckPointerDown = deckGesture.match(/deck\.addEventListener\("pointerdown"[\s\S]*?\n    \}\);/);
+    assert.ok(deckPointerDown, "deck deve registrar o início do gesto");
+    assert.doesNotMatch(deckPointerDown[0], /classList\.add\("swiping"\)/, "toque simples no deck não deve escurecer todos os cards");
+    assert.match(deckGesture, /pointermove[\s\S]*classList\.add\("swiping"\)/, "somente o arraste real deve ativar o modo swiping");
     assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
     assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
     assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
@@ -84,14 +101,15 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /DokkeAndroid\.requestUpdate/, "Android deve controlar o download da atualização");
     assert.match(html, /cmpVer\(rel\.tag, apkNow\)/, "APK deve comparar a versão instalada com a release");
     assert.match(html, /function loadIcon/, "ícones devem ter cache compartilhado entre as telas");
-    assert.match(html, /const ICON_REV = "4"/, "ícones em alta resolução devem invalidar o cache antigo do navegador");
+    assert.match(html, /const ICON_REV = "5"/, "ícones corrigidos devem invalidar o cache antigo do navegador");
     assert.match(html, /if \(img && !img\.src\) img\.src = iconPath\(name\)/, "o card deve apontar para o endpoint do ícone sem esperar o blob");
     assert.match(html, /running\.forEach\(function\(a\)[\s\S]*?primeIcon\(a\.name\)/, "ícones de apps recém-abertos devem ser aquecidos antes da montagem da tela 2");
     assert.match(html, /primeIcon\(name\)/, "o clique deve adiantar o carregamento do ícone da tela 2");
     assert.match(html, /@keyframes appPress/, "o toque no app deve ter feedback visual");
-    assert.match(html, /@keyframes touchRipple/, "o toque deve criar um ripple no ponto pressionado");
-    assert.match(html, /--press-x/, "o ripple deve nascer na coordenada do toque");
+    assert.doesNotMatch(html, /touchRipple|--press-x|--press-y/, "o toque não deve criar brilho localizado");
     assert.match(html, /pressFeedback\(el, e\)/, "o feedback deve receber o evento de toque");
+    assert.match(html, /\.atile\.is-activating, \.dcard\.is-activating\{[\s\S]*background: transparent !important;[\s\S]*animation: appPress/, "o feedback deve animar o tile inteiro sem revelar uma segunda camada");
+    assert.doesNotMatch(html, /\.atile\.is-activating \.aglass, \.dcard\.is-activating \.aglass\{[\s\S]*animation: appPress/, "o glass interno não deve ser comprimido separadamente");
     const buttonStart = html.indexOf("function makeBtn");
     const buttonEnd = html.indexOf("// ---------- actions", buttonStart);
     assert.doesNotMatch(html.slice(buttonStart, buttonEnd), /pointercancel[\s\S]*remove\("is-activating"\)/, "pointercancel não deve apagar o feedback antes do timer");
@@ -145,6 +163,40 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
   } finally { await close(); }
 });
 
+test("toque no app não revela um segundo glass durante a animação", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".atile");
+
+    const state = await page.locator(".atile").first().evaluate(tile => {
+      tile.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+      }));
+      const glass = tile.querySelector(".aglass");
+      return {
+        tileAnimation: getComputedStyle(tile).animationName,
+        tileBackground: getComputedStyle(tile).backgroundColor,
+        glassAnimation: getComputedStyle(glass).animationName,
+      };
+    });
+
+    assert.equal(state.tileAnimation, "appPress", "a animação deve ficar no tile inteiro");
+    assert.equal(state.tileBackground, "rgba(0, 0, 0, 0)", "o tile não deve criar um glass por baixo");
+    assert.equal(state.glassAnimation, "none", "o glass interno não deve ser comprimido separadamente");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
 test("login reposiciona o cartão dentro do visual viewport quando o teclado abre", async () => {
   const { port, close } = await startServer({ port: 0, trustLoopback: false });
   const browser = await chromium.launch({ headless: true });
@@ -181,6 +233,40 @@ test("login reposiciona o cartão dentro do visual viewport quando o teclado abr
     });
     assert.ok(bounds.scrimBottom <= 596.5, "scrim deve acompanhar a altura visível quando o teclado abre");
     assert.ok(bounds.buttonBottom <= 596.5, "botão Conectar deve continuar visível acima do teclado");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("login em desktop landscape permanece na orientação normal", async () => {
+  const { port, close } = await startServer({ port: 0, trustLoopback: false });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 1,
+      isMobile: false,
+      hasTouch: false,
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.locator("#loginScrim.show").waitFor();
+
+    const layout = await page.evaluate(() => {
+      const scrim = document.querySelector("#loginScrim");
+      const card = document.querySelector(".login-card");
+      const scrimStyle = getComputedStyle(scrim);
+      const cardRect = card.getBoundingClientRect();
+      return {
+        transform: scrimStyle.transform,
+        cardWidth: cardRect.width,
+        cardHeight: cardRect.height,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    assert.equal(layout.transform, "none", "desktop não deve girar o scrim de login");
+    assert.ok(layout.cardWidth < layout.viewportWidth / 2, "desktop deve manter o cartão compacto horizontalmente");
+    assert.ok(layout.cardHeight < layout.viewportWidth / 2, "desktop não deve transformar o cartão em uma coluna girada");
   } finally {
     await browser.close();
     await close();

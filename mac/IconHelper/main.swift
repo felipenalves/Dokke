@@ -26,11 +26,15 @@ enum IconHelperError: LocalizedError {
 }
 
 func renderIcon(appPath: String, outputPath: String, maxPixels: Int) throws {
-  guard FileManager.default.fileExists(atPath: appPath) else {
+  // Alguns apps de sistema, como o Safari, aparecem em /Applications como
+  // symlink para um Cryptex. Pedir o ícone pelo link faz o AppKit adicionar o
+  // badge de atalho; o caminho real preserva o ícone limpo do bundle.
+  let iconPath = URL(fileURLWithPath: appPath).resolvingSymlinksInPath().path
+  guard FileManager.default.fileExists(atPath: iconPath) else {
     throw IconHelperError.appNotFound(appPath)
   }
 
-  let icon = NSWorkspace.shared.icon(forFile: appPath)
+  let icon = NSWorkspace.shared.icon(forFile: iconPath)
   guard icon.size.width > 0, icon.size.height > 0 else {
     throw IconHelperError.iconUnavailable(appPath)
   }

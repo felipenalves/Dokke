@@ -90,6 +90,8 @@
     padding-top: env(safe-area-inset-top, 0px);
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+    will-change: transform;
+    contain: paint;
   }
   /* As duas telas ficam renderizadas durante o slide; só a camada ativa recebe toque. */
   #screenApps{ pointer-events: auto; z-index: 1; }
@@ -201,15 +203,11 @@
     container-type: inline-size;
     -webkit-touch-callout: none;
   }
-  .atile:active{ background: rgba(255,255,255,.05); }
-  /* Durante o gesto, sombras e highlights não precisam ser repintados a cada
-     frame. Isso reduz o custo do pager em WebViews Android antigos. */
-  body.swiping .atile .aglass,
-  body.swiping .dcard .aglass{
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+  /* O gesto controla apenas o pager; a superfície dos cards permanece
+     idêntica durante e depois da troca de página. */
+  body.swiping .launchpad{
+    scroll-snap-type: none !important;
   }
-  body.swiping .aglass::before,
-  body.swiping .aglass::after{ opacity: 0; }
   .android-webview .aglass{
     box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 2px 5px rgba(0,0,0,.24);
   }
@@ -220,25 +218,17 @@
   }
   @keyframes appPress{
     0%{ transform:scale(1); }
-    18%{ transform:scale(.90); }
-    56%{ transform:scale(.96); }
+    18%{ transform:scale(.95); }
+    48%{ transform:scale(.975); }
     100%{ transform:scale(1); }
   }
-  @keyframes touchRipple{
-    0%{ opacity:.52; transform:translate(-50%, -50%) scale(.2); }
-    55%{ opacity:.24; transform:translate(-50%, -50%) scale(4.2); }
-    100%{ opacity:0; transform:translate(-50%, -50%) scale(5.2); }
-  }
-  .atile.is-activating .aglass, .dcard.is-activating .aglass{
-    animation: appPress .34s cubic-bezier(.22,.61,.36,1);
-  }
-  .atile.is-activating .aglass::after, .dcard.is-activating .aglass::after{
-    animation: touchRipple .38s cubic-bezier(.22,.61,.36,1);
-    will-change: transform, opacity;
+  .atile.is-activating, .dcard.is-activating{
+    background: transparent !important;
+    animation: appPress .30s cubic-bezier(.22,.61,.36,1);
+    will-change: transform;
   }
   @media (prefers-reduced-motion: reduce){
-    .atile.is-activating .aglass, .dcard.is-activating .aglass,
-    .atile.is-activating .aglass::after, .dcard.is-activating .aglass::after{ animation:none; }
+    .atile.is-activating, .dcard.is-activating{ animation:none; }
   }
   /* glass base (tela 2 .fav sobrescreve com tamanhos próprios) */
   .aglass{
@@ -253,20 +243,6 @@
     content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     background: linear-gradient(160deg, rgba(255,255,255,.28), transparent 45%);
     pointer-events: none;
-  }
-  .aglass::after{
-    content: "";
-    position: absolute;
-    left: var(--press-x, 50%);
-    top: var(--press-y, 50%);
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,.72) 0%, rgba(255,184,92,.32) 38%, transparent 72%);
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(.2);
-    pointer-events: none;
-    z-index: 2;
   }
   .aglass .gicon, .aglass img.aicon{
     object-fit: cover;
@@ -446,10 +422,6 @@
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
   }
   .dcard.front .dname{ opacity: 1; }
-  body.swiping .dcard .aglass{
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
   .rempty{
     margin: auto;
     color: var(--ink-3); font-size: 13px; text-align: center;
@@ -695,7 +667,7 @@
   .login-scrim.show{ opacity:1; pointer-events:auto; }
   .login-card{
     width: min(360px, 100%); border-radius: 32px; padding: 24px 20px 18px;
-    background: linear-gradient(165deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 55%, rgba(255,255,255,.07));
+    background: linear-gradient(165deg, rgba(255,255,255,.18), rgba(255,255,255,.07) 55%, rgba(255,255,255,.12));
     border:1px solid rgba(255,255,255,.16);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28), 0 24px 60px rgba(0,0,0,.5);
     text-align:center; animation: rise .18s ease;
@@ -735,11 +707,11 @@
   .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
   .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
 
-  /* ---- trava da tela de auth em retrato ---- */
-  /* Enquanto o login está aberto (body.is-login), se o device estiver deitado
-     (landscape) mantemos o scrim em proporção retrato, rodando 90° no eixo.
-     O dock continua livre pra girar depois de autenticado. */
-  @media (orientation: landscape){
+  /* ---- trava da tela de auth em retrato somente no mobile ---- */
+  /* Em celulares touch deitados, mantemos o scrim em proporção retrato,
+     rodando 90° no eixo. Navegadores desktop e telas grandes permanecem
+     horizontais, mesmo quando a janela está em landscape. */
+  @media (orientation: landscape) and (pointer: coarse) and (max-width:1024px){
     body.is-login .login-scrim{
       position: fixed; top: 50%; left: 50%;
       width: 100vh; height: 100vw;
@@ -866,7 +838,10 @@
   }
 
   // ---------- login wall (pin de acesso) ----------
-  let authed = false, loginOpen = false;
+  let authed = false, loginOpen = false, portraitLockRequested = false;
+  function isMobileTouchViewport(){
+    return window.matchMedia("(pointer: coarse) and (max-width:1024px)").matches;
+  }
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -895,9 +870,10 @@
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
     $("loginScrim").classList.add("show");
-    // trava a orientação em retrato só enquanto a auth está aberta
+    // trava a orientação em retrato apenas no mobile touch
     document.body.classList.add("is-login");
-    lockPortrait();
+    portraitLockRequested = isMobileTouchViewport();
+    if (portraitLockRequested) lockPortrait();
     syncLoginViewport();
     if (pin) setTimeout(function(){ pin.focus(); }, 80);
   }
@@ -905,10 +881,13 @@
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
-    unlockOrientation();
+    if (portraitLockRequested){
+      portraitLockRequested = false;
+      unlockOrientation();
+    }
   }
   // tenta travar a orientação nativa; se o browser/WebView negar, o CSS
-  // (body.is-login + @media landscape) mantém o card em retrato de todo jeito.
+  // mobile mantém o card em retrato de todo jeito.
   function lockPortrait(){
     try {
       if (screen.orientation && screen.orientation.lock){
@@ -1205,7 +1184,7 @@
   let androidPage = 0;
   const iconCache = new Map();
   const iconInflight = new Map();
-  const ICON_REV = "4";
+  const ICON_REV = "5";
   const ua = typeof navigator === "object" && navigator ? navigator.userAgent || "" : "";
   const IS_ANDROID_WEBVIEW = /Android/i.test(ua) && (/\bwv\b/i.test(ua) || /Version\/4\.0/i.test(ua));
   const ANDROID_NATIVE_PAGER = IS_ANDROID_WEBVIEW;
@@ -1253,16 +1232,21 @@
   function primeIcon(name){
     loadIcon(name, null, null);
   }
+  function triggerHaptic(){
+    const android = window.DokkeAndroid;
+    if (android && typeof android.performHapticFeedback === "function"){
+      try {
+        android.performHapticFeedback();
+        return;
+      } catch (e) {}
+    }
+    try {
+      if (navigator && typeof navigator.vibrate === "function") navigator.vibrate(8);
+    } catch (e) {}
+  }
   function pressFeedback(el, event){
     if (!el) return;
-    const glass = el.querySelector ? el.querySelector(".aglass") : null;
-    if (glass && event && typeof event.clientX === "number" && typeof event.clientY === "number"){
-      const box = glass.getBoundingClientRect();
-      const x = Math.max(0, Math.min(box.width, event.clientX - box.left));
-      const y = Math.max(0, Math.min(box.height, event.clientY - box.top));
-      glass.style.setProperty("--press-x", x + "px");
-      glass.style.setProperty("--press-y", y + "px");
-    }
+    if (event && event.type === "pointerdown") triggerHaptic();
     el.classList.remove("is-activating");
     void el.offsetWidth;
     el.classList.add("is-activating");
@@ -1406,6 +1390,7 @@
 
   // ---- paisagem: dock mantém geometria retrato, só escala (GPU); ícones legíveis ----
   function layoutDockScale(){
+    if (document.body.classList.contains("swiping")) return;
     if (!launchpad || !pages.length){
       if (launchpad && launchpad.style.transform) launchpad.style.transform = "";
       return;
@@ -1555,15 +1540,27 @@
     const deck = $("deck");
     if (!deck || deck.dataset.bound) return;
     deck.dataset.bound = "1";
+    let deckStartX = 0;
+    let deckStartY = 0;
+    let deckSwiping = false;
     deck.addEventListener("pointerdown", function(e){
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      document.body.classList.add("swiping");
+      deckStartX = e.clientX;
+      deckStartY = e.clientY;
+      deckSwiping = false;
       deckPid = e.pointerId;
+    });
+    deck.addEventListener("pointermove", function(e){
+      if (deckPid !== e.pointerId || deckSwiping) return;
+      if (Math.hypot(e.clientX - deckStartX, e.clientY - deckStartY) < 4) return;
+      deckSwiping = true;
+      document.body.classList.add("swiping");
     });
     function endDeck(e){
       if (deckPid !== e.pointerId) return;
       deckPid = null;
-      document.body.classList.remove("swiping");
+      if (deckSwiping) document.body.classList.remove("swiping");
+      deckSwiping = false;
       flushPendingRecents();
     }
     deck.addEventListener("pointerup", endDeck);
@@ -1659,7 +1656,7 @@
       row.dataset.name = a.name;
       if (a.icon){
         const img = document.createElement("img");
-        img.src = "/api/apps/" + encodeURIComponent(a.name) + "/icon";
+        img.src = iconPath(a.name);
         img.alt = "";
         img.onerror = function(){
           if (img.remove) img.remove();
@@ -2115,6 +2112,7 @@
     let coolUntil = 0;
     let wheelDelta = 0;
     let wheelT = null;
+    let wheelRaf = null;
     let settleT = null;
     let settling = false;
     let lastY = 0, lastT = 0, instVel = 0;
@@ -2163,7 +2161,7 @@
         swipeClearRaf = null;
       }
       try {
-        const g = on && axis === "vertical" ? "transform" : "";
+        const g = "transform";
         for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
       } catch (err) {}
       if (on){
@@ -2290,6 +2288,9 @@
       clearDrag();
       flushPendingRecents();
       coolUntil = Date.now() + COOLDOWN_MS;
+      if (typeof layoutDockScale === "function"){
+        requestAnimationFrame(function(){ try{ layoutDockScale(); }catch(e){} });
+      }
     }
     function onSettleEnd(e){
       if (e.propertyName && e.propertyName !== "transform") return;
@@ -2299,38 +2300,74 @@
     }
     function settleTo(nextName){
       settling = true;
+      setLayer(true, "vertical");
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
+      const hasPendingRecents = nextName === "recents" && recentsRenderPending;
+      const hasPendingLaunchpad = nextName === "apps" && launchpadRenderPending;
+      if (hasPendingRecents || hasPendingLaunchpad){
+        const doPending = hasPendingRecents ? renderPendingRecentsBeforeTransition : renderPendingLaunchpadBeforeTransition;
+        requestAnimationFrame(function(){
+          doPending();
+          requestAnimationFrame(function(){
+            if (!settling) return;
+            void screensEl.offsetHeight;
+            const ease = IS_ANDROID_WEBVIEW
+              ? "transform .20s cubic-bezier(.22,.61,.36,1)"
+              : "transform .22s cubic-bezier(.22,.61,.36,1)";
+            if (nextName === "recents"){
+              if (screenApps) screenApps.style.transition = ease;
+              if (screenRecents) screenRecents.style.transition = ease;
+              applyDrag(-h());
+            } else {
+              if (screenApps) screenApps.style.transition = ease;
+              if (screenRecents) screenRecents.style.transition = ease;
+              applyDrag(h());
+            }
+            screensEl._nextScreen = nextName || null;
+            screensEl.addEventListener("transitionend", onSettleEnd);
+            settleT = setTimeout(function(){
+              const n = screensEl._nextScreen || null;
+              screensEl._nextScreen = null;
+              finishSettle(n);
+            }, 360);
+          });
+        });
+        return;
+      }
       if (nextName === "recents"){
         renderPendingRecentsBeforeTransition();
       } else if (nextName === "apps"){
         renderPendingLaunchpadBeforeTransition();
       }
-      void screensEl.offsetHeight;
-      // Calcula a posição final usando a tela atual como referência. Antes o
-      // estado era trocado primeiro e applyDrag usava o eixo errado, causando
-      // um salto/travamento na entrada da tela 2.
-      const ease = IS_ANDROID_WEBVIEW
-        ? "transform .20s cubic-bezier(.22,.61,.36,1)"
-        : "transform .28s cubic-bezier(.22,.61,.36,1)";
-      if (nextName === "recents"){
-        if (screenApps) screenApps.style.transition = ease;
-        if (screenRecents) screenRecents.style.transition = ease;
-        applyDrag(-h());
-      } else {
-        if (screenApps) screenApps.style.transition = ease;
-        if (screenRecents) screenRecents.style.transition = ease;
-        applyDrag(h());
-      }
-      // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
-      // e de pointer-events acontece em finishSettle, depois do último frame.
-      screensEl._nextScreen = nextName || null;
-      screensEl.addEventListener("transitionend", onSettleEnd);
-      settleT = setTimeout(function(){
-        const n = screensEl._nextScreen || null;
-        screensEl._nextScreen = null;
-        finishSettle(n);
-      }, 360);
+      requestAnimationFrame(function(){
+        if (!settling) return;
+        void screensEl.offsetHeight;
+        // Calcula a posição final usando a tela atual como referência. Antes o
+        // estado era trocado primeiro e applyDrag usava o eixo errado, causando
+        // um salto/travamento na entrada da tela 2.
+        const ease = IS_ANDROID_WEBVIEW
+          ? "transform .20s cubic-bezier(.22,.61,.36,1)"
+          : "transform .22s cubic-bezier(.22,.61,.36,1)";
+        if (nextName === "recents"){
+          if (screenApps) screenApps.style.transition = ease;
+          if (screenRecents) screenRecents.style.transition = ease;
+          applyDrag(-h());
+        } else {
+          if (screenApps) screenApps.style.transition = ease;
+          if (screenRecents) screenRecents.style.transition = ease;
+          applyDrag(h());
+        }
+        // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
+        // e de pointer-events acontece em finishSettle, depois do último frame.
+        screensEl._nextScreen = nextName || null;
+        screensEl.addEventListener("transitionend", onSettleEnd);
+        settleT = setTimeout(function(){
+          const n = screensEl._nextScreen || null;
+          screensEl._nextScreen = null;
+          finishSettle(n);
+        }, 360);
+      });
     }
     function settleAndCommit(dir){
       if (Date.now() < coolUntil && dir){
@@ -2533,7 +2570,10 @@
       const maxVis = h() * 0.5;
       if (wheelDelta > maxVis) wheelDelta = maxVis;
       if (wheelDelta < -maxVis) wheelDelta = -maxVis;
-      applyDrag(wheelDelta);
+      if (!wheelRaf) wheelRaf = requestAnimationFrame(function(){
+        wheelRaf = null;
+        applyDrag(wheelDelta);
+      });
       clearTimeout(wheelT);
       wheelT = setTimeout(function(){
         wheelT = null;

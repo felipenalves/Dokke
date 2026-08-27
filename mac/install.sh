@@ -14,18 +14,48 @@ BIN_NAME="Dokke"
 DEST_DIR="${HOME}/Applications"
 OPEN_AFTER=0
 BUILD_ONLY=0
+MAX_BUNDLE_SIZE_MB=121
+VERIFY_BUNDLE=""
+
+validate_bundle_budget() {
+  local bundle_path="$1" node_count bundle_kib max_bundle_kib
+  if [[ ! -d "${bundle_path}" ]]; then
+    echo "error: bundle not found: ${bundle_path}" >&2
+    exit 1
+  fi
+
+  node_count="$(find "${bundle_path}/Contents/Resources" -type f -path '*/node-bin/node' -perm -111 | wc -l | tr -d '[:space:]')"
+  if [[ "${node_count}" -ne 1 ]]; then
+    echo "error: expected exactly one embedded Node runtime, found ${node_count}" >&2
+    exit 1
+  fi
+
+  bundle_kib="$(du -sk "${bundle_path}" | awk '{print $1}')"
+  max_bundle_kib="$((MAX_BUNDLE_SIZE_MB * 1024))"
+  if [[ "${bundle_kib}" -gt "${max_bundle_kib}" ]]; then
+    echo "error: Dokke.app is ${bundle_kib} KiB; budget is ${MAX_BUNDLE_SIZE_MB} MiB" >&2
+    exit 1
+  fi
+  echo "==> bundle budget OK (${bundle_kib} KiB <= ${MAX_BUNDLE_SIZE_MB} MiB; one Node runtime)"
+}
 
 for arg in "$@"; do
   case "$arg" in
     --system) DEST_DIR="/Applications" ;;
     --open) OPEN_AFTER=1 ;;
     --build-only) BUILD_ONLY=1 ;;
+    --verify-bundle=*) VERIFY_BUNDLE="${arg#--verify-bundle=}" ;;
     -h|--help)
-      echo "Usage: ./install.sh [--open] [--system] [--build-only]"
+      echo "Usage: ./install.sh [--open] [--system] [--build-only] [--verify-bundle=PATH]"
       exit 0
       ;;
   esac
 done
+
+if [[ -n "${VERIFY_BUNDLE}" ]]; then
+  validate_bundle_budget "${VERIFY_BUNDLE}"
+  exit 0
+fi
 
 echo "==> release build (${BIN_NAME})"
 cd "${ROOT}"
@@ -145,8 +175,11 @@ if [[ -n "${NODE_SRC}" ]]; then
   fi
   echo "==> node embutido (${NODE_SRC}; $(du -sh "${NODE_BIN}" | cut -f1))"
 else
-  echo "warn: nenhum node relocável encontrado — o app usará o node do Mac (se existir)"
+  echo "error: nenhum node relocável encontrado para o bundle" >&2
+  exit 1
 fi
+
+validate_bundle_budget "${APP_BUNDLE}"
 
 if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "${APP_BUNDLE}"

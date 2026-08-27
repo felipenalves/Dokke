@@ -62,6 +62,7 @@ private struct AppKitHoverTracker: NSViewRepresentable {
       )
       addTrackingArea(area)
       hoverTrackingArea = area
+      DockHoverCoordinator.shared.invalidateLayout()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -98,15 +99,25 @@ private final class DockHoverCoordinator {
   private var views: [WeakView] = []
   private var monitor: Any?
   private var refreshTimer: Timer?
+  private var needsRefresh = true
+  private var lastMouseLocation: NSPoint?
 
   func register(_ view: AppKitHoverTracker.TrackingView) {
     views.removeAll { $0.view == nil || $0.view === view }
     views.append(WeakView(view: view))
+    needsRefresh = true
     startIfNeeded()
+    refreshAll(force: true)
   }
 
   func unregister(_ view: AppKitHoverTracker.TrackingView) {
     views.removeAll { $0.view == nil || $0.view === view }
+    if views.isEmpty { stopIfNeeded() }
+  }
+
+  func invalidateLayout() {
+    needsRefresh = true
+    refreshAll(force: true)
   }
 
   private func startIfNeeded() {
@@ -114,7 +125,7 @@ private final class DockHoverCoordinator {
     monitor = NSEvent.addLocalMonitorForEvents(
       matching: [.mouseMoved, .leftMouseDragged, .otherMouseDragged, .scrollWheel, .leftMouseDown, .rightMouseDown, .otherMouseDown]
     ) { [weak self] event in
-      self?.refreshAll()
+      self?.refreshAll(force: event.type != .mouseMoved)
       return event
     }
     refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
@@ -122,14 +133,35 @@ private final class DockHoverCoordinator {
     }
   }
 
-  private func refreshAll() {
+  private func refreshAll(force: Bool = false) {
+    views.removeAll { $0.view == nil }
+    stopIfNeeded()
+    guard !views.isEmpty else { return }
+
+    let cursor = NSEvent.mouseLocation
+    guard force || needsRefresh || cursor != lastMouseLocation else { return }
+    needsRefresh = false
+    lastMouseLocation = cursor
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
-      views.removeAll { $0.view == nil }
-      for box in views {
+      self.views.removeAll { $0.view == nil }
+      self.stopIfNeeded()
+      for box in self.views {
         box.view?.refreshHoverFromCursor()
       }
     }
+  }
+
+  private func stopIfNeeded() {
+    guard views.isEmpty else { return }
+    if let monitor {
+      NSEvent.removeMonitor(monitor)
+      self.monitor = nil
+    }
+    refreshTimer?.invalidate()
+    refreshTimer = nil
+    lastMouseLocation = nil
+    needsRefresh = true
   }
 }
 

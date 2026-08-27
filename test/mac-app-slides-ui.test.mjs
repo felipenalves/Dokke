@@ -299,7 +299,7 @@ test("tracker AppKit atualiza o hover sem interceptar o botão", () => {
   assert.match(appKitHoverTracker, /override func hitTest[\s\S]*?nil/);
 });
 
-test("hover sobrevive a scroll e sweeps sem exit perdido", () => {
+test("@spec:AC-342 hover sobrevive a scroll e sweeps sem exit perdido", () => {
   assert.match(appKitHoverTracker, /override func viewDidMoveToWindow\(\)/);
   assert.match(appKitHoverTracker, /DockHoverCoordinator\.shared\.register\(self\)/);
   assert.match(appKitHoverTracker, /DockHoverCoordinator\.shared\.unregister\(self\)/);

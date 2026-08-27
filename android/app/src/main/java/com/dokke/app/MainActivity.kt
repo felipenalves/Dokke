@@ -19,6 +19,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
@@ -204,6 +205,17 @@ class MainActivity : ComponentActivity() {
                     web.clearFocus()
                     (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                         .hideSoftInputFromWindow(web.windowToken, 0)
+                }
+            }
+            @android.webkit.JavascriptInterface
+            fun performHapticFeedback() {
+                runOnUiThread {
+                    val constant = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        HapticFeedbackConstants.CONTEXT_CLICK
+                    } else {
+                        HapticFeedbackConstants.VIRTUAL_KEY
+                    }
+                    web.performHapticFeedback(constant)
                 }
             }
             @android.webkit.JavascriptInterface

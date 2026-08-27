@@ -109,6 +109,7 @@ final class DockStore: ObservableObject {
   private func invalidateNativeIcons() {
     nativeIconCache.removeAll(keepingCapacity: true)
     iconAppearanceRevision &+= 1
+    preloadIcons()
   }
 
   static func normalizeBase(_ raw: String) -> String {
@@ -143,7 +144,7 @@ final class DockStore: ObservableObject {
     guard let limits = object?["limits"] as? [String: Any],
           let max = limits["maxPinnedApps"] as? Int,
           max > 0 else { return }
-    maxPinnedApps = max
+    if maxPinnedApps != max { maxPinnedApps = max }
   }
 
   func refreshAll() async {
@@ -154,7 +155,6 @@ final class DockStore: ObservableObject {
     await loadConfig()
     await loadInstalled()
     await loadPin()
-    preloadIcons()
   }
 
   /// Código de acesso de 4 dígitos exibido na aba Sobre — só acessível de loopback.
@@ -209,18 +209,24 @@ final class DockStore: ObservableObject {
       }
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
-        online = false
-        lastError = "status inválido"
+        if online { online = false }
+        if lastError != "status inválido" { lastError = "status inválido" }
         return
       }
-      online = true
-      lastError = nil
-      if let d = obj["devices"] as? Int { devices = d }
-      else if let d = obj["devices"] as? Double { devices = Int(d) }
+      if online != true { online = true }
+      if lastError != nil { lastError = nil }
+      let nextDevices: Int?
+      if let d = obj["devices"] as? Int { nextDevices = d }
+      else if let d = obj["devices"] as? Double { nextDevices = Int(d) }
+      else { nextDevices = nil }
+      if let nextDevices, devices != nextDevices { devices = nextDevices }
       if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
         applyPinnedLimits(cfg)
-        pinned = p
-        preloadIcons()
+        let pinnedChanged = pinned != p
+        if pinnedChanged {
+          pinned = p
+          preloadIcons()
+        }
       }
     } catch {
       await pingHealthOnly()
@@ -229,28 +235,28 @@ final class DockStore: ObservableObject {
 
   private func pingHealthOnly() async {
     guard let url = URL(string: baseURL + "/health") else {
-      online = false
-      lastError = "URL inválida"
+      if online { online = false }
+      if lastError != "URL inválida" { lastError = "URL inválida" }
       return
     }
     do {
       let (data, resp) = try await session.data(from: url)
       guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
-        online = false
-        lastError = "offline"
+        if online { online = false }
+        if lastError != "offline" { lastError = "offline" }
         return
       }
       if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
          (obj["ok"] as? Bool) == true {
-        online = true
-        lastError = nil
+        if online != true { online = true }
+        if lastError != nil { lastError = nil }
       } else {
-        online = false
-        lastError = "health inválido"
+        if online { online = false }
+        if lastError != "health inválido" { lastError = "health inválido" }
       }
     } catch {
-      online = false
-      lastError = error.localizedDescription
+      if online { online = false }
+      if lastError != error.localizedDescription { lastError = error.localizedDescription }
     }
   }
 
@@ -262,7 +268,10 @@ final class DockStore: ObservableObject {
             let cfg = obj["config"] as? [String: Any],
             let p = cfg["pinned"] as? [String] else { return }
       applyPinnedLimits(cfg)
-      pinned = p
+      if pinned != p {
+        pinned = p
+        preloadIcons()
+      }
     } catch {
       lastError = error.localizedDescription
     }
@@ -274,13 +283,18 @@ final class DockStore: ObservableObject {
       let (data, _) = try await session.data(from: url)
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let apps = obj["apps"] as? [[String: Any]] else { return }
-      installed = apps.compactMap { a in
+      let nextInstalled: [InstalledApp] = apps.compactMap { a in
         guard let name = a["name"] as? String else { return nil }
         return InstalledApp(
           name: name,
           path: a["path"] as? String,
           icon: (a["icon"] as? Bool) ?? true
         )
+      }
+      if installed != nextInstalled {
+        installed = nextInstalled
+        nativeIconCache.removeAll(keepingCapacity: true)
+        preloadIcons()
       }
     } catch {
       lastError = error.localizedDescription
@@ -470,7 +484,24 @@ final class DockStore: ObservableObject {
     // symlink para um Cryptex. Pedir o ícone pelo link faz o AppKit adicionar
     // o badge de atalho; o caminho real preserva o ícone limpo do bundle.
     let iconPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-    let icon = NSWorkspace.shared.icon(forFile: iconPath)
+    let icon: NSImage
+    if #available(macOS 26, *) {
+      // Tahoe: NSWorkspace.icon(forFile:) respeita o appearance atual e
+      // retorna a variante Dark quando o app está em .dark (Dokke força dark).
+      // Dark icons são quase pretos e somem no fundo escuro da página
+      // (bug da imagem 1). Força o estilo Default/claro para manter contraste.
+      if let lightAppearance = NSAppearance(named: .aqua) {
+        var fetched: NSImage?
+        lightAppearance.performAsCurrentDrawingAppearance {
+          fetched = NSWorkspace.shared.icon(forFile: iconPath)
+        }
+        icon = fetched ?? NSWorkspace.shared.icon(forFile: iconPath)
+      } else {
+        icon = NSWorkspace.shared.icon(forFile: iconPath)
+      }
+    } else {
+      icon = NSWorkspace.shared.icon(forFile: iconPath)
+    }
     guard icon.isValid else { return nil }
     nativeIconCache[name] = icon
     return icon

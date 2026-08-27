@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { startServer } from "../server.js";
 import WebSocket from "ws";
 import { pinnedLimits } from "../config.js";
+
+const serverSource = await readFile(new URL("../server.js", import.meta.url), "utf8");
 
 // Coletor persistente: um listener único acumula tudo (imune a ordem/rajada —
 // o front real usa um ws.onmessage único, então também não tem esse problema).
@@ -43,6 +47,38 @@ function connect(port) {
   return { ws, waitFor };
 }
 
+test("@spec:AC-336 HTTP e WebSocket registram erro antes de listen", () => {
+  const startup = serverSource.slice(
+    serverSource.indexOf("const server = makeServer()"),
+    serverSource.indexOf("let closed = false"),
+  );
+  assert.match(startup, /const rejectStartup =/);
+  assert.match(startup, /server\.once\("error", rejectStartup\)/);
+  assert.match(startup, /wss\.once\("error", rejectStartup\)/);
+  assert.match(startup, /wss\.on\("error",/);
+  assert.ok(startup.indexOf('server.once("error", rejectStartup)') < startup.indexOf("server.listen("));
+  assert.ok(startup.indexOf('wss.once("error", rejectStartup)') < startup.indexOf("server.listen("));
+});
+
+test("@spec:AC-337 bind ocupado rejeita uma tentativa sem derrubar o host existente", async () => {
+  const occupied = createServer((req, res) => res.end("occupied"));
+  await new Promise((resolve, reject) => {
+    occupied.once("error", reject);
+    occupied.listen(0, resolve);
+  });
+  const port = occupied.address().port;
+  try {
+    await assert.rejects(
+      startServer({ port, config: { pinned: [] } }),
+      error => error?.code === "EADDRINUSE",
+    );
+    assert.equal(occupied.listening, true, "o host que já ocupava a porta continua ativo");
+  } finally {
+    occupied.closeAllConnections?.();
+    await new Promise(resolve => occupied.close(resolve));
+  }
+});
+
 test("WS /ws empurra online + apps com pinned e running mock", async () => {
   const { port, close } = await startServer({
     port: 0,
@@ -60,6 +96,53 @@ test("WS /ws empurra online + apps com pinned e running mock", async () => {
     assert.equal(apps.running.some((a) => a.name === "Chrome"), true);
   } finally {
     if (c) { try { c.ws.close(); } catch (e) {} }
+    await close();
+  }
+});
+
+test("WS envia ping protocolar e mantém cliente saudável", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    wsHeartbeatMs: 25,
+    config: { pinned: [] },
+    appTools: { listAppProcesses: async () => [] },
+  });
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout aguardando abertura do WebSocket")), 1000);
+      ws.once("open", () => { clearTimeout(timer); resolve(); });
+      ws.once("error", error => { clearTimeout(timer); reject(error); });
+    });
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout aguardando ping protocolar")), 1000);
+      ws.once("ping", () => { clearTimeout(timer); resolve(); });
+      ws.once("error", error => { clearTimeout(timer); reject(error); });
+    });
+    assert.equal(ws.readyState, WebSocket.OPEN);
+  } finally {
+    try { ws.close(); } catch (e) {}
+    await close();
+  }
+});
+
+test("WS encerra cliente que não responde ao ping protocolar", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    wsHeartbeatMs: 25,
+    config: { pinned: [] },
+    appTools: { listAppProcesses: async () => [] },
+  });
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { autoPong: false });
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout aguardando encerramento do WebSocket morto")), 1000);
+      ws.once("close", () => { clearTimeout(timer); resolve(); });
+      ws.once("error", () => {});
+    });
+    assert.equal(ws.readyState, WebSocket.CLOSED);
+  } finally {
+    try { ws.close(); } catch (e) {}
     await close();
   }
 });

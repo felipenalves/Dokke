@@ -17,6 +17,15 @@ test("GET /api/apps retorna fixas + abertas", async () => {
   } finally { await close(); }
 });
 
+test("@spec:AC-336 /health continua público após inicialização do host", async () => {
+  const { port, close } = await startServer({ port: 0, config: { pinned: [] } });
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, service: "Dokke" });
+  } finally { await close(); }
+});
+
 test("GET /api/apps com defaults reais retorna arrays", async () => {
   const { port, close } = await startServer({ port: 0, config: { pinned: [] } });
   try {

@@ -26,6 +26,17 @@ test("helper macOS resolve o ícone do bundle pelo AppKit e grava PNG", () => {
   assert.match(info, /LSMinimumSystemVersion/);
 });
 
+test("helper resolve symlink do bundle antes de pedir o ícone ao AppKit", () => {
+  const source = readFileSync(helperPath, "utf8");
+  assert.match(
+    source,
+    /let iconPath = URL\(fileURLWithPath: appPath\)\.resolvingSymlinksInPath\(\)\.path/,
+    "Safari e outros apps expostos pelo Cryptex não devem receber badge de alias"
+  );
+  assert.match(source, /NSWorkspace\.shared\.icon\(forFile: iconPath\)/);
+  assert.doesNotMatch(source, /NSWorkspace\.shared\.icon\(forFile: appPath\)/);
+});
+
 test("server e instalador empacotam o helper nativo sem mudar o endpoint", () => {
   const apps = readFileSync(appsPath, "utf8");
   const packageSwift = readFileSync(packagePath, "utf8");

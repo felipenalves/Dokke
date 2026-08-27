@@ -50,6 +50,8 @@ const pinLocks = createPinLocks({ maxFails: PIN_MAX_FAILS, lockMs: PIN_LOCK_MS }
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 /** Ping de client força broadcast — limitado por conexão pra não virar amplificador. */
 const PING_MIN_INTERVAL_MS = 1500;
+/** Detecta conexões WebSocket quebradas sem adicionar tráfego HTTP. */
+const WS_HEARTBEAT_MS = 30_000;
 
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
@@ -648,6 +650,10 @@ export function makeApp(deps = {}) {
 export async function startServer(arg = {}) {
   const opts = typeof arg === "number" ? { port: arg } : (arg ?? {});
   const port = opts.port ?? (process.env.PORT ? Number(process.env.PORT) : 3000);
+  const requestedHeartbeat = Number(opts.wsHeartbeatMs);
+  const wsHeartbeatMs = Number.isFinite(requestedHeartbeat) && requestedHeartbeat >= 10
+    ? requestedHeartbeat
+    : WS_HEARTBEAT_MS;
   if (opts.obs === undefined) {
     opts.obs = await connectOBS({
       password: process.env.OBS_WS_PASSWORD,
@@ -726,7 +732,13 @@ export async function startServer(arg = {}) {
       return !!opts.auth?.checkSession?.(tokenFromCookie(info.req.headers.cookie));
     },
   });
+  // Mantém os dois EventEmitters protegidos também depois do startup. Sem estes
+  // listeners, um erro encaminhado pelo ws pode terminar o processo Node.
+  server.on("error", error => console.error("[dokke] HTTP error:", error?.message ?? error));
+  wss.on("error", error => console.error("[dokke] WebSocket error:", error?.message ?? error));
   wss.on("connection", (ws) => {
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
     let lastPingAt = 0;
     ws.on("message", (raw) => {
       let m = null;
@@ -743,19 +755,58 @@ export async function startServer(arg = {}) {
     });
     feed.addClient(ws);
   });
+  const heartbeatTimer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) {
+        ws.terminate();
+        continue;
+      }
+      ws.isAlive = false;
+      if (ws.readyState === 1) {
+        try { ws.ping(); } catch (e) {}
+      }
+    }
+  }, wsHeartbeatMs);
+  if (heartbeatTimer.unref) heartbeatTimer.unref();
+  const stopHeartbeat = () => clearInterval(heartbeatTimer);
   await new Promise((res, rej) => {
-    // erro de listen (ex.: EADDRINUSE) rejeita em vez de crash sem handler
-    server.once("error", rej);
-    server.listen(port, () => {
-      server.off("error", rej);
+    let settled = false;
+    const cleanupStartupListeners = () => {
+      server.off("error", rejectStartup);
+      wss.off("error", rejectStartup);
+    };
+    const rejectStartup = error => {
+      if (settled) return;
+      settled = true;
+      cleanupStartupListeners();
+      stopHeartbeat();
+      try { wss.close(); } catch {}
+      rej(error);
+    };
+    const resolveStartup = () => {
+      if (settled) return;
+      settled = true;
+      cleanupStartupListeners();
       res();
-    });
+    };
+    // Registra os dois listeners antes do bind: ws encaminha falhas do servidor
+    // HTTP, portanto ambos precisam rejeitar a mesma promessa de inicialização.
+    server.once("error", rejectStartup);
+    wss.once("error", rejectStartup);
+    server.listen(port, resolveStartup);
   });
   let closed = false;
   const close = () => new Promise((resolve, reject) => {
     if (closed) return resolve();
-    if (!server.listening) { closed = true; feed.close(); try { wss.close(); } catch (e) {} return resolve(); }
+    if (!server.listening) {
+      closed = true;
+      stopHeartbeat();
+      feed.close();
+      try { wss.close(); } catch (e) {}
+      return resolve();
+    }
     closed = true;
+    stopHeartbeat();
     feed.close();
     try { wss.close(); } catch (e) {}
     server.close(e => e ? reject(e) : resolve());
