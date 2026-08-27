@@ -53,6 +53,15 @@ struct AppPickerSheet: View {
 
       Divider()
 
+      if store.isPinnedLimitReached {
+        Text("Limite de 5 páginas atingido. Remova um app para adicionar outro.")
+          .font(.caption)
+          .foregroundStyle(.orange)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 8)
+      }
+
       if filteredApps.isEmpty {
         ContentUnavailableView(
           search.isEmpty ? "Nenhum app encontrado" : "Sem resultados",
@@ -100,7 +109,7 @@ struct AppPickerSheet: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .disabled(store.busyName == app.name)
+        .disabled(store.busyName == app.name || store.isPinnedLimitReached)
       }
     }
   }

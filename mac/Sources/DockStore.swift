@@ -29,6 +29,7 @@ final class DockStore: ObservableObject {
   @Published var busyName: String?
   @Published var pinCode: String?
   @Published var pinError: String?
+  @Published var maxPinnedApps: Int = 39
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
@@ -88,6 +89,17 @@ final class DockStore: ObservableObject {
 
   func isPinned(_ name: String) -> Bool {
     pinned.contains(name)
+  }
+
+  var isPinnedLimitReached: Bool {
+    pinned.count >= maxPinnedApps
+  }
+
+  private func applyPinnedLimits(_ object: [String: Any]?) {
+    guard let limits = object?["limits"] as? [String: Any],
+          let max = limits["maxPinnedApps"] as? Int,
+          max > 0 else { return }
+    maxPinnedApps = max
   }
 
   func refreshAll() async {
@@ -162,6 +174,7 @@ final class DockStore: ObservableObject {
       if let d = obj["devices"] as? Int { devices = d }
       else if let d = obj["devices"] as? Double { devices = Int(d) }
       if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
+        applyPinnedLimits(cfg)
         pinned = p
         preloadIcons()
       }
@@ -204,6 +217,7 @@ final class DockStore: ObservableObject {
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let cfg = obj["config"] as? [String: Any],
             let p = cfg["pinned"] as? [String] else { return }
+      applyPinnedLimits(cfg)
       pinned = p
     } catch {
       lastError = error.localizedDescription
@@ -238,9 +252,15 @@ final class DockStore: ObservableObject {
   }
 
   func pin(_ name: String) async {
+    if !pinned.contains(name) && isPinnedLimitReached {
+      lastError = "Limite de 5 páginas atingido"
+      lastSyncNote = lastError
+      return
+    }
     // otimista: UI reage na hora; server empurra pros devices via WS
     let prev = pinned
     if !pinned.contains(name) { pinned.append(name) }
+    lastError = nil
     busyName = name
     defer { busyName = nil }
     guard let url = URL(string: baseURL + "/api/config/pinned") else { return }
@@ -252,15 +272,26 @@ final class DockStore: ObservableObject {
     do {
       let (data, resp) = try await session.data(for: req)
       let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      if code == 409, let body = obj, body["code"] as? String == "PINNED_LIMIT_REACHED" {
+        pinned = prev
+        applyPinnedLimits(body)
+        let message = body["error"] as? String ?? "Limite de 5 páginas atingido"
+        lastError = message
+        lastSyncNote = message
+        return
+      }
       guard code == 200,
-            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            (obj["ok"] as? Bool) == true else {
+            let body = obj,
+            (body["ok"] as? Bool) == true else {
         pinned = prev
         lastError = "falha ao fixar"
         lastSyncNote = nil
         return
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
+      lastError = nil
+      if let cfg = body["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
+        applyPinnedLimits(cfg)
         pinned = p
       }
       await afterPinPush()

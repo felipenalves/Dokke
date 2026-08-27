@@ -21,16 +21,34 @@ struct ContentView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var updater: DokkeUpdateManager
   @State private var selection: SidebarItem? = .apps
+  @State private var isSidebarVisible = true
+  @State private var hoveredSidebarItem: SidebarItem?
+  @State private var trafficLightsClearance: CGFloat = 80
+  @State private var trafficLightsMidY: CGFloat = 16
+  private let headerHeight: CGFloat = 32
+  private let sidebarChromeRadius: CGFloat = 20
+
   var body: some View {
-    NavigationSplitView {
-      sidebar
-    } detail: {
-      detail
+    ZStack(alignment: .topLeading) {
+      HStack(spacing: 0) {
+        sidebar
+          .frame(width: isSidebarVisible ? 208 : 0)
+          .clipped()
+          .opacity(isSidebarVisible ? 1 : 0)
+        detail
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .ignoresSafeArea(.container, edges: .top)
     }
-    .navigationTitle("Dokke")
+    .overlay(alignment: .topLeading) {
+      header
+    }
     .background(DokkeTheme.canvas.ignoresSafeArea())
-    .toolbarBackground(DokkeTheme.canvas, for: .windowToolbar)
-    .toolbarColorScheme(.dark, for: .windowToolbar)
+    .background(TrafficLightsClearanceReader(inset: $trafficLightsClearance, midY: $trafficLightsMidY, isSidebarVisible: $isSidebarVisible))
+    .ignoresSafeArea(.container, edges: .top)
+    .preferredColorScheme(.dark)
+    .animation(.easeOut(duration: 0.2), value: isSidebarVisible)
     .task {
       try? await Task.sleep(nanoseconds: 300_000_000)
       guard !Task.isCancelled else { return }
@@ -38,30 +56,138 @@ struct ContentView: View {
     }
   }
 
+  private var header: some View {
+    HStack(spacing: 0) {
+      Color.clear
+        .frame(width: isSidebarVisible ? 208 : trafficLightsClearance)
+        .allowsHitTesting(false)
+
+      if !isSidebarVisible {
+        sidebarToggleButton
+      }
+
+      Text("Dokke")
+        .font(.headline.weight(.semibold))
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 6)
+        .allowsHitTesting(false)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(height: headerHeight)
+    .offset(y: trafficLightsMidY - headerHeight / 2)
+  }
+
+  private var sidebarToggleButton: some View {
+    Button {
+      withAnimation(.easeOut(duration: 0.2)) {
+        isSidebarVisible.toggle()
+      }
+    } label: {
+      Image(systemName: "sidebar.left")
+        .font(.system(size: 17, weight: .medium))
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(width: 26, height: 26)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(isSidebarVisible ? "Ocultar sidebar" : "Mostrar sidebar")
+  }
+
+  private var customTrafficLights: some View {
+    HStack(spacing: 8) {
+      Circle()
+        .fill(Color(red: 0.96, green: 0.23, blue: 0.21))
+        .frame(width: 12, height: 12)
+        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 0.6))
+        .onTapGesture { NSApp.keyWindow?.performClose(nil) }
+      Circle()
+        .fill(Color(red: 0.97, green: 0.73, blue: 0.11))
+        .frame(width: 12, height: 12)
+        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 0.6))
+        .onTapGesture { NSApp.keyWindow?.miniaturize(nil) }
+      Circle()
+        .fill(Color(red: 0.17, green: 0.77, blue: 0.28))
+        .frame(width: 12, height: 12)
+        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 0.6))
+        .onTapGesture { NSApp.keyWindow?.zoom(nil) }
+    }
+    .frame(width: 52, height: 12)
+  }
+
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 0) {
+        Color.clear
+          .frame(width: trafficLightsClearance)
+          .allowsHitTesting(false)
+        Spacer()
+        sidebarToggleButton
+          .padding(.trailing, 8)
+      }
+      .frame(height: headerHeight)
+      .offset(y: trafficLightsMidY - headerHeight / 2 - 16)
+      .padding(.top, 8)
+
       ForEach(SidebarItem.allCases, id: \.self) { item in
         Button {
           selection = item
         } label: {
-          Label(item.rawValue, systemImage: item.icon)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          HStack(spacing: 6) {
+            Image(systemName: item.icon)
+              .font(.system(size: 12, weight: .medium))
+              .frame(width: 14, height: 14)
+            Text(item.rawValue)
+              .font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 0)
+          }
+          .padding(.horizontal, 10)
+          .frame(height: 28)
+          .background(sidebarRowBackground(item))
+          .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+          .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(selection == item ? Color.white : Color.white.opacity(0.58))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(selection == item ? DokkeTheme.selection : .clear)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.leading, 16)
+        .padding(.trailing, 16)
+        .onHover { hovering in
+          if hovering {
+            hoveredSidebarItem = item
+          } else if hoveredSidebarItem == item {
+            hoveredSidebarItem = nil
+          }
+        }
         .accessibilityLabel(item.rawValue)
         .accessibilityValue(selection == item ? "Selecionado" : "")
       }
       Spacer()
     }
-    .padding(.horizontal, 14)
-    .padding(.top, 0)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 216)
+    .background {
+      if #available(macOS 26, *) {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+          .fill(Color.clear)
+          .glassEffect(.regular, in: .rect(cornerRadius: 18))
+      } else {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+          .fill(Color.clear)
+      }
+    }
+    .overlay(
+      RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+    )
+    .padding(.leading, 8)
+    .padding(.top, 8)
+    .padding(.bottom, 8)
+    .padding(.trailing, 8)
+  }
+
+  private func sidebarRowBackground(_ item: SidebarItem) -> Color {
+    if selection == item { return DokkeTheme.selection }
+    if hoveredSidebarItem == item { return Color.white.opacity(0.08) }
+    return .clear
   }
 
   @ViewBuilder
@@ -73,6 +199,117 @@ struct ContentView: View {
       AboutView()
     case .none:
       DockGridView()
+    }
+  }
+}
+
+private struct TrafficLightsClearanceReader: NSViewRepresentable {
+  @Binding var inset: CGFloat
+  @Binding var midY: CGFloat
+  @Binding var isSidebarVisible: Bool
+
+  func makeNSView(context: Context) -> ReaderView {
+    let view = ReaderView()
+    view.onChange = { nextInset, nextMidY in
+      DispatchQueue.main.async {
+        if abs(inset - nextInset) > 0.5 {
+          inset = nextInset
+        }
+        if abs(midY - nextMidY) > 0.5 {
+          midY = nextMidY
+        }
+      }
+    }
+    view.isSidebarVisible = isSidebarVisible
+    return view
+  }
+
+  func updateNSView(_ nsView: ReaderView, context: Context) {
+    nsView.onChange = { nextInset, nextMidY in
+      DispatchQueue.main.async {
+        if abs(inset - nextInset) > 0.5 {
+          inset = nextInset
+        }
+        if abs(midY - nextMidY) > 0.5 {
+          midY = nextMidY
+        }
+      }
+    }
+    nsView.isSidebarVisible = isSidebarVisible
+    nsView.publish()
+  }
+
+  final class ReaderView: NSView {
+    var onChange: ((CGFloat, CGFloat) -> Void)?
+    var isSidebarVisible: Bool = true
+    private var resizeObserver: NSObjectProtocol?
+    private var originalTrafficLightFrames: [NSWindow.ButtonType: NSRect] = [:]
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if let resizeObserver {
+        NotificationCenter.default.removeObserver(resizeObserver)
+        self.resizeObserver = nil
+      }
+      publish()
+      if let window {
+        resizeObserver = NotificationCenter.default.addObserver(
+          forName: NSWindow.didResizeNotification,
+          object: window,
+          queue: .main
+        ) { [weak self] _ in
+          self?.publish()
+        }
+      }
+      DispatchQueue.main.async { [weak self] in
+        self?.publish()
+      }
+    }
+
+    override func layout() {
+      super.layout()
+      publish()
+    }
+
+    deinit {
+      if let resizeObserver {
+        NotificationCenter.default.removeObserver(resizeObserver)
+      }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func publish() {
+      guard let window,
+            let zoom = window.standardWindowButton(.zoomButton),
+            let close = window.standardWindowButton(.closeButton),
+            let contentView = window.contentView
+      else { return }
+
+      let dx: CGFloat = 18
+      let dy: CGFloat = -10
+      for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] as [NSWindow.ButtonType] {
+        guard let btn = window.standardWindowButton(type) else { continue }
+        if originalTrafficLightFrames[type] == nil {
+          originalTrafficLightFrames[type] = btn.frame
+        }
+        if let original = originalTrafficLightFrames[type] {
+          var frame = original
+          frame.origin.x = original.origin.x + dx
+          frame.origin.y = original.origin.y + dy
+          if btn.frame != frame { btn.frame = frame }
+        }
+      }
+
+      let zoomRect = zoom.convert(zoom.bounds, to: contentView)
+      let inset = ceil(zoomRect.maxX + 10)
+      guard inset > 40 else { return }
+
+      let closeRect = close.convert(close.bounds, to: contentView)
+      let midY = contentView.isFlipped ? closeRect.midY : (contentView.bounds.height - closeRect.midY)
+      guard midY > 4, midY < 80 else { return }
+
+      onChange?(inset, midY)
     }
   }
 }
@@ -182,7 +419,7 @@ struct AboutView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
-        if !store.online, let err = server.lastError ?? store.lastError {
+        if let err = server.lastError ?? store.lastError {
           Text(err)
             .font(.caption)
             .foregroundStyle(.red)
@@ -247,6 +484,7 @@ struct AboutView: View {
       .frame(maxWidth: aboutContentMaxWidth, alignment: .leading)
       .frame(maxWidth: .infinity, alignment: .center)
     }
+    .padding(.top, 40)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(DokkeTheme.canvas.ignoresSafeArea())
     .confirmationDialog("Gerar novo código?", isPresented: $showingResetPinConfirmation, titleVisibility: .visible) {

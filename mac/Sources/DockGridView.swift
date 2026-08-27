@@ -9,21 +9,28 @@ struct DockGridView: View {
   @State private var isReordering = false
 
   private let pageSize = 8
-  private let tileSize: CGFloat = 64
+  private let tileSize: CGFloat = 80
   private let tileSpacing: CGFloat = 22
-  private let pageHeight: CGFloat = 244
+  private let pageHeight: CGFloat = 288
   private let carouselGap: CGFloat = 24
-  private let carouselPeekRatio: CGFloat = 0.60
-  private let carouselMaxPageWidth: CGFloat = 444
-  private let carouselMinPageWidth: CGFloat = 360
+  private let carouselVerticalOffset: CGFloat = 22
+  private let carouselPeekRatio: CGFloat = 0.55
+  private let carouselMaxPageWidth: CGFloat = 458
+  private let carouselMinPageWidth: CGFloat = 450
+
+  private enum TileItem: Hashable {
+    case app(String)
+    case add
+  }
 
   private var displayedPinned: [String] {
     draftPinned ?? store.pinned
   }
 
-  private var pages: [[String]] {
-    stride(from: 0, to: displayedPinned.count, by: pageSize).map {
-      Array(displayedPinned[$0..<min($0 + pageSize, displayedPinned.count)])
+  private var pages: [[TileItem]] {
+    let items: [TileItem] = displayedPinned.map { .app($0) } + [.add]
+    return stride(from: 0, to: items.count, by: pageSize).map {
+      Array(items[$0..<min($0 + pageSize, items.count)])
     }
   }
 
@@ -45,16 +52,32 @@ struct DockGridView: View {
         dockPages
       }
     }
-    .padding(.horizontal, 20)
+    .padding(.leading, 20)
     .padding(.top, 8)
     .padding(.bottom, 18)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(DokkeTheme.canvas.ignoresSafeArea())
-    .overlay(alignment: .bottomTrailing) {
+    .overlay(alignment: .bottom) {
       if store.online && !store.pinned.isEmpty {
-        reorderButton
-          .padding(.trailing, 12)
-          .padding(.bottom, 8)
+        HStack(spacing: 0) {
+          if isReordering {
+            HStack(spacing: 6) {
+              Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 11, weight: .medium))
+              Text("Arraste para mover um ícone de posição.")
+                .font(.system(size: 12))
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(.leading, 24)
+            Spacer()
+          } else {
+            Spacer()
+          }
+          reorderButton
+            .padding(.trailing, isReordering ? 24 : 12)
+            .padding(.bottom, isReordering ? 12 : 8)
+        }
+        .frame(maxWidth: .infinity)
       }
     }
     .onChange(of: displayedPinned.count) { _, _ in
@@ -74,27 +97,40 @@ struct DockGridView: View {
     GeometryReader { geo in
       let cardHeight = pageHeight
       let pageWidth = carouselPageWidth(for: geo.size.width)
+      let trailingFadeStart = max(0, 1 - 16 / max(geo.size.width, 1))
 
       VStack(spacing: 18) {
         ScrollView(.horizontal) {
           LazyHStack(alignment: .center, spacing: carouselGap) {
-            ForEach(Array(pages.enumerated()), id: \.offset) { index, names in
-              pageContent(names: names, isLast: index == pages.count - 1)
+            ForEach(Array(pages.enumerated()), id: \.offset) { index, items in
+              pageContent(items: items)
                 .frame(width: pageWidth, height: cardHeight)
                 .id(index)
             }
           }
           .scrollTargetLayout()
-          .padding(.horizontal, 12)
+          .padding(.leading, 12)
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: $currentPage, anchor: .leading)
         .scrollIndicators(.hidden)
         .frame(height: cardHeight)
+        .mask(
+          LinearGradient(
+            stops: [
+              .init(color: .black, location: 0),
+              .init(color: .black, location: trailingFadeStart),
+              .init(color: .clear, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+          )
+        )
 
         pageDots(count: pageCount)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+      .offset(y: carouselVerticalOffset)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
@@ -130,36 +166,58 @@ struct DockGridView: View {
   }
 
   @ViewBuilder
-  private func pageContent(names: [String], isLast: Bool) -> some View {
-    Group {
-      if #available(macOS 26, *) {
-        GlassEffectContainer(spacing: tileSpacing) {
-          appGrid(names: names, isLast: isLast)
+  private func pageContent(items: [TileItem]) -> some View {
+    appGrid(items: items)
+      .padding(.horizontal, 32)
+      .padding(.vertical, 29)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background {
+        if #available(macOS 26, *) {
+          RoundedRectangle(cornerRadius: 40, style: .continuous)
+            .fill(DokkeTheme.page)
+            .glassEffect(.regular, in: .rect(cornerRadius: 40))
+        } else {
+          RoundedRectangle(cornerRadius: 40, style: .continuous)
+            .fill(DokkeTheme.page)
         }
-      } else {
-        appGrid(names: names, isLast: isLast)
       }
-    }
-    .padding(.horizontal, 24)
-    .padding(.vertical, 24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(DokkeTheme.page)
-    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
   }
 
-  private func appGrid(names: [String], isLast: Bool) -> some View {
+  private func appGrid(items: [TileItem]) -> some View {
     let columns = Array(repeating: GridItem(.flexible(minimum: tileSize), spacing: tileSpacing), count: 4)
-    let used = names.count + (isLast ? 1 : 0)
+    let used = items.count
 
-    return LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
-      ForEach(names, id: \.self) { name in
-        appTile(name: name)
-      }
-      if isLast {
-        addButtonModule()
-      }
-      ForEach(0..<max(0, pageSize - used), id: \.self) { _ in
-        emptySlot()
+    return Group {
+      if #available(macOS 26, *) {
+        GlassEffectContainer(spacing: tileSpacing) {
+          LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
+            ForEach(items, id: \.self) { item in
+              switch item {
+              case .app(let name):
+                appTile(name: name)
+              case .add:
+                addButtonModule()
+              }
+            }
+            ForEach(0..<max(0, pageSize - used), id: \.self) { _ in
+              emptySlot()
+            }
+          }
+        }
+      } else {
+        LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
+          ForEach(items, id: \.self) { item in
+            switch item {
+            case .app(let name):
+              appTile(name: name)
+            case .add:
+              addButtonModule()
+            }
+          }
+          ForEach(0..<max(0, pageSize - used), id: \.self) { _ in
+            emptySlot()
+          }
+        }
       }
     }
     .frame(maxWidth: .infinity)
@@ -174,14 +232,14 @@ struct DockGridView: View {
   @ViewBuilder
   private func appTile(name: String) -> some View {
     if isReordering {
-      DockIcon(name: name)
+      DockIcon(name: name, allowsRemoval: false, isReordering: true)
         .onDrag {
           startDrag(name)
           return NSItemProvider(object: name as NSString)
         }
         .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
     } else {
-      DockIcon(name: name)
+      DockIcon(name: name, allowsRemoval: true, isReordering: false)
     }
   }
 
@@ -191,12 +249,12 @@ struct DockGridView: View {
         isReordering.toggle()
       }
     } label: {
-      Text(isReordering ? "Done" : "Reorder Pieces")
+        Text(isReordering ? "Concluir" : "Reorganizar apps")
         .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle(isReordering ? Color.white : Color.white.opacity(0.9))
         .padding(.horizontal, 20)
         .padding(.vertical, 11)
-        .background(Color.white.opacity(isReordering ? 0.22 : 0.14))
+        .background(isReordering ? DokkeTheme.selection : Color.white.opacity(0.14))
         .clipShape(Capsule())
     }
     .buttonStyle(.plain)
@@ -208,8 +266,8 @@ struct DockGridView: View {
     Button { showPicker = true } label: {
       VStack(spacing: 8) {
         ZStack {
-          RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.black.opacity(0.28))
+          RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(Color.black.opacity(0.30))
             .frame(width: tileSize, height: tileSize)
           Image(systemName: "plus")
             .font(.title2.weight(.medium))
@@ -221,13 +279,14 @@ struct DockGridView: View {
       }
     }
     .buttonStyle(.plain)
-    .help("Adicionar apps ao dock")
+    .disabled(store.isPinnedLimitReached)
+    .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar apps ao dock")
   }
 
   private func emptySlot() -> some View {
     VStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(Color.black.opacity(0.22))
+      RoundedRectangle(cornerRadius: 28, style: .continuous)
+        .fill(Color.black.opacity(0.30))
         .frame(width: tileSize, height: tileSize)
       Text(" ")
         .font(.system(size: 11, weight: .medium))
