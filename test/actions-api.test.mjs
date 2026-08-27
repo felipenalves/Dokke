@@ -55,7 +55,8 @@ test("POST activate com erro responde 500 ok:false", async () => {
     assert.equal(r.status, 500);
     const d = await r.json();
     assert.equal(d.ok, false);
-    assert.match(d.error, /boom/);
+    assert.match(d.error, /erro interno/);
+    assert.doesNotMatch(d.error, /boom/, "detalhe interno não vaza pro cliente");
   } finally { await close(); }
 });
 

@@ -3,7 +3,20 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, saveConfig, normalizePinned } from "../config.js";
+import {
+  loadConfig,
+  saveConfig,
+  normalizePinned,
+  PINNED_PAGE_SIZE,
+  PINNED_MAX_PAGES,
+  MAX_PINNED_APPS,
+} from "../config.js";
+
+test("limite do dock cabe em cinco páginas e reserva o botão Adicionar", () => {
+  assert.equal(PINNED_PAGE_SIZE, 8);
+  assert.equal(PINNED_MAX_PAGES, 5);
+  assert.equal(MAX_PINNED_APPS, 39);
+});
 
 test("loadConfig cria com defaults e saveConfig persiste", async () => {
   const dir = await mkdtemp(join(tmpdir(), "j5cfg-"));

@@ -15,6 +15,8 @@ export const ICON_MAX_PX = 512;
 export const INSTALLED_APPS_TTL_MS = 120_000;
 /** Cap do cache PNG em memória (LRU). Disco continua cacheando o resto. */
 export const MEM_PNG_MAX = 40;
+/** Cap de arquivos no cache de ícones em disco (poda os mais antigos). */
+export const DISK_PNG_MAX = 256;
 /** TTL do lsappinfo (fork caro) — evita um processo novo a cada poll do J5. */
 export const RUNNING_TTL_MS = 1500;
 
@@ -266,6 +268,25 @@ function lruSet(map, key, value, max) {
   }
 }
 
+/** Poda o cache em disco: mantém só os DISK_PNG_MAX pngs mais recentes. */
+export async function pruneIconCache(cacheDir, maxFiles = DISK_PNG_MAX, fsDeps = {}) {
+  const readdirFn = fsDeps.readdir ?? readdir;
+  const unlinkFn = fsDeps.unlink ?? unlink;
+  const statFn = fsDeps.stat ?? stat;
+  let files;
+  try {
+    files = (await readdirFn(cacheDir)).filter(f => f.endsWith(".png"));
+  } catch { return; }
+  if (files.length <= maxFiles) return;
+  const dated = await Promise.all(files.map(async f => {
+    const full = join(cacheDir, f);
+    try { return { full, mtime: (await statFn(full)).mtimeMs }; } catch { return null; }
+  }));
+  const alive = dated.filter(Boolean).sort((a, b) => a.mtime - b.mtime);
+  const excess = alive.slice(0, alive.length - maxFiles);
+  await Promise.all(excess.map(e => unlinkFn(e.full).catch(() => {})));
+}
+
 /** PNG tem conteúdo visível? sips pode gerar PNG todo transparente p/ alguns .icns
  *  (ex.: Books.app) — nesse caso tratamos como "sem ícone" (cai no monograma no cliente). */
 function pngIsEmpty(buf) {
@@ -514,6 +535,7 @@ export function realIconService(deps = {}) {
     cacheDir = ICON_CACHE_DIR,
     ttlMs = INSTALLED_APPS_TTL_MS,
     memMax = MEM_PNG_MAX,
+    diskMax = DISK_PNG_MAX,
     maxPx = ICON_MAX_PX,
   } = deps;
   let appsByName = null;
@@ -594,6 +616,9 @@ export function realIconService(deps = {}) {
 
     if (buf) {
       lruSet(memPng, name, buf, memMax);
+      // nome novo gravou arquivo novo em disco — poda mantém o cache com teto
+      // (awaited: podar concorrente com a próxima escrita subconta arquivos)
+      try { await pruneIconCache(cacheDir, diskMax); } catch {}
     } else {
       memMiss.add(name);
     }

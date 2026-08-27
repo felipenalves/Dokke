@@ -127,7 +127,8 @@ test("GET /api/obs/state com getState rejeitando responde ok:false connected:tru
     const d = await r.json();
     assert.equal(d.ok, false);
     assert.equal(d.connected, true);
-    assert.match(d.error, /obs caiu/);
+    assert.match(d.error, /erro interno/, "cliente recebe mensagem genérica");
+    assert.doesNotMatch(d.error, /obs caiu/, "detalhe interno não vaza pro cliente");
   } finally { await close(); }
 });
 
@@ -151,7 +152,8 @@ test("POST /api/obs/stop-all sem metodo no obs responde 500 e o servidor segue v
     assert.equal(r.status, 500);
     const d = await r.json();
     assert.equal(d.ok, false);
-    assert.match(d.error, /not a function/);
+    assert.match(d.error, /erro interno/);
+    assert.doesNotMatch(d.error, /not a function/);
     const h = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(h.status, 200);
   } finally { await close(); }
@@ -165,7 +167,8 @@ test("POST /api/obs/scene com switchScene throw sincrono responde 500 e o servid
     assert.equal(r.status, 500);
     const d = await r.json();
     assert.equal(d.ok, false);
-    assert.match(d.error, /falha sincrona/);
+    assert.match(d.error, /erro interno/);
+    assert.doesNotMatch(d.error, /falha sincrona/);
     const h = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(h.status, 200);
   } finally { await close(); }

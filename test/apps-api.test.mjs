@@ -85,3 +85,21 @@ test("GET /api/apps/%ZZ/icon com nome malformado retorna 400 sem crash", async (
     assert.equal(h.status, 200);
   } finally { await close(); }
 });
+
+test("POST /api/apps/:name/activate com JSON malformado responde 400 e não ativa", async () => {
+  const activated = [];
+  const { port, close } = await startServer({
+    port: 0,
+    config: {},
+    actions: { activateApp: async (app) => { activated.push(app.name); } },
+  });
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/api/apps/Notes/activate`, {
+      method: "POST",
+      body: "isso nao e json{",
+    });
+    assert.equal(r.status, 400, "corpo inválido deve dar 400");
+    assert.equal((await r.json()).ok, false);
+    assert.deepEqual(activated, [], "não pode ativar com corpo inválido");
+  } finally { await close(); }
+});

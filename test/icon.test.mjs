@@ -108,6 +108,26 @@ test("realIconService gera monograma para app desconhecido", async () => {
   assert.equal(buf[0], 0x89, "deve começar com magic number PNG");
 });
 
+test("cache de monogramas em disco respeita o cap (poda os mais antigos)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-icon-prune-"));
+  try {
+    const cacheDir = join(dir, ".icon-cache");
+    const exec = async (cmd, args) => {
+      const out = args[args.indexOf("--out") + 1] ?? args[args.length - 1];
+      await writeFile(out, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    };
+    const diskMax = 10;
+    const svc = realIconService({ scan: async () => [], exec, cacheDir, diskMax });
+    for (let i = 0; i < 25; i++) {
+      const buf = await svc.getIconPng(`Fantasma-${i}`);
+      assert.ok(Buffer.isBuffer(buf));
+    }
+    const { readdir } = await import("node:fs/promises");
+    const files = (await readdir(cacheDir)).filter(f => f.endsWith(".png"));
+    assert.ok(files.length <= diskMax, `esperava <= ${diskMax} pngs em disco, tem ${files.length}`);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("normalizePngIcon equaliza margens transparentes no canvas", () => {
   const pixels = Buffer.alloc(4 * 4 * 4);
   for (let y = 1; y <= 2; y++) {

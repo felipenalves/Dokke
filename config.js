@@ -1,6 +1,21 @@
 import { readFile, writeFile, rename } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 
 const DEFAULT = { pinned: [] };
+export const PINNED_PAGE_SIZE = 8;
+export const PINNED_MAX_PAGES = 5;
+// O Mac usa uma célula do último slide para o botão Adicionar.
+export const MAX_PINNED_APPS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES - 1;
+export const PINNED_LIMIT_CODE = "PINNED_LIMIT_REACHED";
+export const PINNED_LIMIT_MESSAGE = `Limite de ${PINNED_MAX_PAGES} páginas atingido`;
+
+export function pinnedLimits() {
+  return {
+    pageSize: PINNED_PAGE_SIZE,
+    maxPages: PINNED_MAX_PAGES,
+    maxPinnedApps: MAX_PINNED_APPS,
+  };
+}
 
 /** Normaliza lista de favoritos: strings trimmed, sem vazios, sem duplicata (ordem estável). */
 export function normalizePinned(list) {
@@ -28,7 +43,8 @@ export async function loadConfig(file) {
 
 export async function saveConfig(file, cfg) {
   const safe = { ...structuredClone(DEFAULT), ...cfg, pinned: normalizePinned(cfg?.pinned) };
-  const tmp = file + ".tmp";
+  // tmp único por escrita: escritas concorrentes (kiosk + app Mac) não colidem
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   await writeFile(tmp, JSON.stringify(safe, null, 2));
   await rename(tmp, file);
 }

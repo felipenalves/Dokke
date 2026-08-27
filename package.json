@@ -3,6 +3,7 @@
   "version": "0.2.7",
   "private": true,
   "type": "module",
+  "portless": { "name": "dokke", "script": "start" },
   "scripts": {
     "start": "node server.js",
     "test": "node --test",

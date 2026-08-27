@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server.js";
 import WebSocket from "ws";
+import { pinnedLimits } from "../config.js";
 
 // Coletor persistente: um listener único acumula tudo (imune a ordem/rajada —
 // o front real usa um ws.onmessage único, então também não tem esse problema).
@@ -55,6 +56,7 @@ test("WS /ws empurra online + apps com pinned e running mock", async () => {
     assert.equal(online.online, true);
     const apps = await c.waitFor((d) => d.type === "apps");
     assert.deepEqual(apps.pinned, ["Figma"]);
+    assert.deepEqual(apps.limits, pinnedLimits());
     assert.equal(apps.running.some((a) => a.name === "Chrome"), true);
   } finally {
     if (c) { try { c.ws.close(); } catch (e) {} }
@@ -140,6 +142,40 @@ test("WS /ws responde ao ping reenviando o estado atual", async () => {
     c.ws.send(JSON.stringify({ type: "ping" }));
     const apps = await c.waitFor((d) => d.type === "apps" && d.running.length === 2);
     assert.equal(apps.running.some((a) => a.name === "Mail"), true);
+  } finally {
+    if (c) { try { c.ws.close(); } catch (e) {} }
+    await close();
+  }
+});
+
+test("WS ping em rajada é limitado — não vira amplificador de broadcast", async () => {
+  let running = [{ name: "Notes", pid: 3, type: "Foreground" }];
+  const { port, close } = await startServer({
+    port: 0,
+    config: { pinned: [] },
+    appTools: { listAppProcesses: async () => running },
+  });
+  let c = null;
+  try {
+    c = connect(port);
+    await c.waitFor((d) => d.type === "online");
+    await c.waitFor((d) => d.type === "apps");
+    // espera o estado assentar (sem frames por ~300ms)
+    await new Promise(r => setTimeout(r, 400));
+
+    let pushes = 0;
+    const onMsg = raw => {
+      try { if (JSON.parse(String(raw)).type === "apps") pushes++; } catch {}
+    };
+    c.ws.on("message", onMsg);
+    // janela < STATUS_POLL_MS para o poll não contaminar a contagem
+    for (let i = 0; i < 20; i++) {
+      c.ws.send(JSON.stringify({ type: "ping" }));
+      await new Promise(r => setTimeout(r, 5));
+    }
+    await new Promise(r => setTimeout(r, 300));
+    assert.ok(pushes <= 2, `rajada de 20 pings gerou ${pushes} broadcasts; esperava <= 2`);
+    c.ws.removeListener("message", onMsg);
   } finally {
     if (c) { try { c.ws.close(); } catch (e) {} }
     await close();

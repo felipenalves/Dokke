@@ -25,9 +25,17 @@ function makeServer() {
 }
 import { listAppProcesses, listInstalledApps, realIconService } from "./apps.js";
 import { activateApp } from "./actions.js";
-import { loadConfig, saveConfig, normalizePinned } from "./config.js";
+import {
+  loadConfig,
+  saveConfig,
+  normalizePinned,
+  MAX_PINNED_APPS,
+  PINNED_LIMIT_CODE,
+  PINNED_LIMIT_MESSAGE,
+  pinnedLimits,
+} from "./config.js";
 import { connectOBS } from "./obs-ws.js";
-import { ensurePin, newPin, isLoopback, pinFromCookie, pinCookie, writePinFile } from "./auth.js";
+import { ensurePin, newPin, isLoopback, sessionCookie, tokenFromCookie, clearLegacyPinCookie, createSessionStore, createPinLocks, safeEqual, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".apk": "application/vnd.android.package-archive" };
@@ -35,11 +43,13 @@ const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
 /** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */
 const BODY_MAX_BYTES = 64 * 1024;
-/** Anti-bruteforce do pin: 5 falhas → lock 60s por IP. */
+/** Anti-bruteforce do pin: 5 falhas → lock 60s por IP (podado a cada registro). */
 const PIN_MAX_FAILS = 5;
 const PIN_LOCK_MS = 60_000;
-const pinLocks = new Map();
+const pinLocks = createPinLocks({ maxFails: PIN_MAX_FAILS, lockMs: PIN_LOCK_MS });
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+/** Ping de client força broadcast — limitado por conexão pra não virar amplificador. */
+const PING_MIN_INTERVAL_MS = 1500;
 
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
@@ -109,9 +119,11 @@ const JSON_HEADERS = {
   ...SEC_HEADERS,
 };
 
+/** Detalhe fica no log do servidor; o cliente recebe mensagem genérica. */
 function fail(res, err, extra = {}) {
+  console.error("[dokke] erro interno:", err?.message ?? err);
   res.writeHead(500, JSON_HEADERS);
-  res.end(JSON.stringify({ ok: false, error: String(err?.message ?? err), ...extra }));
+  res.end(JSON.stringify({ ok: false, error: "erro interno", ...extra }));
 }
 
 function readBody(req, res) {
@@ -232,6 +244,7 @@ function createStatusFeed({ readConfig, listProcesses, version = null }) {
       running,
       devices: clients.size,
       ...(version ? { v: version() } : {}),
+      limits: pinnedLimits(),
     };
     const encoded = JSON.stringify(payload);
     if (!force && encoded === last) return;
@@ -288,6 +301,14 @@ export function makeApp(deps = {}) {
     else if (deps.config) deps.config.pinned = cfg.pinned;
     return cfg;
   };
+  // serializa load→mutate→persist das mutações de pinned: POSTs concorrentes
+  // não perdem update nem colidem no arquivo de config
+  let configQueue = Promise.resolve();
+  const withConfigLock = fn => {
+    const run = configQueue.then(fn);
+    configQueue = run.catch(() => {});
+    return run;
+  };
   const handler = (req, res) => {
     const url = new URL(req.url, "http://x");
     const ok = body => { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify(body)); };
@@ -297,7 +318,16 @@ export function makeApp(deps = {}) {
       return;
     }
     // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
-    const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned) });
+    const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned), limits: pinnedLimits() });
+    const rejectPinnedLimit = () => {
+      res.writeHead(409, JSON_HEADERS);
+      res.end(JSON.stringify({
+        ok: false,
+        code: PINNED_LIMIT_CODE,
+        error: PINNED_LIMIT_MESSAGE,
+        limits: pinnedLimits(),
+      }));
+    };
     if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "Dokke" })); return; }
     if (url.pathname === "/api/probe") {
       const flags = Object.fromEntries(url.searchParams);
@@ -315,12 +345,13 @@ export function makeApp(deps = {}) {
       return;
     }
     // ---------- auth: pin de 4 dígitos (gate do kiosk da LAN) ----------
+    // cookie carrega token de sessão opaco — o PIN nunca trafega de volta
     const trustLoopback = deps.trustLoopback !== false;
     const auth = deps.auth;
     const ipOf = req.socket.remoteAddress || "?";
     const authed = () =>
       (trustLoopback && isLoopback(ipOf)) ||
-      (!!auth && pinFromCookie(req.headers.cookie) === auth.getPin());
+      (!!auth && typeof auth.checkSession === "function" && auth.checkSession(tokenFromCookie(req.headers.cookie)));
     if (auth && url.pathname === "/api/auth" && req.method === "POST") {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG || body === BODY_INVALID) {
@@ -334,31 +365,31 @@ export function makeApp(deps = {}) {
           res.end(JSON.stringify({ ok: false, error: "código vazio" }));
           return;
         }
-        const now = Date.now();
-        const lock = pinLocks.get(ipOf);
-        if (lock && lock.until > now) {
+        if (pinLocks.isLocked(ipOf)) {
           res.writeHead(429, JSON_HEADERS);
           res.end(JSON.stringify({ ok: false, error: "muitas tentativas — aguarde" }));
           return;
         }
-        if (given === auth.getPin()) {
-          pinLocks.delete(ipOf);
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-            "Set-Cookie": pinCookie(auth.getPin(), { secure: Boolean(req.socket.encrypted) }),
-            ...SEC_HEADERS,
-          });
-          res.end(JSON.stringify({ ok: true }));
+        if (safeEqual(given, auth.getPin())) {
+          pinLocks.reset(ipOf);
+          Promise.resolve()
+            .then(() => auth.issueSession())
+            .then(token => {
+              res.writeHead(200, {
+                "Content-Type": "application/json",
+                // dois Set-Cookie: sessão nova + apaga legado que carregava o PIN
+                "Set-Cookie": [
+                  sessionCookie(token, { secure: Boolean(req.socket.encrypted) }),
+                  clearLegacyPinCookie(),
+                ],
+                ...SEC_HEADERS,
+              });
+              res.end(JSON.stringify({ ok: true }));
+            })
+            .catch(err => fail(res, err));
           return;
         }
-        const prev = pinLocks.get(ipOf);
-        if (!prev || now - prev.last > PIN_LOCK_MS) {
-          pinLocks.set(ipOf, { fails: 1, last: now, until: 0 });
-        } else {
-          prev.fails += 1;
-          prev.last = now;
-          if (prev.fails >= PIN_MAX_FAILS) prev.until = now + PIN_LOCK_MS;
-        }
+        pinLocks.register(ipOf);
         res.writeHead(401, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "código inválido" }));
       });
@@ -391,8 +422,8 @@ export function makeApp(deps = {}) {
       Promise.resolve()
         .then(() => readConfig())
         .then(cfg => appTools.listAppProcesses()
-          .then(running => ok({ pinned: cfg.pinned, running, v: appVersion() }))
-          .catch(() => ok({ pinned: cfg.pinned, running: [], v: appVersion() })))
+          .then(running => ok({ pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits() }))
+          .catch(() => ok({ pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits() })))
         .catch(err => fail(res, err));
       return;
     }
@@ -420,9 +451,13 @@ export function makeApp(deps = {}) {
             return;
           }
           const pinned = normalizePinned(list);
-          Promise.resolve()
+          if (pinned.length > MAX_PINNED_APPS) {
+            rejectPinnedLimit();
+            return;
+          }
+          withConfigLock(() => Promise.resolve()
             .then(() => readConfig())
-            .then(cfg => { cfg.pinned = pinned; return persistConfig(cfg); })
+            .then(cfg => { cfg.pinned = pinned; return persistConfig(cfg); }))
             .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
             .then(() => { if (onStatusChange) onStatusChange(); })
             .catch(err => fail(res, err));
@@ -434,16 +469,23 @@ export function makeApp(deps = {}) {
           res.end(JSON.stringify({ ok: false, error: "app inválido" }));
           return;
         }
-        Promise.resolve()
+        withConfigLock(() => Promise.resolve()
           .then(() => readConfig())
           .then(cfg => {
             cfg.pinned = normalizePinned(cfg.pinned);
-            if (!cfg.pinned.includes(app)) cfg.pinned.push(app);
+            if (!cfg.pinned.includes(app)) {
+              if (cfg.pinned.length >= MAX_PINNED_APPS) {
+                const err = new Error(PINNED_LIMIT_MESSAGE);
+                err.code = PINNED_LIMIT_CODE;
+                throw err;
+              }
+              cfg.pinned.push(app);
+            }
             return persistConfig(cfg);
-          })
+          }))
           .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
           .then(() => { if (onStatusChange) onStatusChange(); })
-          .catch(err => fail(res, err));
+          .catch(err => err?.code === PINNED_LIMIT_CODE ? rejectPinnedLimit() : fail(res, err));
       });
       return;
     }
@@ -457,12 +499,12 @@ export function makeApp(deps = {}) {
         return;
       }
       app = typeof app === "string" ? app.trim() : "";
-      Promise.resolve()
+      withConfigLock(() => Promise.resolve()
         .then(() => readConfig())
         .then(cfg => {
           cfg.pinned = normalizePinned(cfg.pinned).filter(x => x !== app);
           return persistConfig(cfg);
-        })
+        }))
         .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
         .then(() => { if (onStatusChange) onStatusChange(); })
         .catch(err => fail(res, err));
@@ -501,6 +543,11 @@ export function makeApp(deps = {}) {
       if (req.method === "POST") {
         readBody(req, res).then(body => {
           if (body === BODY_TOO_BIG) return;
+          if (body === BODY_INVALID) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ ok: false, error: "corpo inválido" }));
+            return;
+          }
           let pid = body?.pid;
           if (!(Number.isInteger(pid) && pid > 0)) pid = undefined;
           actions.activateApp({ name, pid })
@@ -639,9 +686,18 @@ export async function startServer(arg = {}) {
     } catch {}
   }
   let currentPin = await ensurePin(pinRoot);
+  // sessões persistem no dataDir: reinício não desloga os kiosks
+  const sessionStore = opts.sessionStore ?? createSessionStore({ file: join(dataDir, "j5-sessions.json") });
   opts.auth = {
     getPin: () => currentPin,
-    setPin: async (p) => { currentPin = p; await writePinFile(p, pinRoot); },
+    setPin: async (p) => {
+      currentPin = p;
+      await writePinFile(p, pinRoot);
+      // pin novo = pareamento novo: nenhuma sessão antiga sobrevive
+      await sessionStore.revokeAll();
+    },
+    issueSession: () => sessionStore.issue(),
+    checkSession: (t) => sessionStore.check(t),
   };
   opts.trustLoopback = opts.trustLoopback !== false;
   const uiVer = () => uiVersion(join(import.meta.dirname, "public"));
@@ -667,14 +723,23 @@ export async function startServer(arg = {}) {
     verifyClient: (info) => {
       if (!sameOrigin(info.req)) return false;
       if (opts.trustLoopback && isLoopback(info.req.socket.remoteAddress)) return true;
-      return pinFromCookie(info.req.headers.cookie) === currentPin;
+      return !!opts.auth?.checkSession?.(tokenFromCookie(info.req.headers.cookie));
     },
   });
   wss.on("connection", (ws) => {
+    let lastPingAt = 0;
     ws.on("message", (raw) => {
       let m = null;
       try { m = JSON.parse(raw.toString("utf8")); } catch (e) {}
-      if (m && m.type === "ping") feed.ping();
+      // o feed já empurra sozinho a cada STATUS_POLL_MS; ping de client só
+      // adianta o push se respeitar o intervalo mínimo (anti-amplificação)
+      if (m && m.type === "ping") {
+        const now = Date.now();
+        if (now - lastPingAt >= PING_MIN_INTERVAL_MS) {
+          lastPingAt = now;
+          feed.ping();
+        }
+      }
     });
     feed.addClient(ws);
   });

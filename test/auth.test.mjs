@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startServer } from "../server.js";
-import { isLoopback, newPin, pinFromCookie, pinCookie, AUTH_COOKIE, ensurePin, writePinFile, readPinFile, pinFilePath } from "../auth.js";
+import { isLoopback, newPin, pinFromCookie, AUTH_COOKIE, ensurePin, writePinFile, readPinFile, pinFilePath, SESSION_COOKIE, sessionCookie, tokenFromCookie, createSessionStore, createPinLocks } from "../auth.js";
 import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -35,15 +35,65 @@ test("unit: newPin gera 4 dígitos", () => {
   assert.match(newPin(), /^\d{4}$/);
 });
 
-test("unit: cookie roundtrip", () => {
-  const h = pinCookie("9876");
-  assert.equal(pinFromCookie(h), "9876");
-  assert.equal(pinFromCookie("other=1; " + h), "9876");
+test("unit: cookie roundtrip (sessão e pin legado)", () => {
+  const h = sessionCookie("tok-abc");
+  assert.equal(tokenFromCookie(h), "tok-abc");
+  assert.equal(pinFromCookie("other=1; j5_pin=9876"), "9876");
   assert.equal(pinFromCookie("j5_pin="), null);
   assert.equal(pinFromCookie(null), null);
   assert.match(h, /SameSite=Strict/);
   assert.doesNotMatch(h, /(?:^|; )Secure(?:;|$)/);
-  assert.match(pinCookie("9876", { secure: true }), /(?:^|; )Secure(?:;|$)/);
+  assert.match(sessionCookie("tok-abc", { secure: true }), /(?:^|; )Secure(?:;|$)/);
+  // parser da sessão: fronteira obrigatória (início ou ";"), valor sem ; ou espaço
+  assert.equal(tokenFromCookie(`a=1; ${SESSION_COOKIE}=t2`), "t2");
+  assert.equal(tokenFromCookie(`x${SESSION_COOKIE}=t3`), null);
+  assert.equal(tokenFromCookie(null), null);
+});
+
+test("unit: createPinLocks — lock após max falhas, reset no acerto, poda de expirados", () => {
+  const t0 = 1_000_000;
+  let now = t0;
+  const locks = createPinLocks({ maxFails: 3, lockMs: 60_000, now: () => now });
+  locks.register("10.0.0.1"); locks.register("10.0.0.1");
+  assert.equal(locks.isLocked("10.0.0.1"), false);
+  locks.register("10.0.0.1");
+  assert.equal(locks.isLocked("10.0.0.1"), true); // 3ª falha → locked
+  locks.reset("10.0.0.1");
+  assert.equal(locks.isLocked("10.0.0.1"), false);
+
+  for (let i = 0; i < 3; i++) locks.register("10.0.0.2");
+  now += 120_000; // lock venceu
+  assert.equal(locks.isLocked("10.0.0.2"), false);
+  locks.prune(now + 1); // entrada expirada deve sair do mapa
+  locks.register("10.0.0.9"); // força varredura
+  assert.equal(locks.size(), 1, "entrada velha podada, só a nova fica");
+});
+
+test("unit: createSessionStore — emite, valida, persiste, revoga tudo e respeita TTL/cap", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5sess-"));
+  const file = join(dir, "sessions.json");
+  let now = 50_000;
+  try {
+    const store = createSessionStore({ file, ttlMs: 1000, now: () => now, maxSessions: 2 });
+    const a = await store.issue();
+    assert.ok(a && a.length >= 32, "token com entropia decente");
+    assert.equal(store.check(a), true);
+
+    await store.issue(); await store.issue(); // 3 tokens com cap 2
+    assert.equal(store.check(a), false, "token mais antigo evictado pelo cap");
+
+    const b = await store.issue();
+    // persistiu no arquivo: nova instância (reinício do server) ainda valida
+    const reopened = createSessionStore({ file, ttlMs: 1000, now: () => now, maxSessions: 2 });
+    assert.equal(reopened.check(b), true, "sessão sobrevive a reinício");
+
+    now += 1001; // TTL venceu
+    assert.equal(reopened.check(b), false, "token expirado é rejeitado");
+
+    const c = await store.issue();
+    await reopened.revokeAll(); // rotação de pin invalida todas as sessões
+    assert.equal(reopened.check(c), false, "revokeAll mata sessões vivas");
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test("unit: ensurePin + writePinFile / readPinFile", async () => {
@@ -117,8 +167,11 @@ test("cookie errado → 401; /health e /api/auth seguem públicos", async () => 
   const { port, close, root } = await boot();
   try {
     const realPin = await readPinFile(root);
-    const r = await fetch(`http://127.0.0.1:${port}/api/apps`, { headers: { Cookie: `${AUTH_COOKIE}=9999` } });
+    const r = await fetch(`http://127.0.0.1:${port}/api/apps`, { headers: { Cookie: `${SESSION_COOKIE}=9999` } });
     assert.equal(r.status, 401);
+    // PIN cru no cookie antigo NÃO autentica mais (A7)
+    const legacy = await fetch(`http://127.0.0.1:${port}/api/apps`, { headers: { Cookie: `${AUTH_COOKIE}=${realPin}` } });
+    assert.equal(legacy.status, 401, "cookie com pin bruto deve ser rejeitado");
     const h = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(h.status, 200);
     const a = await fetch(`http://127.0.0.1:${port}/api/auth`, {
@@ -144,7 +197,10 @@ test("login correto → Set-Cookie → acesso liberado, pin não vaza em /api/co
     });
     assert.equal(a.status, 200);
     const sc = a.headers.get("set-cookie") || "";
-    assert.ok(sc.includes(`${AUTH_COOKIE}=${realPin}`), `cookie errado: ${sc}`);
+    assert.ok(sc.includes(`${SESSION_COOKIE}=`), `cookie de sessão ausente: ${sc}`);
+    assert.doesNotMatch(sc, new RegExp(`${AUTH_COOKIE}=${realPin}`), "PIN cru não pode ir pro cookie");
+    // cookie legado (instâncias antigas) precisa ser apagado no login
+    assert.match(sc, new RegExp(`${AUTH_COOKIE}=;`), "cookie legado j5_pin deve ser invalidado");
 
     const apps = await fetch(`http://127.0.0.1:${port}/api/apps`, { headers: { cookie: sc } });
     assert.equal(apps.status, 200);
@@ -168,7 +224,7 @@ test("GET /api/pin só loopback (sem auth mesmo na LAN) → correto aqui", async
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });
 
-test("POST /api/pin regenera e invalida cookie antigo", async () => {
+test("POST /api/pin regenera e invalida sessão antiga", async () => {
   const { port, close, root } = await boot();
   try {
     const oldPin = await readPinFile(root);
@@ -186,7 +242,7 @@ test("POST /api/pin regenera e invalida cookie antigo", async () => {
     assert.match(body.pin, /^\d{4}$/);
     assert.notEqual(body.pin, oldPin);
 
-    // cookie antigo agora é inválido
+    // sessão antiga agora é inválida
     const old = await fetch(`http://127.0.0.1:${port}/api/apps`, { headers: { cookie: sc } });
     assert.equal(old.status, 401);
 
@@ -200,7 +256,7 @@ test("POST /api/pin regenera e invalida cookie antigo", async () => {
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });
 
-test("WS rejeita sem cookie (LAN) e aceita com cookie", async () => {
+test("WS rejeita sem cookie, aceita com sessão e recusa pin cru no cookie", async () => {
   const { port, close, root } = await boot({ appTools: { listAppProcesses: async () => [] } });
   try {
     const denied = await new Promise(res => {
@@ -211,8 +267,15 @@ test("WS rejeita sem cookie (LAN) e aceita com cookie", async () => {
     });
     assert.equal(denied, "denied");
 
+    // login real → cookie de sessão
     const realPin = await readPinFile(root);
-    const cookie = pinCookie(realPin);
+    const login = await fetch(`http://127.0.0.1:${port}/api/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: realPin }),
+    });
+    const cookie = login.headers.get("set-cookie") || "";
+
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { cookie } });
     const online = await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error("timeout")), 3000);
@@ -225,6 +288,15 @@ test("WS rejeita sem cookie (LAN) e aceita com cookie", async () => {
     });
     assert.equal(online.online, true);
     ws.close();
+
+    // pin bruto no cookie não abre WS mais
+    const rawRejected = await new Promise(res => {
+      const w2 = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { cookie: `${AUTH_COOKIE}=${realPin}` } });
+      w2.once("error", () => res("denied"));
+      w2.once("close", (code) => res(code !== 1000 ? "denied" : "open"));
+      w2.once("open", () => res("open"));
+    });
+    assert.equal(rawRejected, "denied");
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });
 
