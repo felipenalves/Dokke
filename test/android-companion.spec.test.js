@@ -48,3 +48,18 @@ test('AC-104: A camada nativa não bypassa o pareamento @spec:AC-104', () => {
   assert.doesNotMatch(store, /pin|cookie/i);
   assert.doesNotMatch(activity, /putString\("(?:pin|cookie)|Log\.[idw]\([^\n]*(?:pin|cookie)/i);
 });
+
+test('AC-105: server_url vindo de intent externa só vale após health check @spec:AC-105', () => {
+  // onNewIntent precisa validar o candidato com o health contract antes de
+  // persistir/carregar — sem isso qualquer app do device sequestra a origem.
+  const onNewIdx = activity.indexOf('onNewIntent');
+  assert.ok(onNewIdx >= 0, 'onNewIntent deve existir');
+  const afterOnNew = activity.slice(onNewIdx, onNewIdx + 1200);
+  assert.match(afterOnNew, /verifyDokkeServer|currentServerHealthy/, 'intent deve passar por validação de health antes de applyServerUrl persistente');
+});
+
+test('AC-106: Boot só troca de servidor quando o atual está morto @spec:AC-106', () => {
+  // descoberta no arranque não pode sobrescrever um servidor que responde health
+  assert.match(activity, /fun currentServerHealthy\(/);
+  assert.match(activity, /if \(!currentServerHealthy\(\)\)[\s\S]{0,400}acceptDiscoveredServer/, 'acceptDiscoveredServer no boot deve ser condicionado ao health do servidor atual');
+});

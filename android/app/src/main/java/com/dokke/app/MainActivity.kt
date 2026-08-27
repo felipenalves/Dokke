@@ -182,7 +182,7 @@ class MainActivity : ComponentActivity() {
                 if (request?.isForMainFrame == true && errorCode in netErrors && !healed) {
                     healed = true
                     discoverServer { found ->
-                        acceptDiscoveredServer(found)
+                        if (!currentServerHealthy()) acceptDiscoveredServer(found)
                     }
                 }
             }
@@ -214,10 +214,16 @@ class MainActivity : ComponentActivity() {
             }
         }, "DokkeAndroid")
         if (serverUrl.isNotEmpty()) web.loadUrl(serverUrl) else showOfflineScreen()
-        // descoberta automática: se o IP do Mac mudou, atualiza sozinho
+        // descoberta automática: só troca quando o servidor salvo está inacessível —
+        // um respondente falso na rede não sequestra um pareamento que funciona
         discoverServer { found ->
-            acceptDiscoveredServer(found)
+            if (!currentServerHealthy()) acceptDiscoveredServer(found)
         }
+    }
+
+    /** O servidor atual responde ao health contract? Bloqueante: chamar fora da UI thread. */
+    private fun currentServerHealthy(): Boolean {
+        return serverUrl.isNotEmpty() && verifyDokkeServer(serverUrl) != null
     }
 
     private fun applyServerUrl(raw: String?, persist: Boolean): Boolean {
@@ -327,10 +333,20 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(newIntent)
         setIntent(newIntent)
         newIntent.getStringExtra("server_url")?.let { raw ->
-            if (applyServerUrl(raw, persist = true)) {
-                hideOfflineScreen()
-                web.loadUrl(serverUrl)
-            }
+            // origem vinda de fora (outro app) só vale com health check Dokke —
+            // sem isso qualquer activity exportada sequestraria a conexão salva
+            Thread {
+                val normalized = ServerUrl.normalize(raw)
+                val verified = normalized?.let { verifyDokkeServer(it) }
+                runOnUiThread {
+                    if (verified != null && applyServerUrl(verified, persist = true)) {
+                        hideOfflineScreen()
+                        web.loadUrl(serverUrl)
+                    } else if (normalized != null) {
+                        Log.w("Dokke", "server_url de intent rejeitada: sem health Dokke")
+                    }
+                }
+            }.start()
         }
     }
 
