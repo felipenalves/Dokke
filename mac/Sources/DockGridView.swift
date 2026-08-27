@@ -7,6 +7,7 @@ struct DockGridView: View {
   @State private var currentPage: Int? = 0
   @State private var draftPinned: [String]?
   @State private var isReordering = false
+  @State private var pickerInsertIndex: Int?
 
   private let pageSize = 8
   private let tileSize: CGFloat = 80
@@ -20,7 +21,7 @@ struct DockGridView: View {
 
   private enum TileItem: Hashable {
     case app(String)
-    case add
+    case add(Int)
   }
 
   private var displayedPinned: [String] {
@@ -28,9 +29,16 @@ struct DockGridView: View {
   }
 
   private var pages: [[TileItem]] {
-    let items: [TileItem] = displayedPinned.map { .app($0) } + [.add]
-    return stride(from: 0, to: items.count, by: pageSize).map {
-      Array(items[$0..<min($0 + pageSize, items.count)])
+    guard !displayedPinned.isEmpty else { return [] }
+    let pageCount = max(1, (displayedPinned.count / pageSize) + 1)
+
+    return (0..<pageCount).map { page in
+      let start = page * pageSize
+      return (0..<pageSize).map { offset in
+        let index = start + offset
+        guard index < displayedPinned.count else { return .add(index) }
+        return .app(displayedPinned[index])
+      }
     }
   }
 
@@ -88,8 +96,8 @@ struct DockGridView: View {
       draggedItem = nil
       draftPinned = nil
     }
-    .sheet(isPresented: $showPicker) {
-      AppPickerSheet()
+    .sheet(isPresented: $showPicker, onDismiss: { pickerInsertIndex = nil }) {
+      AppPickerSheet(insertAt: pickerInsertIndex)
     }
   }
 
@@ -185,8 +193,6 @@ struct DockGridView: View {
 
   private func appGrid(items: [TileItem]) -> some View {
     let columns = Array(repeating: GridItem(.flexible(minimum: tileSize), spacing: tileSpacing), count: 4)
-    let used = items.count
-
     return Group {
       if #available(macOS 26, *) {
         GlassEffectContainer(spacing: tileSpacing) {
@@ -195,12 +201,9 @@ struct DockGridView: View {
               switch item {
               case .app(let name):
                 appTile(name: name)
-              case .add:
-                addButtonModule()
+              case .add(let index):
+                addButtonModule(at: index)
               }
-            }
-            ForEach(0..<max(0, pageSize - used), id: \.self) { _ in
-              emptySlot()
             }
           }
         }
@@ -210,12 +213,9 @@ struct DockGridView: View {
             switch item {
             case .app(let name):
               appTile(name: name)
-            case .add:
-              addButtonModule()
+            case .add(let index):
+              addButtonModule(at: index)
             }
-          }
-          ForEach(0..<max(0, pageSize - used), id: \.self) { _ in
-            emptySlot()
           }
         }
       }
@@ -262,36 +262,13 @@ struct DockGridView: View {
   }
 
   @ViewBuilder
-  private func addButtonModule() -> some View {
-    Button { showPicker = true } label: {
-      VStack(spacing: 8) {
-        ZStack {
-          RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(Color.black.opacity(0.30))
-            .frame(width: tileSize, height: tileSize)
-          Image(systemName: "plus")
-            .font(.title2.weight(.medium))
-            .foregroundStyle(.white.opacity(0.62))
-        }
-        Text("Adicionar")
-          .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(.white.opacity(0.72))
-      }
+  private func addButtonModule(at index: Int) -> some View {
+    AddSlotButton(index: index, size: tileSize) {
+      pickerInsertIndex = index
+      showPicker = true
     }
-    .buttonStyle(.plain)
     .disabled(store.isPinnedLimitReached)
-    .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar apps ao dock")
-  }
-
-  private func emptySlot() -> some View {
-    VStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 28, style: .continuous)
-        .fill(Color.black.opacity(0.30))
-        .frame(width: tileSize, height: tileSize)
-      Text(" ")
-        .font(.system(size: 11, weight: .medium))
-    }
-    .accessibilityHidden(true)
+    .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar app nesta posição")
   }
 
   private var emptyDock: some View {
@@ -319,6 +296,41 @@ struct DockGridView: View {
     )
     .foregroundStyle(.white.opacity(0.85))
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+private struct AddSlotButton: View {
+  let index: Int
+  let size: CGFloat
+  let action: () -> Void
+  @State private var isHovered = false
+
+  var body: some View {
+    Button(action: action) {
+      VStack(spacing: 8) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(Color.black.opacity(isHovered ? 0.38 : 0.30))
+            .frame(width: size, height: size)
+
+          if isHovered {
+            Image(systemName: "plus")
+              .font(.system(size: 18, weight: .semibold))
+              .foregroundStyle(.white.opacity(0.88))
+          }
+        }
+
+        Text(isHovered ? "Add" : " ")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.white.opacity(0.78))
+          .frame(height: 13)
+      }
+      .frame(width: size, height: size + 24)
+    }
+    .buttonStyle(.plain)
+    .onHover { isHovered = $0 }
+    .help("Adicionar app na posição \(index + 1)")
+    .accessibilityLabel("Adicionar app na posição \(index + 1)")
   }
 }
 

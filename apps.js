@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile, readdir, mkdir, writeFile, unlink, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,9 @@ import { deflateSync, inflateSync } from "node:zlib";
 const ex = promisify(execFile);
 const LSAPPINFO = "/usr/bin/lsappinfo";
 const ICON_CACHE_DIR = join(import.meta.dirname, ".icon-cache");
+const MAC_ICON_HELPER = join(import.meta.dirname, "bin", "DokkeIconHelper.app");
+const MAC_ICON_APPEARANCE_TTL_MS = 1000;
+const registeredMacIconHelpers = new Set();
 /** Ícone servido em até 512px para acompanhar telas de alta densidade. */
 export const ICON_MAX_PX = 512;
 /** TTL do inventário de apps (scan de /Applications). */
@@ -254,9 +258,36 @@ export async function listInstalledApps() {
   return installedCache.promise;
 }
 
-export async function convertToPng(sourcePath, outPath, exec, maxPx = ICON_MAX_PX) {
+export async function convertToPng(sourcePath, outPath, exec, maxPx = ICON_MAX_PX, iconHelper = null) {
+  if (iconHelper) {
+    if (iconHelper.endsWith(".app")) {
+      // LaunchServices pode ainda não reconhecer um app auxiliar recém-
+      // empacotado. Um primeiro lançamento sem argumentos registra o bundle;
+      // depois o lançamento com --args recebe o caminho do app normalmente.
+      if (!registeredMacIconHelpers.has(iconHelper)) {
+        await exec("/usr/bin/open", ["-W", "-n", iconHelper]);
+        registeredMacIconHelpers.add(iconHelper);
+      }
+      await exec("/usr/bin/open", ["-W", "-n", iconHelper, "--args", sourcePath, outPath, String(maxPx)]);
+    } else {
+      await exec(iconHelper, [sourcePath, outPath, String(maxPx)]);
+    }
+    return;
+  }
   // -Z = fit longest side; 512px cobre tiles grandes e telas de alta densidade.
   await exec("sips", ["-s", "format", "png", "-Z", String(maxPx), sourcePath, "--out", outPath]);
+}
+
+async function readMacIconAppearance(exec) {
+  try {
+    const result = await exec("/usr/bin/defaults", ["read", "-g"]);
+    const output = String(result?.stdout ?? "");
+    const theme = output.match(/^\s*AppleIconAppearanceTheme\s*=\s*([^;]+);/m)?.[1]?.trim() || "default";
+    const interfaceStyle = output.match(/^\s*AppleInterfaceStyle\s*=\s*([^;]+);/m)?.[1]?.trim() || "light";
+    return `icon=${theme};interface=${interfaceStyle}`;
+  } catch {
+    return "icon=system;interface=system";
+  }
 }
 
 function lruSet(map, key, value, max) {
@@ -537,6 +568,8 @@ export function realIconService(deps = {}) {
     memMax = MEM_PNG_MAX,
     diskMax = DISK_PNG_MAX,
     maxPx = ICON_MAX_PX,
+    iconHelper = process.platform === "darwin" && existsSync(MAC_ICON_HELPER) ? MAC_ICON_HELPER : null,
+    appearanceToken = null,
   } = deps;
   let appsByName = null;
   let appsAt = 0;
@@ -545,6 +578,21 @@ export function realIconService(deps = {}) {
   const memMiss = new Set();
   const loadInflight = new Map();
   const iconPathByApp = new Map();
+  let appearanceAt = 0;
+  let appearanceInflight = null;
+
+  async function resolveAppearanceToken() {
+    if (!iconHelper) return "legacy";
+    if (typeof appearanceToken === "function") return String(await appearanceToken());
+    if (appearanceToken) return String(appearanceToken);
+    const now = Date.now();
+    if (appearanceInflight && now - appearanceAt < MAC_ICON_APPEARANCE_TTL_MS) return appearanceInflight;
+    appearanceAt = now;
+    appearanceInflight = readMacIconAppearance(exec).finally(() => {
+      appearanceInflight = null;
+    });
+    return appearanceInflight;
+  }
 
   async function resolveApps() {
     const now = Date.now();
@@ -570,44 +618,59 @@ export function realIconService(deps = {}) {
     return scanInflight;
   }
 
-  async function loadPng(name) {
-    if (memPng.has(name)) {
-      const hit = memPng.get(name);
-      lruSet(memPng, name, hit, memMax);
+  async function loadPng(name, cacheKey, currentAppearance) {
+    if (memPng.has(cacheKey)) {
+      const hit = memPng.get(cacheKey);
+      lruSet(memPng, cacheKey, hit, memMax);
       return hit;
     }
 
     const apps = await resolveApps();
     const app = apps.get(resolveIconAppName(name, apps));
 
-    let src = null;
-    if (app) {
-      src = iconPathByApp.get(name);
+    let buf = null;
+    // O bundle empacotado traz um helper AppKit que usa NSWorkspace, a mesma
+    // fonte dos ícones exibidos pelo Finder. O caminho manual continua como
+    // fallback para desenvolvimento e para apps em que o helper falhar.
+    if (app && iconHelper) {
+      try {
+        const iconCacheKey = createHash("sha1").update(`${name}\0${app.path}\0${currentAppearance}`).digest("hex");
+        const out = join(cacheDir, `${iconCacheKey}-z${maxPx}.png`);
+        try { buf = await readFile(out); } catch {
+          await mkdir(cacheDir, { recursive: true });
+          await convertToPng(app.path, out, exec, maxPx, iconHelper);
+          buf = await readFile(out);
+        }
+      } catch { buf = null; }
+    }
+
+    if (!buf && app) {
+      let src = iconPathByApp.get(name);
       if (src === undefined) {
         src = await findIcon(app.path);
         iconPathByApp.set(name, src);
       }
+      if (src) {
+        try {
+          if (src.endsWith(".png")) {
+            buf = await readFile(src);
+          } else {
+            const cacheKey = createHash("sha1").update(`${name}\0${src}`).digest("hex");
+            const out = join(cacheDir, `${cacheKey}-z${maxPx}.png`);
+            try { buf = await readFile(out); } catch {
+              await mkdir(cacheDir, { recursive: true });
+              await convertToPng(src, out, exec, maxPx);
+              buf = await readFile(out);
+            }
+          }
+        } catch { buf = null; }
+      }
     }
 
-    let buf = null;
-    if (src) {
-      try {
-        if (src.endsWith(".png")) {
-          buf = await readFile(src);
-        } else {
-          const out = join(cacheDir, `${createHash("sha1").update(name).digest("hex")}-z${maxPx}.png`);
-          try { buf = await readFile(out); } catch {
-            await mkdir(cacheDir, { recursive: true });
-            await convertToPng(src, out, exec, maxPx);
-            buf = await readFile(out);
-          }
-        }
-        if (buf) buf = normalizePngIcon(buf, maxPx);
-        if (buf && pngIsEmpty(buf)) {
-          buf = null;
-          iconPathByApp.delete(name);
-        }
-      } catch { buf = null; }
+    if (buf) buf = normalizePngIcon(buf, maxPx);
+    if (buf && pngIsEmpty(buf)) {
+      buf = null;
+      iconPathByApp.delete(name);
     }
 
     if (!buf) {
@@ -615,27 +678,29 @@ export function realIconService(deps = {}) {
     }
 
     if (buf) {
-      lruSet(memPng, name, buf, memMax);
+      lruSet(memPng, cacheKey, buf, memMax);
       // nome novo gravou arquivo novo em disco — poda mantém o cache com teto
       // (awaited: podar concorrente com a próxima escrita subconta arquivos)
       try { await pruneIconCache(cacheDir, diskMax); } catch {}
     } else {
-      memMiss.add(name);
+      memMiss.add(cacheKey);
     }
     return buf;
   }
 
   return {
     async getIconPng(name) {
-      if (memPng.has(name)) {
-        const hit = memPng.get(name);
-        lruSet(memPng, name, hit, memMax);
+      const currentAppearance = await resolveAppearanceToken();
+      const cacheKey = `${name}\0${currentAppearance}`;
+      if (memPng.has(cacheKey)) {
+        const hit = memPng.get(cacheKey);
+        lruSet(memPng, cacheKey, hit, memMax);
         return hit;
       }
-      if (memMiss.has(name)) return null;
-      if (loadInflight.has(name)) return loadInflight.get(name);
-      const p = loadPng(name).finally(() => loadInflight.delete(name));
-      loadInflight.set(name, p);
+      if (memMiss.has(cacheKey)) return null;
+      if (loadInflight.has(cacheKey)) return loadInflight.get(cacheKey);
+      const p = loadPng(name, cacheKey, currentAppearance).finally(() => loadInflight.delete(cacheKey));
+      loadInflight.set(cacheKey, p);
       return p;
     },
   };

@@ -202,7 +202,7 @@ test("janela mínima preserva os quatro cards e mantém a página dentro da view
 });
 
 test("ícone preserva respiro visível dentro do card glass e label legível", () => {
-  assert.match(dockIcon, /private let iconSize: CGFloat = 60/);
+  assert.match(dockIcon, /private let iconSize: CGFloat = 68/);
   assert.match(dockIcon, /private let iconCardSize: CGFloat = 80/);
   assert.match(dockIcon, /RoundedRectangle\(cornerRadius: 28/);
   assert.match(iconCardSurface, /\.fill\(Color\.white\.opacity\(0\.07\)\)/);
@@ -210,7 +210,7 @@ test("ícone preserva respiro visível dentro do card glass e label legível", (
   assert.match(iconCardSurface, /\.overlay\(iconCardBorder\)/);
   assert.match(dockIcon, /\.strokeBorder\(Color\.white\.opacity\(0\.12\), lineWidth: 1\)/);
   assert.doesNotMatch(iconCardSurface, /\.shadow\(/);
-  assert.match(dockIcon, /\.padding\(10\)/);
+  assert.match(dockIcon, /\.padding\(6\)/);
   assert.match(dockIcon, /\.frame\(width: iconCardSize, height: iconCardSize \+ 24\)/);
   assert.match(dockIcon, /\.lineLimit\(1\)/);
   assert.match(dockIcon, /\.truncationMode\(\.middle\)/);

@@ -1,9 +1,15 @@
+import AppKit
 import SwiftUI
 
 struct AppPickerSheet: View {
   @EnvironmentObject private var store: DockStore
   @Environment(\.dismiss) private var dismiss
+  let insertAt: Int?
   @State private var search = ""
+
+  init(insertAt: Int? = nil) {
+    self.insertAt = insertAt
+  }
 
   private var filteredApps: [InstalledApp] {
     let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -80,14 +86,22 @@ struct AppPickerSheet: View {
 
   private func appRow(_ app: InstalledApp) -> some View {
     HStack(spacing: 10) {
-      AsyncImage(url: store.iconURL(for: app.name)) { phase in
-        switch phase {
-        case .success(let img):
-          img.resizable().scaledToFit()
-        default:
-          ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(.quaternary)
-            Text(String(app.name.prefix(1))).font(.headline)
+      Group {
+        if let native = store.nativeIcon(for: app.name) {
+          Image(nsImage: native)
+            .resizable()
+            .scaledToFit()
+        } else {
+          AsyncImage(url: store.iconURL(for: app.name)) { phase in
+            switch phase {
+            case .success(let img):
+              img.resizable().scaledToFit()
+            default:
+              ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(.quaternary)
+                Text(String(app.name.prefix(1))).font(.headline)
+              }
+            }
           }
         }
       }
@@ -105,7 +119,14 @@ struct AppPickerSheet: View {
           .foregroundStyle(.green)
       } else {
         Button("Adicionar") {
-          Task { await store.pin(app.name) }
+          Task {
+            if let insertAt {
+              await store.pin(app.name, at: insertAt)
+              dismiss()
+            } else {
+              await store.pin(app.name)
+            }
+          }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)

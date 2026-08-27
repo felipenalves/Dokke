@@ -30,10 +30,16 @@ done
 echo "==> release build (${BIN_NAME})"
 cd "${ROOT}"
 swift build -c release --product "${BIN_NAME}"
+swift build -c debug --product "DokkeIconHelper"
 
 BIN_PATH="$(swift build -c release --show-bin-path)/${BIN_NAME}"
 if [[ ! -x "${BIN_PATH}" ]]; then
   echo "error: missing binary: ${BIN_PATH}" >&2
+  exit 1
+fi
+ICON_HELPER_PATH="$(swift build -c debug --show-bin-path)/DokkeIconHelper"
+if [[ ! -x "${ICON_HELPER_PATH}" ]]; then
+  echo "error: missing icon helper: ${ICON_HELPER_PATH}" >&2
   exit 1
 fi
 
@@ -56,6 +62,11 @@ cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev
 SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
 mkdir -p "${SRV_DIR}"
 cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
+ICON_HELPER_APP="${SRV_DIR}/bin/DokkeIconHelper.app"
+mkdir -p "${ICON_HELPER_APP}/Contents/MacOS" "${ICON_HELPER_APP}/Contents/Resources"
+cp "${ICON_HELPER_PATH}" "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
+cp "${ROOT}/IconHelper/Info.plist" "${ICON_HELPER_APP}/Contents/Info.plist"
+chmod +x "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
 
 # Keep the server bundle explicit. `public/` can contain ignored backups,
 # logs, and local build output that must never become public app content.

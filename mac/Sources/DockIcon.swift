@@ -189,7 +189,7 @@ struct DockIcon: View {
   var isReordering: Bool = false
   @State private var isHovered = false
 
-  private let iconSize: CGFloat = 60
+  private let iconSize: CGFloat = 68
   private let iconCardSize: CGFloat = 80
   private let cornerRadius: CGFloat = 20
   private let hoverBlurRadius: CGFloat = 4
@@ -216,7 +216,7 @@ struct DockIcon: View {
         .frame(width: iconCardSize, height: iconCardSize)
 
         iconWithEffects
-          .padding(10)
+          .padding(6)
           .zIndex(1)
 
         if allowsRemoval && isHovered {
@@ -322,7 +322,11 @@ struct DockIcon: View {
 
   @ViewBuilder
   private var iconImage: some View {
-    if let cached = store.cachedIcon(for: name) {
+    if let native = store.nativeIcon(for: name) {
+      Image(nsImage: native)
+        .resizable()
+        .scaledToFit()
+    } else if let cached = store.cachedIcon(for: name) {
       cached.resizable().scaledToFit()
     } else {
       AsyncImage(url: store.iconURL(for: name)) { phase in

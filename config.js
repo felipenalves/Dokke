@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 const DEFAULT = { pinned: [] };
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
-// O Mac usa uma célula do último slide para o botão Adicionar.
+// Mantém o teto em cinco páginas e uma célula livre no último slide.
 export const MAX_PINNED_APPS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES - 1;
 export const PINNED_LIMIT_CODE = "PINNED_LIMIT_REACHED";
 export const PINNED_LIMIT_MESSAGE = `Limite de ${PINNED_MAX_PAGES} páginas atingido`;

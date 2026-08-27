@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -34,6 +35,10 @@ final class DockStore: ObservableObject {
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
   private var iconCache: [String: Image] = [:]
+  private var nativeIconCache: [String: NSImage] = [:]
+  private var iconAppearanceObservers: [NSObjectProtocol] = []
+  private var appAppearanceObservation: NSKeyValueObservation?
+  @Published private(set) var iconAppearanceRevision = 0
 
   /// Evita disparar refreshAll a cada tecla digitada no campo Base URL (aba Sobre).
   private func debounceRefresh() {
@@ -54,6 +59,7 @@ final class DockStore: ObservableObject {
 
   init() {
     baseURL = Self.normalizeBase(baseURL)
+    observeIconAppearanceChanges()
     Task { [weak self] in
       try? await Task.sleep(nanoseconds: 300_000_000)
       guard !Task.isCancelled else { return }
@@ -65,7 +71,45 @@ final class DockStore: ObservableObject {
     }
   }
 
-  deinit { timer?.invalidate() }
+  deinit {
+    timer?.invalidate()
+    for observer in iconAppearanceObservers {
+      NSWorkspace.shared.notificationCenter.removeObserver(observer)
+    }
+    appAppearanceObservation?.invalidate()
+  }
+
+  private func observeIconAppearanceChanges() {
+    let names = [
+      Notification.Name("NSWorkspaceIconAppearanceConfigurationDidChangeNotification"),
+      Notification.Name("_NSWorkspaceIconAppearanceConfigurationDidChangeNotification")
+    ]
+    iconAppearanceObservers = names.map { name in
+      NSWorkspace.shared.notificationCenter.addObserver(
+        forName: name,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.invalidateNativeIcons()
+        }
+      }
+    }
+
+    appAppearanceObservation = NSApplication.shared.observe(
+      \NSApplication.effectiveAppearance,
+      options: [.new]
+    ) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        self?.invalidateNativeIcons()
+      }
+    }
+  }
+
+  private func invalidateNativeIcons() {
+    nativeIconCache.removeAll(keepingCapacity: true)
+    iconAppearanceRevision &+= 1
+  }
 
   static func normalizeBase(_ raw: String) -> String {
     var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -302,6 +346,30 @@ final class DockStore: ObservableObject {
     }
   }
 
+  /// Fixa um app na célula escolhida pelo usuário e preserva a ordem no servidor.
+  func pin(_ name: String, at index: Int) async {
+    guard !pinned.contains(name) else { return }
+    if isPinnedLimitReached {
+      lastError = "Limite de 5 páginas atingido"
+      lastSyncNote = lastError
+      return
+    }
+
+    let previous = pinned
+    let insertionIndex = min(max(index, 0), pinned.count)
+    pinned.insert(name, at: insertionIndex)
+    lastError = nil
+    busyName = name
+    defer { busyName = nil }
+
+    let saved = await savePinnedOrder()
+    guard saved else {
+      pinned = previous
+      return
+    }
+    await afterPinPush()
+  }
+
   func unpin(_ name: String) async {
     let prev = pinned
     pinned = pinned.filter { $0 != name }
@@ -339,8 +407,9 @@ final class DockStore: ObservableObject {
     Task { await savePinnedOrder() }
   }
 
-  private func savePinnedOrder() async {
-    guard let url = URL(string: baseURL + "/api/config/pinned") else { return }
+  @discardableResult
+  private func savePinnedOrder() async -> Bool {
+    guard let url = URL(string: baseURL + "/api/config/pinned") else { return false }
     var req = URLRequest(url: url)
     req.httpMethod = "PUT"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -354,13 +423,15 @@ final class DockStore: ObservableObject {
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
         lastError = "failed to save order"
-        return
+        return false
       }
       if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
         pinned = p
       }
+      return true
     } catch {
       lastError = error.localizedDescription
+      return false
     }
   }
 
@@ -388,10 +459,28 @@ final class DockStore: ObservableObject {
     iconCache[name]
   }
 
+  /// Mantém o NSImage nativo vivo. O AppKit pode atualizar suas representações
+  /// quando o usuário troca Default, Dark, Clear ou Tinted no macOS 26.
+  func nativeIcon(for name: String) -> NSImage? {
+    guard let path = installed.first(where: { $0.name == name })?.path,
+          FileManager.default.fileExists(atPath: path) else { return nil }
+    if let cached = nativeIconCache[name] { return cached }
+
+    // Alguns apps do macOS, como Safari, aparecem em /Applications como
+    // symlink para um Cryptex. Pedir o ícone pelo link faz o AppKit adicionar
+    // o badge de atalho; o caminho real preserva o ícone limpo do bundle.
+    let iconPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    let icon = NSWorkspace.shared.icon(forFile: iconPath)
+    guard icon.isValid else { return nil }
+    nativeIconCache[name] = icon
+    return icon
+  }
+
   func preloadIcons() {
     let names = pinned
     guard !names.isEmpty else { return }
     for name in names {
+      if nativeIcon(for: name) != nil { continue }
       guard iconCache[name] == nil, let url = iconURL(for: name) else { continue }
       Task {
         guard let (data, _) = try? await session.data(from: url),
