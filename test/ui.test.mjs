@@ -14,6 +14,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
+    assert.match(html, /<title>Dokke<\/title>/, "o título visível do PWA deve usar a marca correta");
     assert.match(
       html,
       /\.login-card\{[\s\S]*background: linear-gradient\(165deg, rgba\(255,255,255,\.18\), rgba\(255,255,255,\.07\) 55%, rgba\(255,255,255,\.12\)\);/,
@@ -36,14 +37,17 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /\.launchpad\{[\s\S]*touch-action: none;[\s\S]*overscroll-behavior: none;/, "pager não deve deixar o Safari roubar o gesto vertical");
     assert.match(html, /launchpad\.style\.scrollBehavior = "auto"/, "pager deve seguir o dedo sem smooth acumulado");
     assert.match(html, /function animateHorizontalSnap\(target, duration\)/, "pager deve ter encaixe com duração controlada");
+    assert.match(html, /const H_SNAP_DURATION = 250/, "pager deve usar um assentamento único de 250 ms");
+    assert.match(html, /function smoothSnapProgress\(p\)/, "pager deve usar easing suave no assentamento");
     assert.match(html, /const IS_ANDROID_WEBVIEW/, "Android WebView deve ter caminho próprio");
-    assert.match(html, /const ANDROID_NATIVE_PAGER = IS_ANDROID_WEBVIEW/, "Android deve usar o pager nativo");
-    assert.match(html, /\.android-webview \.launchpad\{[\s\S]*touch-action: pan-x;/, "Android deve deixar o WebView conduzir o arrasto horizontal");
-    assert.match(html, /if \(launchpad\) launchpad\.scrollLeft = hStart - hDx/, "pager Android deve acompanhar o dedo pelo scroll nativo");
-    assert.match(html, /IS_ANDROID_WEBVIEW \? \(dir \? 140 : 90\)/, "Android deve usar encaixe mais curto sem perder a suavidade");
+    assert.doesNotMatch(html, /const ANDROID_NATIVE_PAGER|nativeLaunchpadGesture|nativeLaunchpadPending/, "Android não deve deixar o launchpad iniciar fling nativo concorrente");
+    assert.match(html, /\.android-webview \.launchpad\{[\s\S]*touch-action: none;[\s\S]*scroll-snap-type: none;/, "Android deve entregar o arrasto inteiro ao pager controlado");
+    assert.match(html, /\.android-webview \.launchpad\{[\s\S]*scroll-behavior: auto;/, "Android deve deixar o assentamento JavaScript controlar a rolagem");
+    assert.match(html, /if \(launchpad\) launchpad\.scrollLeft = hStart - hDx/, "pager deve acompanhar o dedo pelo scroll controlado");
+    assert.match(html, /hLastX = e\.clientX; hVel = 0; hGest = false; hDx = 0;/, "cada toque deve começar sem deslocamento horizontal residual");
+    assert.doesNotMatch(html, /IS_ANDROID_WEBVIEW \? \(dir \? 140 : 90\)/, "Android não deve usar um encaixe brusco separado");
     assert.match(html, /function syncDots\(pageIdx\)/, "dots devem ter sincronização independente do evento scroll");
     assert.match(html, /launchpad\.addEventListener\("scroll"/, "dots devem acompanhar o scroll nativo do Android");
-    assert.match(html, /nativeLaunchpadGesture/, "gesto horizontal Android deve ficar fora do ponteiro capturado");
     assert.match(html, /const HV_FLICK = 0\.32/, "flick horizontal deve responder a arrastos rápidos sem exigir força");
     assert.match(html, /const HPAGE_RATIO = 0\.18/, "arrasto lento deve trocar antes de ocupar um quarto da tela");
     assert.match(html, /OBS Commander/, "html deve conter o drawer OBS Commander");
@@ -57,20 +61,36 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /function clearDrag\(\)[\s\S]*is-recents[\s\S]*translate3d\(0, -100%, 0\)/, "limpeza do gesto não pode trazer a tela inativa de volta");
     assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
     assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
-    assert.match(html, /\.page-grid\{[\s\S]*grid-gap: clamp\(20px, 3vw, 32px\);/, "a grade deve usar uma régua única e moderada de espaçamento");
+    assert.match(html, /\.page-grid\{[\s\S]*grid-gap: clamp\(20px, 3vw, 32px\);[\s\S]*justify-content: center;/, "a grade deve preservar o gutter normal entre os apps");
+    assert.match(html, /\.page-grid\{[\s\S]*padding: clamp\(8px, 2vw, 24px\) clamp\(12px, 3vw, 32px\);/, "a grade deve preservar o padding interno dos slots");
+    assert.doesNotMatch(html, /function updatePageGridTransforms\(\)/, "o pager não deve deslocar o grid de outro slide");
+    assert.doesNotMatch(html, /pageSeamShift/, "o pager não deve calcular uma emenda que revele outro slide");
+    assert.match(html, /\.page\{[\s\S]*overflow: hidden;/, "cada página deve cortar os slots do slide seguinte");
     assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(3vmin, 14px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
     assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
     assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve usar a régua do landscape nos dois sentidos");
     assert.match(html, /@media \(min-width:700px\)[\s\S]*--app-tile: min\(max\(22vw,22vh\), min\(30vw,30vh\), 220px\);/, "telas maiores devem preservar o tamanho do landscape no portrait");
     assert.doesNotMatch(html, /--app-tile: min\(44vw,/, "portrait não deve ampliar os cards em relação ao landscape");
-    assert.match(html, /--tile-in: 0\.90;/, "ícones devem ter uma folga ligeiramente maior dentro do card");
-    assert.match(html, /function requestAppPortraitLock\(\)/, "o app mobile deve solicitar orientação fixa em retrato");
-    assert.match(html, /function boot\(\)[\s\S]*requestAppPortraitLock\(\);/, "o bloqueio de orientação deve ser pedido ao iniciar o app");
-    assert.match(html, /appPortraitLockRequested = IS_ANDROID_WEBVIEW;/, "o PWA não deve manter estado de lock nativo");
-    assert.match(html, /if \(IS_ANDROID_WEBVIEW\) lockPortrait\(\);/, "o lock nativo de orientação deve ficar restrito ao APK");
-    assert.match(html, /function physicalIconTurn\(\)/, "a rotação dos ícones deve usar a orientação física, não o relayout da tela");
-    assert.match(html, /setProperty\("--icon-turn", iconTurn\)/, "somente o APK deve poder alterar a rotação da arte");
-    assert.match(html, /const iconTurn = IS_ANDROID_WEBVIEW \? physicalIconTurn\(\) : "0deg";/, "o PWA deve manter os ícones na orientação normal");
+    assert.match(html, /--tile-in: 0\.84;/, "ícones devem ficar um pouco menores dentro do card");
+    assert.match(html, /\.atile \.aglass\{[\s\S]*width: 100%; height: 100%;/, "o Card Glass deve continuar preenchendo o slot");
+    assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;/, "somente o ícone da tela 1 deve diminuir");
+    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 92%; height: 92%;/, "ícones da tela 2 não devem ser alterados");
+    assert.match(html, /--tile-r: 0\.29;/, "cards glass devem ter um raio ligeiramente menor");
+    assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 29%;/, "fallback deve aplicar o mesmo raio menor aos cards");
+    assert.match(html, /\.atile \.aglass::before\{ border-radius: 29%; \}/, "o highlight deve acompanhar a nova curva do card");
+    assert.match(html, /\.bg\{[\s\S]*rgba\(232, 111, 39, 0\.46\)[\s\S]*rgba\(184, 76, 20, 0\.28\)[\s\S]*#241106 0%[\s\S]*#150804 55%[\s\S]*#080301 100%/, "o fundo deve iluminar o glass sem perder profundidade");
+    assert.doesNotMatch(html, /screen\.orientation\.lock/, "nenhum cliente deve forçar retrato");
+    assert.doesNotMatch(html, /requestAppPortraitLock|appPortraitLockRequested|portraitLockRequested/, "nenhum estado de lock de retrato deve permanecer");
+    assert.match(html, /function syncLoginOrientation\(\)/, "login deve sincronizar a orientação nativa quando disponível");
+    assert.match(html, /android\.setLoginPortrait\(loginOpen\)/, "somente o estado do login deve ser enviado ao APK");
+    const loginStart = html.indexOf("function showLogin()");
+    const loginEnd = html.indexOf("function loginError", loginStart);
+    const loginFlow = html.slice(loginStart, loginEnd);
+    assert.match(loginFlow, /function showLogin\(\)[\s\S]*syncLoginOrientation\(\)/, "abrir o PIN deve pedir retrato no APK");
+    assert.match(loginFlow, /function hideLogin\(\)[\s\S]*syncLoginOrientation\(\)/, "fechar o PIN deve liberar a orientação");
+    assert.match(html, /orientationchange[\s\S]*layoutDockScale\(\)[\s\S]*updateLandDir\(\)/, "a interface deve recalcular o layout ao girar");
+    assert.doesNotMatch(html, /function physicalIconTurn\(\)/, "a arte não deve compensar um lock de orientação removido");
+    assert.match(html, /setProperty\("--icon-turn", "0deg"\)/, "os ícones devem permanecer na orientação normal");
     assert.match(html, /const availableH = launchpad\.clientHeight/, "o pager deve medir a altura útil antes de escalar a grade");
     assert.match(
       html,
@@ -94,6 +114,10 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /function triggerHaptic\(\)/, "toque deve ter uma camada única de feedback háptico");
     assert.match(html, /navigator\.vibrate\(8\)/, "PWA deve solicitar uma vibração curta quando suportado");
     assert.match(html, /window\.DokkeAndroid[\s\S]*performHapticFeedback/, "APK deve usar o bridge nativo de haptic");
+    assert.match(html, /function preventTouchFocusScroll\(el\)/, "toque em um app não deve deixar o WebView reposicionar o pager pelo foco");
+    assert.match(html, /preventTouchFocusScroll\(el\)/, "tiles devem preservar o scroll durante o foco touch");
+    assert.match(html, /el\.addEventListener\("focus", focus, true\)/, "a proteção deve cobrir o foco disparado depois do toque");
+    assert.match(html, /document\.activeElement === el\) el\.blur\(\)/, "foco touch deve ser removido depois do clique sem afetar teclado");
     const deckGestureStart = html.indexOf("function bindDeckGestures()");
     const deckGestureEnd = html.indexOf("function renderRecents()", deckGestureStart);
     const deckGesture = html.slice(deckGestureStart, deckGestureEnd);
@@ -104,7 +128,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
     assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
     assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
-    assert.match(html, /IS_ANDROID_WEBVIEW \? \(dir \? 140 : 90\)/, "Android deve encaixar o pager em menos tempo");
+    assert.match(html, /const duration = reduced \? 1 : H_SNAP_DURATION/, "todos os clientes devem compartilhar a duração do encaixe");
     assert.match(html, /transform: rotate\(var\(--icon-turn\)\);/, "ícones não devem ganhar uma textura GPU extra");
     assert.doesNotMatch(html, /layoutTimeTravel|centerTimeTravel|bindTimeTravel|favscroll|favrow/, "Time Travel v01 removido (deck v03)");
     assert.match(html, /"Apps abertos"/, "tela 2 com título Apps abertos");
@@ -153,13 +177,13 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /classList\.toggle\("confirm-scrim", isConfirm\)/, "confirmação deve usar scrim próprio do Dokke");
     assert.match(html, /className = "aglass confirm-icon"/, "confirmação deve mostrar o ícone real do app");
     assert.match(html, /\}, "confirm"\);/, "remoção de favorito deve abrir a confirmação visual correta");
-    assert.match(html, /function syncIconOrientation\(\)[\s\S]*const iconTurn = IS_ANDROID_WEBVIEW \? physicalIconTurn\(\) : "0deg";/, "o PWA deve manter os ícones sem rotação");
+    assert.match(html, /function syncIconOrientation\(\)[\s\S]*setProperty\("--icon-turn", "0deg"\)/, "PWA e APK devem manter os ícones sem rotação artificial");
     assert.match(html, /hOriginInLaunchpad = !!\(e\.target[\s\S]*closest\("\.launchpad"\)\)/, "gesto horizontal deve guardar a origem antes do pointer capture do Android");
     assert.match(html, /if \(!hOriginInLaunchpad && !hOriginInDeck\) return/, "gesto Android não deve depender do target capturado");
     assert.match(html, /hOriginInDeck = !!\(e\.target[\s\S]*closest\("\.deck"\)\)/, "gesto iniciado sobre um app da tela 2 deve guardar a origem");
     assert.match(html, /nativeDeckGesture = hOriginInDeck/, "dock deve deixar o arraste horizontal nativo e reservar o vertical para a troca de tela");
     assert.doesNotMatch(html.slice(html.indexOf("function bindDeckGestures()"), html.indexOf("function renderRecents()")), /pointerdown[\s\S]*stopPropagation/, "dock não pode bloquear o gesto vertical sobre os ícones");
-    assert.match(html, /if \(nativeLaunchpadGesture \|\| nativeDeckGesture\)/, "gesto vertical deve assumir o ponteiro depois de sair do arraste horizontal nativo");
+    assert.match(html, /if \(nativeDeckGesture\)\{[\s\S]*setPointerCapture/, "gesto vertical sobre o dock deve assumir o ponteiro depois de sair do arraste horizontal nativo");
     assert.match(html, /scene\.dataset\.scene = s[\s\S]*?scene\.textContent = s/, "nome de cena deve entrar via DOM, não HTML cru");
     assert.doesNotMatch(html, /data-scene=\\\"" \+ s/, "nome de cena não pode ser concatenado em atributo HTML");
   } finally { await close(); }
@@ -416,7 +440,8 @@ test("GET /manifest.webmanifest retorna JSON válido com display standalone", as
     assert.equal(r.status, 200);
     const m = await r.json();
     assert.equal(m.display, "standalone");
-    assert.equal(m.name, "dokke");
+    assert.equal(m.name, "Dokke");
+    assert.equal(m.short_name, "Dokke");
     assert.equal(m.orientation, "any");
     assert.ok(Array.isArray(m.icons) && m.icons.length >= 2, "manifest deve ter icons");
   } finally { await close(); }
@@ -524,6 +549,7 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
         pager: { left: pagerRect.left, right: pagerRect.right, top: pagerRect.top, bottom: pagerRect.bottom },
         first: { top: tileRects[0].top, bottom: tileRects[0].bottom },
         last: { top: tileRects.at(-1).top, bottom: tileRects.at(-1).bottom },
+        slotGap: tileRects[1].left - tileRects[0].right,
         columns: style.gridTemplateColumns.split(" ").length,
         rows: style.gridTemplateRows.split(" ").length,
         columnGap: style.columnGap,
@@ -535,8 +561,9 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
     });
     assert.equal(bounds.columns, 2, "o retrato deve continuar em duas colunas");
     assert.equal(bounds.rows, 4, "o retrato deve continuar em quatro linhas");
-    assert.equal(bounds.columnGap, "20px", "o retrato deve usar o espaçamento global mínimo entre slots");
+    assert.equal(bounds.columnGap, "20px", "o retrato deve preservar o espaçamento normal entre slots");
     assert.equal(bounds.rowGap, "20px", "o retrato deve usar o mesmo espaçamento global nas linhas");
+    assert.ok(bounds.slotGap <= 20.5, "o retrato não deve adicionar espaçamento entre os slots");
     assert.ok(bounds.first.top >= bounds.pager.top - 0.5, "o primeiro card não pode escapar pelo topo após a escala");
     assert.ok(bounds.last.bottom <= bounds.pager.bottom + 0.5, "o último card não pode ser cortado após a escala");
     assert.match(bounds.scale, /^scale\(/, "a escala deve ser aplicada somente quando a safe area reduzir a altura útil");
@@ -641,6 +668,7 @@ test("landscape touch mantém o slide centralizado sem girar o pager", async () 
         grid: { left: gridRect.left, right: gridRect.right, width: gridRect.width },
         pageTransform: firstPage.style.transform,
         gridTransform: grid.style.transform,
+        pageOverflow: getComputedStyle(firstPage).overflow,
         iconTurn: getComputedStyle(document.documentElement).getPropertyValue("--icon-turn").trim(),
         tileWidth: grid.firstElementChild?.getBoundingClientRect().width || 0,
         slotGap: firstRow[1].left - firstRow[0].right,
@@ -654,10 +682,10 @@ test("landscape touch mantém o slide centralizado sem girar o pager", async () 
     assert.equal(layout.columns, 4, "landscape touch deve ocupar quatro colunas");
     assert.equal(layout.rows, 2, "landscape touch deve ocupar duas linhas");
     assert.ok(layout.tileWidth >= 180, "landscape touch deve aproveitar melhor o espaço com ícones grandes");
-    assert.ok(layout.slotGap >= 30 && layout.slotGap <= 32, "landscape touch deve usar o espaçamento global moderado dos slots");
+    assert.ok(layout.slotGap >= 30 && layout.slotGap <= 32, "landscape touch deve preservar o espaçamento global moderado dos slots");
     assert.equal(layout.columnGap, "30.72px", "landscape touch deve seguir a mesma régua responsiva do retrato");
     assert.equal(layout.rowGap, "30.72px", "landscape touch deve seguir a mesma régua responsiva do retrato");
-    assert.ok(layout.pageGap <= 180, "landscape touch não deve deixar um vão excessivo entre slides");
+    assert.equal(layout.pageOverflow, "hidden", "landscape touch deve mostrar somente os oito slots da página ativa");
     assert.equal(layout.pageTransform, "", "o item do pager não deve ser transformado");
     assert.equal(layout.iconTurn, "0deg", "o PWA não deve girar os ícones no landscape");
     assert.ok(layout.gridTransform === "" || /^scale\(/.test(layout.gridTransform), "se houver escala, ela deve ficar na grade interna");

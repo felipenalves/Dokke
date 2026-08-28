@@ -19,6 +19,7 @@ const header = contentView.slice(
   contentView.indexOf("private var sidebarToggleButton: some View")
 );
 const menuBar = contentView.slice(contentView.indexOf("struct MenuBarView"));
+const dockStore = await readFile(new URL("../mac/Sources/DockStore.swift", import.meta.url), "utf8");
 
 test("tela de conexão prioriza o código e esconde configuração técnica", () => {
   assert.match(contentView, /case about = "Conectar"/);
@@ -28,6 +29,16 @@ test("tela de conexão prioriza o código e esconde configuração técnica", ()
   assert.match(about, /AccessCodeView/);
   assert.equal(about.includes('TextField("http://127.0.0.1:3000"'), false);
   assert.doesNotMatch(contentView.slice(0, contentView.indexOf("struct AboutView")), /UpdateBanner/);
+});
+
+test("PIN volta a ser carregado quando o servidor sobe depois do primeiro refresh", () => {
+  const status = dockStore.slice(
+    dockStore.indexOf("func pingStatus() async"),
+    dockStore.indexOf("private func pingHealthOnly"),
+  );
+
+  assert.match(status, /if pinCode == nil \{\s*await loadPin\(\)\s*\}/);
+  assert.match(about, /\.task \{[\s\S]*await store\.loadPin\(\)[\s\S]*\}/);
 });
 
 test("Conectar reserva 40pt para o header sem deslocar a grade de Apps", () => {
@@ -86,6 +97,7 @@ test("sidebar flutuante replica largura, seleção azul opaca e contraste da ref
   assert.match(sidebar, /DokkeTheme\.selection/);
   assert.doesNotMatch(sidebar, /Label\(item\.rawValue, systemImage: item\.icon\)/);
   assert.match(contentView, /\.foregroundStyle\(selection == item \? Color\.white : Color\.white\.opacity\(0\.58\)\)/);
+  assert.match(contentView, /case apps = "Slots"/);
   assert.match(contentView, /case about = "Conectar"/);
 });
 
@@ -144,14 +156,26 @@ test("menu bar abre o Dokke, sincroniza dados e expõe atualização somente qua
   assert.match(menuBar, /Verificar atualizações/);
 });
 
-test("menu bar destaca o estado online e mantém a contagem como informação secundária", () => {
+test("menu bar destaca o estado e exibe métricas úteis", () => {
   assert.match(menuBar, /Image\(systemName: "circle\.fill"\)/);
   assert.match(menuBar, /foregroundStyle\(store\.online \? Color\.green : Color\.red/);
-  assert.match(menuBar, /Text\(store\.online \? "Dokke online" : "Dokke offline"\)[\s\S]*?foregroundStyle\(\.primary\)/);
-  assert.ok(menuBar.includes('Text("Dispositivos: \\(store.devices) · Fixados: \\(store.pinned.count)")'));
-  assert.match(menuBar, /Text\("Dispositivos:/);
+  assert.match(menuBar, /Text\("Dokke"\)[\s\S]*?foregroundStyle\(\.primary\)/);
+  assert.doesNotMatch(menuBar, /Dokke online|Dokke offline/);
+  assert.ok(menuBar.includes('Text("Dispositivos conectados: \\(store.devices)")'));
+  assert.ok(menuBar.includes('Text("Slots fixados: \\(store.pinned.count)")'));
   assert.match(menuBar, /\.font\(\.caption\)/);
   assert.match(menuBar, /\.foregroundStyle\(\.secondary\)/);
+});
+
+test("menu bar usa ícones nos comandos e mostra a versão no rodapé", () => {
+  assert.match(menuBar, /Label\("Abrir Dokke", systemImage: "macwindow"\)/);
+  assert.match(menuBar, /Label\("Sincronizar agora", systemImage: "arrow\.triangle\.2\.circlepath"\)/);
+  assert.match(menuBar, /Label\("Verificar atualizações", systemImage: "arrow\.down\.circle"\)/);
+  assert.match(menuBar, /Label\("Baixar e instalar", systemImage: "arrow\.down\.circle"\)/);
+  assert.match(menuBar, /Label\("Sair", systemImage: "power"\)/);
+  assert.match(menuBar, /CFBundleShortVersionString/);
+  assert.ok(menuBar.includes('Text("Versão \\(appVersion)")'));
+  assert.match(menuBar, /\.frame\(minWidth: 250\)/);
 });
 
 test("menu bar usa o glifo atualizado do Dokke em monocromático", () => {

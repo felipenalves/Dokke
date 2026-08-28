@@ -255,6 +255,12 @@ final class DockStore: ObservableObject {
       }
       if online != true { online = true }
       if lastError != nil { lastError = nil }
+      // O primeiro refresh pode acontecer antes de o servidor terminar de subir.
+      // O timer continua chamando este método; aproveite a primeira resposta
+      // válida para preencher o código sem exigir sincronização manual.
+      if pinCode == nil {
+        await loadPin()
+      }
       if !installedReady {
         await loadInstalled()
       }

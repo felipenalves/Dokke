@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -219,6 +220,16 @@ class MainActivity : ComponentActivity() {
                         HapticFeedbackConstants.VIRTUAL_KEY
                     }
                     web.performHapticFeedback(constant)
+                }
+            }
+            @android.webkit.JavascriptInterface
+            fun setLoginPortrait(enabled: Boolean) {
+                runOnUiThread {
+                    requestedOrientation = if (enabled) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    }
                 }
             }
             @android.webkit.JavascriptInterface

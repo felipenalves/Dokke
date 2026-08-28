@@ -12,7 +12,7 @@
 <link rel="icon" media="(prefers-color-scheme: light)" type="image/png" href="/icon-192.png">
 <link rel="icon" media="(prefers-color-scheme: dark)" type="image/png" href="/icon-192-dark.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
-  <title>dokke</title>
+  <title>Dokke</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -66,9 +66,9 @@
     left: calc(-32px - env(safe-area-inset-left, 0px));
     z-index:0; pointer-events:none;
     background:
-      radial-gradient(130% 65% at 50% -10%, rgba(210, 95, 30, 0.40), transparent 60%),
-      radial-gradient(90% 55% at 85% 45%, rgba(160, 65, 15, 0.24), transparent 55%),
-      linear-gradient(180deg, #1c0d05 0%, #120702 55%, #080301 100%);
+      radial-gradient(130% 65% at 50% -10%, rgba(232, 111, 39, 0.46), transparent 60%),
+      radial-gradient(90% 55% at 85% 45%, rgba(184, 76, 20, 0.28), transparent 55%),
+      linear-gradient(180deg, #241106 0%, #150804 55%, #080301 100%);
   }
 
   main{
@@ -155,12 +155,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Cada slide é uma página fechada: o pager não deve revelar slots da
+       página seguinte enquanto a página atual está em foco. */
     overflow: hidden;
     box-sizing: border-box;
     /* A largura do slide permanece integral para não alterar o scrollLeft. */
     --tile: var(--app-tile);
-    --tile-r: 0.28;
-    --tile-in: 0.90;
+    --tile-r: 0.29;
+    --tile-in: 0.84;
     --tile-in-r: 0.19;
   }
   .page-grid{
@@ -180,6 +182,7 @@
       /* Uma régua única evita que o giro aumente demais o vão entre slides
          ou deixe os slots colados no retrato. */
       grid-gap: clamp(20px, 3vw, 32px);
+      justify-content: center;
       padding: clamp(8px, 2vw, 24px) clamp(12px, 3vw, 32px);
     }
   }
@@ -225,8 +228,10 @@
   }
   .android-webview .aglass::before{ display: none; }
   .android-webview .launchpad{
-    touch-action: pan-x;
-    -webkit-overflow-scrolling: touch;
+    touch-action: none;
+    -webkit-overflow-scrolling: auto;
+    scroll-snap-type: none;
+    scroll-behavior: auto;
   }
   @keyframes appPress{
     0%{ transform:scale(1); }
@@ -305,11 +310,11 @@
   /* launchpad: tamanho fluido — aglass e ícone preenchem o tile */
   .atile .aglass{
     width: 100%; height: 100%;
-    border-radius: 26%;
+    border-radius: 29%;
   }
-  .atile .aglass::before{ border-radius: 26%; }
+  .atile .aglass::before{ border-radius: 29%; }
   .atile .aglass .gicon, .atile .aglass img.aicon{
-    width: 90%; height: 90%;
+    width: 84%; height: 84%;
     border-radius: 18%;
   }
   .atile .aglass img.aicon:not(.ready){ opacity:0; transition: opacity .16s ease; }
@@ -492,8 +497,8 @@
       grid-template-rows: repeat(2, var(--tile));
     }
     .launchpad{
-      /* A interface não gira nem escala; o APK pode ajustar apenas a arte
-         interna, enquanto o PWA mantém os ícones na posição normal. */
+      /* A interface acompanha o viewport real; os ícones permanecem na
+         orientação normal nos dois clientes. */
     }
     .dots{
       padding: 18px 0 calc(8px + env(safe-area-inset-bottom, 0px));
@@ -859,10 +864,6 @@
 
   // ---------- login wall (pin de acesso) ----------
   let authed = false, loginOpen = false;
-  let portraitLockRequested = false, appPortraitLockRequested = false;
-  function isMobileTouchViewport(){
-    return window.matchMedia("(pointer: coarse) and (max-width:1024px)").matches;
-  }
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -885,16 +886,19 @@
     window.visualViewport.addEventListener("resize", syncLoginViewport);
     window.visualViewport.addEventListener("scroll", syncLoginViewport);
   }
+  function syncLoginOrientation(){
+    const android = window.DokkeAndroid;
+    if (!android || typeof android.setLoginPortrait !== "function") return;
+    try { android.setLoginPortrait(loginOpen); } catch (e) {}
+  }
   function showLogin(){
     if (loginOpen) return;
     loginOpen = true;
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
     $("loginScrim").classList.add("show");
-    // O APK pode travar a orientação nativamente; o PWA segue o navegador.
     document.body.classList.add("is-login");
-    portraitLockRequested = isMobileTouchViewport() && IS_ANDROID_WEBVIEW;
-    if (portraitLockRequested) lockPortrait();
+    syncLoginOrientation();
     syncLoginViewport();
     if (pin) setTimeout(function(){ pin.focus(); }, 80);
   }
@@ -902,29 +906,7 @@
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
-    if (portraitLockRequested && !appPortraitLockRequested){
-      portraitLockRequested = false;
-      unlockOrientation();
-    }
-  }
-  // tenta travar a orientação nativa; se o browser/WebView negar, o CSS
-  // mobile mantém o card em retrato de todo jeito.
-  function lockPortrait(){
-    try {
-      if (screen.orientation && screen.orientation.lock){
-        screen.orientation.lock("portrait").catch(function(){ /* CSS cobre o fallback */ });
-      }
-    } catch (e){}
-  }
-  function unlockOrientation(){
-    try {
-      if (screen.orientation && screen.orientation.unlock){ screen.orientation.unlock(); }
-    } catch (e){}
-  }
-  function requestAppPortraitLock(){
-    if (!isMobileTouchViewport()) return;
-    appPortraitLockRequested = IS_ANDROID_WEBVIEW;
-    if (IS_ANDROID_WEBVIEW) lockPortrait();
+    syncLoginOrientation();
   }
   function loginError(msg){
     const err = $("loginErr");
@@ -1042,6 +1024,63 @@
       fn(el, e);
     });
   }
+  function preventTouchFocusScroll(el){
+    el.addEventListener("pointerdown", function(start){
+      if (!start || start.pointerType === "mouse") return;
+      const scroller = el.closest(".launchpad, .deck");
+      if (!scroller) return;
+      const startLeft = scroller.scrollLeft;
+      const startTop = scroller.scrollTop;
+      const startX = start.clientX;
+      const startY = start.clientY;
+      const pointerId = start.pointerId;
+      let moved = false;
+      let finished = false;
+      let focusCleanupT = null;
+      function restore(){
+        scroller.scrollLeft = startLeft;
+        scroller.scrollTop = startTop;
+      }
+      function move(e){
+        if (!e || e.pointerId !== pointerId) return;
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
+      }
+      function focus(){
+        if (moved) return;
+        restore();
+        if (document.activeElement === el) el.blur();
+        requestAnimationFrame(function(){
+          if (!moved) restore();
+        });
+      }
+      function cleanup(){
+        window.removeEventListener("pointermove", move, true);
+        window.removeEventListener("pointerup", finish, true);
+        window.removeEventListener("pointercancel", finish, true);
+        if (focusCleanupT) clearTimeout(focusCleanupT);
+        focusCleanupT = setTimeout(function(){
+          el.removeEventListener("focus", focus, true);
+          focusCleanupT = null;
+        }, 350);
+      }
+      function finish(e){
+        if (finished || !e || e.pointerId !== pointerId) return;
+        finished = true;
+        cleanup();
+        if (!moved){
+          restore();
+          if (document.activeElement === el) el.blur();
+        }
+      }
+      el.addEventListener("focus", focus, true);
+      window.addEventListener("pointermove", move, true);
+      window.addEventListener("pointerup", finish, true);
+      window.addEventListener("pointercancel", finish, true);
+      requestAnimationFrame(function(){
+        if (!finished && !moved) restore();
+      });
+    }, { passive: true });
+  }
   function bindHold(el, fn){
     let timer = null, x = 0, y = 0;
     function clear(){ if (timer){ clearTimeout(timer); timer = null; } }
@@ -1066,6 +1105,7 @@
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", label);
     el.tabIndex = 0;
+    preventTouchFocusScroll(el);
     el.addEventListener("contextmenu", function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -1245,13 +1285,12 @@
   const launchpadTrack = $("launchpadTrack");
   const dots = $("dots");
   let pages = [];
-  let androidPage = 0;
+  let pageGridScale = 1;
   const iconCache = new Map();
   const iconInflight = new Map();
   const ICON_REV = "5";
   const ua = typeof navigator === "object" && navigator ? navigator.userAgent || "" : "";
   const IS_ANDROID_WEBVIEW = /Android/i.test(ua) && (/\bwv\b/i.test(ua) || /Version\/4\.0/i.test(ua));
-  const ANDROID_NATIVE_PAGER = IS_ANDROID_WEBVIEW;
   if (IS_ANDROID_WEBVIEW) document.documentElement.classList.add("android-webview");
 
   function iconPath(name){
@@ -1465,7 +1504,6 @@
     });
     replaceChildren(launchpadTrack, kids);
     const page = Math.min(prev, pages.length - 1);
-    androidPage = page;
     renderDots();
     launchpad.scrollLeft = page * launchpad.clientWidth;
     if (launchpadTrack){
@@ -1513,6 +1551,7 @@
     const pageEls = launchpadTrack ? [...launchpadTrack.children] : [];
     const gridEls = pageEls.map(page => page.firstElementChild).filter(Boolean);
     if (!launchpad || !pages.length || !pageEls.length || !gridEls.length){
+      pageGridScale = 1;
       if (launchpad && launchpad.style.transform) launchpad.style.transform = "";
       for (const grid of gridEls) grid.style.transform = "";
       return;
@@ -1526,6 +1565,7 @@
     for (const grid of gridEls){
       grid.style.transform = "";
     }
+    pageGridScale = 1;
     const availableH = launchpad.clientHeight;
     let scale = 1;
     const firstGrid = gridEls[0];
@@ -1537,29 +1577,11 @@
       const contentH = lastRect.bottom - firstRect.top;
       if (contentH > 0) scale = Math.min(1, availableH / contentH);
     }
+    pageGridScale = scale;
     if (scale < 1){
       const next = "scale(" + scale.toFixed(3) + ")";
       for (const grid of gridEls) grid.style.transform = next;
     }
-  }
-  function physicalIconTurn(){
-    try {
-      // deviceorientation continua disponível quando o viewport está travado
-      // em retrato; por isso tem prioridade sobre a orientação CSS.
-      if (typeof window._lastGamma === "number" && Math.abs(window._lastGamma) > 30){
-        return window._lastGamma < 0 ? "-90deg" : "90deg";
-      }
-      if (typeof window.orientation === "number"){
-        if (window.orientation === 90) return "90deg";
-        if (window.orientation === -90 || window.orientation === 270) return "-90deg";
-      }
-      if (screen.orientation){
-        const angle = screen.orientation.angle;
-        if (angle === 90) return "90deg";
-        if (angle === 270 || angle === -90) return "-90deg";
-      }
-    } catch (err) {}
-    return "0deg";
   }
   function landNeedsSecondary(){
     if (!matchMedia("(orientation: landscape)").matches) return false;
@@ -1583,10 +1605,7 @@
     syncIconOrientation();
   }
   function syncIconOrientation(){
-    // No PWA o navegador controla a orientação do viewport; a arte continua
-    // na posição normal. Só o APK nativo usa o sensor para girar o ícone.
-    const iconTurn = IS_ANDROID_WEBVIEW ? physicalIconTurn() : "0deg";
-    document.documentElement.style.setProperty("--icon-turn", iconTurn);
+    document.documentElement.style.setProperty("--icon-turn", "0deg");
   }
   try {
     window.addEventListener("deviceorientation", function(e){
@@ -1606,7 +1625,6 @@
     matchMedia("(orientation: landscape)").addEventListener("change", function(){ layoutDockScale(); updateLandDir(); });
     window.addEventListener("resize", function(){ layoutDockScale(); updateLandDir(); });
     window.addEventListener("orientationchange", function(){
-      if (appPortraitLockRequested) lockPortrait();
       layoutDockScale();
       updateLandDir();
     });
@@ -2384,12 +2402,13 @@
     }
     // ---- pager horizontal do launchpad (flick/25% troca página) ----
     let hGest = false, hOriginInLaunchpad = false, hOriginInDeck = false;
-    let nativeLaunchpadGesture = false, nativeDeckGesture = false;
+    let nativeDeckGesture = false;
     let hStart = 0, hStartPage = 0, hVel = 0, hLastX = 0;
     let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null;
     const HV_FLICK = 0.32;
     const H_FLICK_MIN = 14;
     const HPAGE_RATIO = 0.18;
+    const H_SNAP_DURATION = 250;
     function hTo(dx){
       hDx = dx;
       if (!hRaf) hRaf = requestAnimationFrame(function(){
@@ -2409,6 +2428,22 @@
       if ((flick && dx < 0) || dx <= -pw * HPAGE_RATIO) return "next";
       if ((flick && dx > 0) || dx >= pw * HPAGE_RATIO) return "prev";
       return null;
+    }
+    function smoothSnapProgress(p){
+      const x = Math.min(Math.max(p, 0), 1);
+      if (x <= 0 || x >= 1) return x;
+      let lo = 0, hi = 1, t = x;
+      // Resolve x on cubic-bezier(.22, 1, .36, 1) so the same motion token
+      // is used by the PWA and by the Android WebView assentamento.
+      for (let n = 0; n < 8; n++){
+        const omt = 1 - t;
+        const bx = 3 * omt * omt * t * .22 + 3 * omt * t * t * .36 + t * t * t;
+        if (bx < x) lo = t;
+        else hi = t;
+        t = (lo + hi) / 2;
+      }
+      const omt = 1 - t;
+      return 3 * omt * omt * t + 3 * omt * t * t + t * t * t;
     }
     function stopHorizontalSnap(){
       if (hSnapRaf){ cancelAnimationFrame(hSnapRaf); hSnapRaf = null; }
@@ -2439,7 +2474,7 @@
       const started = performance.now();
       const step = function(now){
         const p = Math.min((now - started) / duration, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
+        const eased = smoothSnapProgress(p);
         launchpad.scrollLeft = from + delta * eased;
         if (p < 1){
           hSnapRaf = requestAnimationFrame(step);
@@ -2459,16 +2494,10 @@
       let t = i;
       if (dir === "prev") t = Math.max(i - 1, 0);
       else if (dir === "next") t = Math.min(i + 1, pages.length - 1);
-      if (IS_ANDROID_WEBVIEW && !ANDROID_NATIVE_PAGER){
-        androidPage = t;
-        // Android usa transform no track e não dispara scroll; atualiza o
-        // indicador explicitamente junto com a página lógica.
-        syncDots(t);
-      }
       launchpad.style.scrollSnapType = "none";
       launchpad.style.scrollBehavior = "auto";
       const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const duration = reduced ? 1 : (IS_ANDROID_WEBVIEW ? (dir ? 140 : 90) : (dir ? 240 : 160));
+      const duration = reduced ? 1 : H_SNAP_DURATION;
       animateHorizontalSnap(t * pw, duration);
       coolUntil = Date.now() + COOLDOWN_MS;
     }
@@ -2608,14 +2637,13 @@
       lastY = e.clientY; lastT = e.timeStamp; instVel = 0;
       hStartPage = currentPage();
       hStart = launchpad ? launchpad.scrollLeft : 0;
-      hLastX = e.clientX; hVel = 0; hGest = false;
+      hLastX = e.clientX; hVel = 0; hGest = false; hDx = 0;
       hOriginInLaunchpad = !!(e.target && e.target.closest && e.target.closest(".launchpad"));
       hOriginInDeck = !!(e.target && e.target.closest && e.target.closest(".deck"));
-      nativeLaunchpadGesture = ANDROID_NATIVE_PAGER && hOriginInLaunchpad;
       nativeDeckGesture = hOriginInDeck;
       moving = false;
       pid = e.pointerId;
-      if (screensEl.setPointerCapture && !nativeLaunchpadGesture && !nativeDeckGesture){
+      if (screensEl.setPointerCapture && !nativeDeckGesture){
         try { screensEl.setPointerCapture(pid); } catch (err) {}
       }
     });
@@ -2638,17 +2666,16 @@
         if (Math.abs(dy) < DRAG && Math.abs(dx) < DRAG) return;
         if (Date.now() < coolUntil) return;
         if (Math.abs(dx) > Math.abs(dy) * AXIS_RATIO){
-          // No Android WebView, depois do setPointerCapture, o target passa a
-          // ser #screens. Use a origem do toque, não o target capturado.
+          // Depois do setPointerCapture, o target passa a ser #screens. Use a
+          // origem do toque, não o target capturado.
           if (!hOriginInLaunchpad && !hOriginInDeck) return;
-          if (nativeLaunchpadGesture || nativeDeckGesture) return;
+          if (nativeDeckGesture) return;
           setLayer(true, "horizontal");
           if (launchpad) launchpad.style.scrollSnapType = "none";
           if (launchpad) launchpad.style.scrollBehavior = "auto";
           hGest = true; moving = true;
         } else {
-          if (nativeLaunchpadGesture || nativeDeckGesture){
-            nativeLaunchpadGesture = false;
+          if (nativeDeckGesture){
             nativeDeckGesture = false;
             deckPid = null;
             if (screensEl.setPointerCapture){
@@ -2667,8 +2694,7 @@
     function endPointer(e){
       if (pid == null) return;               // nunca viu pointerdown (ex.: gesto do deck)
       if (e && e.pointerId !== pid) return;
-      if (nativeLaunchpadGesture || nativeDeckGesture){
-        nativeLaunchpadGesture = false;
+      if (nativeDeckGesture){
         nativeDeckGesture = false;
         deckPid = null;
         releasePointer();
@@ -2720,8 +2746,7 @@
     screensEl.addEventListener("pointerup", endPointer);
     screensEl.addEventListener("pointercancel", function(e){
       if (pid != null && e.pointerId !== pid) return;
-      if (nativeLaunchpadGesture || nativeDeckGesture){
-        nativeLaunchpadGesture = false;
+      if (nativeDeckGesture){
         nativeDeckGesture = false;
         deckPid = null;
         releasePointer();
@@ -2907,7 +2932,6 @@
 
   // boot real depende do login (cookie válido) — 401 reabre a wall
   function boot(){
-    requestAppPortraitLock();
     requestScreenWakeLock();
     connectStatusWs();
     loadApps();

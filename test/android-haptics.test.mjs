@@ -13,8 +13,12 @@ test("APK expõe haptic contextual pelo bridge sem forçar vibração", () => {
   assert.doesNotMatch(manifest, /android\.permission\.VIBRATE/, "o feedback deve respeitar as configurações do sistema");
 });
 
-test("APK mantém a interface em retrato e deixa a arte acompanhar o sensor", () => {
-  assert.match(manifest, /android:screenOrientation="portrait"/);
+test("APK deixa o sistema controlar a orientação e reage às mudanças de tamanho", () => {
+  assert.doesNotMatch(manifest, /android:screenOrientation=/);
+  assert.match(manifest, /android:configChanges="orientation\|screenSize\|keyboardHidden"/);
+  assert.match(source, /fun setLoginPortrait\(enabled: Boolean\)/, "o APK deve ter um lock nativo exclusivo da tela de login");
+  assert.match(source, /ActivityInfo\.SCREEN_ORIENTATION_PORTRAIT/, "o login deve abrir em retrato");
+  assert.match(source, /ActivityInfo\.SCREEN_ORIENTATION_UNSPECIFIED/, "o app deve devolver o controle ao sensor depois do login");
 });
 
 test("APK mantém a tela acesa enquanto a Activity está visível", () => {

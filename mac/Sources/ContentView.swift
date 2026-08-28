@@ -4,7 +4,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-  case apps = "Apps"
+  case apps = "Slots"
   case about = "Conectar"
 
   var id: String { rawValue }
@@ -487,6 +487,10 @@ struct AboutView: View {
     .padding(.top, 40)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(DokkeTheme.canvas.ignoresSafeArea())
+    .task {
+      // A aba pode ser aberta depois do refresh inicial do store.
+      await store.loadPin()
+    }
     .confirmationDialog("Gerar novo código?", isPresented: $showingResetPinConfirmation, titleVisibility: .visible) {
       Button("Gerar novo código", role: .destructive) {
         Task { await store.resetPin() }
@@ -612,17 +616,24 @@ struct MenuBarView: View {
   @EnvironmentObject private var server: ServerManager
   @EnvironmentObject private var updater: DokkeUpdateManager
 
+  private var appVersion: String {
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.7"
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
         Image(systemName: "circle.fill")
           .font(.system(size: 8, weight: .semibold))
           .foregroundStyle(store.online ? Color.green : Color.red)
-        Text(store.online ? "Dokke online" : "Dokke offline")
+        Text("Dokke")
           .fontWeight(.semibold)
           .foregroundStyle(.primary)
       }
-      Text("Dispositivos: \(store.devices) · Fixados: \(store.pinned.count)")
+      HStack(spacing: 10) {
+        Text("Dispositivos conectados: \(store.devices)")
+        Text("Slots fixados: \(store.pinned.count)")
+      }
         .font(.caption)
         .foregroundStyle(.secondary)
       if let note = store.lastSyncNote {
@@ -631,32 +642,48 @@ struct MenuBarView: View {
           .foregroundStyle(.secondary)
       }
       Divider()
-      Button("Abrir Dokke") {
+      Button {
         openWindow(id: "main")
+      } label: {
+        Label("Abrir Dokke", systemImage: "macwindow")
       }
-      Button("Sincronizar agora") {
+      Button {
         Task { await store.refreshAll() }
+      } label: {
+        Label("Sincronizar agora", systemImage: "arrow.triangle.2.circlepath")
       }
       if let release = updater.release {
         Divider()
         Text("Atualização \(release.tag) disponível")
           .font(.caption.weight(.semibold))
-        Button("Baixar e instalar") {
+        Button {
           Task { await updater.downloadAndInstall() }
+        } label: {
+          Label("Baixar e instalar", systemImage: "arrow.down.circle")
         }
         .disabled(updater.isBusy)
       } else {
-        Button("Verificar atualizações") {
+        Button {
           Task { await updater.check() }
+        } label: {
+          Label("Verificar atualizações", systemImage: "arrow.down.circle")
         }
         .disabled(updater.isBusy)
       }
       Divider()
-      Button("Sair") {
+      Button {
         server.stop()
         NSApplication.shared.terminate(nil)
+      } label: {
+        Label("Sair", systemImage: "power")
       }
+      Divider()
+      Text("Versão \(appVersion)")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
     .padding(8)
+    .frame(minWidth: 250)
   }
 }
