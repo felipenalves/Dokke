@@ -24,12 +24,20 @@ function makeServer() {
   return createServer();
 }
 import { listAppProcesses, listInstalledApps, realIconService } from "./apps.js";
-import { activateApp } from "./actions.js";
+import { activateApp, openWebsite } from "./actions.js";
 import {
   loadConfig,
   saveConfig,
   normalizePinned,
+  normalizeConfig,
+  createWebsitePiece,
+  piecesToPinned,
+  normalizePieces,
+  materializePiecePositions,
+  firstAvailablePiecePosition,
   MAX_PINNED_APPS,
+  MAX_PINNED_PIECES,
+  MAX_DOCK_SLOTS,
   PINNED_LIMIT_CODE,
   PINNED_LIMIT_MESSAGE,
   pinnedLimits,
@@ -233,15 +241,16 @@ function createStatusFeed({ readConfig, listProcesses, version = null }) {
     // force=true sempre monta payload (pin do Mac precisa empurrar mesmo com 0 clients? não — sem clients não há o que empurrar;
     // mas last deve invalidar pra próximo client pegar fresco)
     if (!clients.size && !force) return;
-    let cfg = { pinned: [] };
+    let cfg = normalizeConfig({});
     try { cfg = await readConfig(); } catch (e) {}
-    if (!cfg || !Array.isArray(cfg.pinned)) cfg = { pinned: [] };
-    cfg.pinned = normalizePinned(cfg.pinned);
+    cfg = normalizeConfig(cfg);
     let running = [];
     try { running = await listProcesses(); } catch (e) {}
     if (!Array.isArray(running)) running = [];
     const payload = {
       type: "apps",
+      pieces: cfg.pieces,
+      revision: cfg.revision,
       pinned: cfg.pinned,
       running,
       devices: clients.size,
@@ -284,7 +293,7 @@ export function makeApp(deps = {}) {
   const {
     root = join(import.meta.dirname, "public"),
     appTools = { listAppProcesses, listInstalledApps },
-    actions = { activateApp },
+    actions = { activateApp, openWebsite },
     obs = null,
     iconService = realIconService(),
     onStatusChange = null,
@@ -293,15 +302,14 @@ export function makeApp(deps = {}) {
   const configFile = deps.configFile ?? (deps.config === undefined ? join(import.meta.dirname, "config.json") : null);
   const readConfig = async () => {
     if (configFile) return loadConfig(configFile);
-    const c = deps.config || { pinned: [] };
-    return { pinned: normalizePinned(c.pinned) };
+    return normalizeConfig(deps.config || {});
   };
   const appVersion = deps.version || (() => uiVersion(root));
   const persistConfig = async cfg => {
-    cfg.pinned = normalizePinned(cfg.pinned);
-    if (configFile) await saveConfig(configFile, cfg);
-    else if (deps.config) deps.config.pinned = cfg.pinned;
-    return cfg;
+    const safe = normalizeConfig(cfg);
+    if (configFile) await saveConfig(configFile, safe);
+    else if (deps.config) Object.assign(deps.config, safe);
+    return safe;
   };
   // serializa load→mutate→persist das mutações de pinned: POSTs concorrentes
   // não perdem update nem colidem no arquivo de config
@@ -320,15 +328,51 @@ export function makeApp(deps = {}) {
       return;
     }
     // config que o cliente pode ver — nunca vaza o pin (só o dono lê via /api/pin)
-    const publicCfg = cfg => ({ pinned: normalizePinned(cfg.pinned), limits: pinnedLimits() });
+    const publicCfg = cfg => {
+      const safe = normalizeConfig(cfg);
+      return {
+        schemaVersion: safe.schemaVersion,
+        revision: safe.revision,
+        pieces: safe.pieces,
+        pinned: safe.pinned,
+        limits: pinnedLimits(),
+      };
+    };
+    const respondError = (status, body) => {
+      res.writeHead(status, JSON_HEADERS);
+      res.end(JSON.stringify({ ok: false, ...body }));
+    };
+    const rejectRevision = cfg => respondError(409, {
+      code: "REVISION_CONFLICT",
+      error: "a configuração mudou; recarregue e tente novamente",
+      config: publicCfg(cfg),
+    });
+    const rejectMixedLegacy = cfg => respondError(409, {
+      code: "MIXED_PIECES_REQUIRES_NEW_CLIENT",
+      error: "essa configuração mista exige um cliente atualizado",
+      config: publicCfg(cfg),
+    });
+    const isSameOrder = (left, right) => left.length === right.length && left.every((id, i) => id === right[i]);
+    const configHasWebsites = cfg => cfg.pieces.some(piece => piece.type === "website");
+    const piecesResponse = (cfg, piece = null, added = undefined) => ({
+      ok: true,
+      ...(piece ? { piece } : {}),
+      ...(added === undefined ? {} : { added }),
+      config: publicCfg(cfg),
+    });
     const rejectPinnedLimit = () => {
-      res.writeHead(409, JSON_HEADERS);
-      res.end(JSON.stringify({
-        ok: false,
+      respondError(409, {
         code: PINNED_LIMIT_CODE,
         error: PINNED_LIMIT_MESSAGE,
         limits: pinnedLimits(),
-      }));
+      });
+    };
+    const readPiecePosition = body => {
+      if (body?.position === undefined) return { ok: true, position: null };
+      if (!Number.isInteger(body.position) || body.position < 0 || body.position >= MAX_DOCK_SLOTS) {
+        return { ok: false };
+      }
+      return { ok: true, position: body.position };
     };
     if (url.pathname === "/health") { res.writeHead(200, JSON_HEADERS); res.end(JSON.stringify({ ok: true, service: "Dokke" })); return; }
     if (url.pathname === "/api/probe") {
@@ -424,8 +468,8 @@ export function makeApp(deps = {}) {
       Promise.resolve()
         .then(() => readConfig())
         .then(cfg => appTools.listAppProcesses()
-          .then(running => ok({ pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits() }))
-          .catch(() => ok({ pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits() })))
+          .then(running => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits() }))
+          .catch(() => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits() })))
         .catch(err => fail(res, err));
       return;
     }
@@ -459,10 +503,25 @@ export function makeApp(deps = {}) {
           }
           withConfigLock(() => Promise.resolve()
             .then(() => readConfig())
-            .then(cfg => { cfg.pinned = pinned; return persistConfig(cfg); }))
-            .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
-            .then(() => { if (onStatusChange) onStatusChange(); })
-            .catch(err => fail(res, err));
+            .then(cfg => {
+              if (configHasWebsites(cfg)) {
+                rejectMixedLegacy(cfg);
+                return null;
+              }
+              const nextPieces = materializePiecePositions(pinned.map(name => ({ id: `app:${name}`, type: "app", name })));
+              const changed = !isSameOrder(cfg.pieces.map(piece => piece.id), nextPieces.map(piece => piece.id));
+              if (changed) {
+                cfg.pieces = nextPieces;
+                cfg.revision += 1;
+              }
+              return persistConfig(cfg).then(next => ({ cfg: next, changed }));
+            })
+            .then(result => {
+              if (!result) return;
+              ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
+              if (result.changed && onStatusChange) onStatusChange();
+            })
+            .catch(err => fail(res, err)));
           return;
         }
         const app = typeof body?.app === "string" ? body.app.trim() : "";
@@ -471,23 +530,42 @@ export function makeApp(deps = {}) {
           res.end(JSON.stringify({ ok: false, error: "app inválido" }));
           return;
         }
+        const positionResult = readPiecePosition(body);
+        if (!positionResult.ok) {
+          respondError(400, { code: "INVALID_PIECE_POSITION", error: "posição inválida" });
+          return;
+        }
         withConfigLock(() => Promise.resolve()
           .then(() => readConfig())
           .then(cfg => {
-            cfg.pinned = normalizePinned(cfg.pinned);
-            if (!cfg.pinned.includes(app)) {
-              if (cfg.pinned.length >= MAX_PINNED_APPS) {
+            const existing = cfg.pieces.find(piece => piece.type === "app" && piece.name === app);
+            if (!existing) {
+              if (cfg.pieces.length >= MAX_PINNED_PIECES) {
                 const err = new Error(PINNED_LIMIT_MESSAGE);
                 err.code = PINNED_LIMIT_CODE;
                 throw err;
               }
-              cfg.pinned.push(app);
+              cfg.pieces = materializePiecePositions(cfg.pieces);
+              const position = positionResult.position ?? firstAvailablePiecePosition(cfg.pieces);
+              if (position === null || cfg.pieces.some(piece => piece.position === position)) {
+                const err = new Error("posição do dock já está ocupada");
+                err.code = "PIECE_SLOT_OCCUPIED";
+                throw err;
+              }
+              cfg.pieces.push({ id: `app:${app}`, type: "app", name: app, position });
+              cfg.revision += 1;
             }
-            return persistConfig(cfg);
-          }))
-          .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
-          .then(() => { if (onStatusChange) onStatusChange(); })
-          .catch(err => err?.code === PINNED_LIMIT_CODE ? rejectPinnedLimit() : fail(res, err));
+            return persistConfig(cfg).then(next => ({ cfg: next, changed: !existing }));
+          })
+          .then(result => {
+            ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
+            if (result.changed && onStatusChange) onStatusChange();
+          })
+          .catch(err => {
+            if (err?.code === PINNED_LIMIT_CODE) rejectPinnedLimit();
+            else if (err?.code === "PIECE_SLOT_OCCUPIED") respondError(409, { code: err.code, error: err.message });
+            else fail(res, err);
+          }));
       });
       return;
     }
@@ -504,12 +582,190 @@ export function makeApp(deps = {}) {
       withConfigLock(() => Promise.resolve()
         .then(() => readConfig())
         .then(cfg => {
-          cfg.pinned = normalizePinned(cfg.pinned).filter(x => x !== app);
-          return persistConfig(cfg);
-        }))
-        .then(cfg => ok({ ok: true, config: publicCfg(cfg), pushed: true }))
-        .then(() => { if (onStatusChange) onStatusChange(); })
-        .catch(err => fail(res, err));
+          const pieces = materializePiecePositions(cfg.pieces)
+            .filter(piece => !(piece.type === "app" && piece.name === app));
+          const changed = pieces.length !== cfg.pieces.length;
+          if (changed) {
+            cfg.pieces = pieces;
+            cfg.revision += 1;
+          }
+          return persistConfig(cfg).then(next => ({ cfg: next, changed }));
+        })
+        .then(result => {
+          ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
+          if (result.changed && onStatusChange) onStatusChange();
+        })
+        .catch(err => fail(res, err)));
+      return;
+    }
+    if (url.pathname === "/api/config/pieces" && req.method === "POST") {
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG) return;
+        if (body === BODY_INVALID || body?.type !== "website") {
+          respondError(400, { code: "INVALID_WEBSITE", error: "peça de site inválida" });
+          return;
+        }
+        let piece;
+        try { piece = createWebsitePiece(body.title, body.url); }
+        catch (err) {
+          respondError(400, { code: "INVALID_WEBSITE", error: err?.message || "URL inválida" });
+          return;
+        }
+        const positionResult = readPiecePosition(body);
+        if (!positionResult.ok) {
+          respondError(400, { code: "INVALID_PIECE_POSITION", error: "posição inválida" });
+          return;
+        }
+        withConfigLock(() => Promise.resolve()
+          .then(() => readConfig())
+          .then(cfg => {
+            const existing = cfg.pieces.find(current => current.id === piece.id);
+            if (existing) return { cfg, piece: existing, added: false };
+            if (cfg.pieces.length >= MAX_PINNED_PIECES) {
+              const err = new Error(PINNED_LIMIT_MESSAGE);
+              err.code = PINNED_LIMIT_CODE;
+              throw err;
+            }
+            cfg.pieces = materializePiecePositions(cfg.pieces);
+            const position = positionResult.position ?? firstAvailablePiecePosition(cfg.pieces);
+            if (position === null || cfg.pieces.some(current => current.position === position)) {
+              const err = new Error("posição do dock já está ocupada");
+              err.code = "PIECE_SLOT_OCCUPIED";
+              throw err;
+            }
+            piece = { ...piece, position };
+            cfg.pieces.push(piece);
+            cfg.revision += 1;
+            return persistConfig(cfg).then(next => ({ cfg: next, piece, added: true }));
+          })
+          .then(result => {
+            ok(piecesResponse(result.cfg, result.piece, result.added));
+            if (result.added && onStatusChange) onStatusChange();
+          })
+          .catch(err => {
+            if (err?.code === PINNED_LIMIT_CODE) rejectPinnedLimit();
+            else if (err?.code === "PIECE_SLOT_OCCUPIED") respondError(409, { code: err.code, error: err.message });
+            else fail(res, err);
+          }));
+      });
+      return;
+    }
+    if (url.pathname === "/api/config/pieces/order" && req.method === "PUT") {
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG) return;
+        if (body === BODY_INVALID || !Number.isInteger(body?.revision) || !Array.isArray(body?.ids)) {
+          respondError(400, { error: "revisão e ids são obrigatórios" });
+          return;
+        }
+        withConfigLock(() => Promise.resolve()
+          .then(() => readConfig())
+          .then(cfg => {
+            if (body.revision !== cfg.revision) {
+              rejectRevision(cfg);
+              return null;
+            }
+            cfg.pieces = materializePiecePositions(cfg.pieces);
+            const ids = body.ids;
+            const currentIds = cfg.pieces.map(piece => piece.id);
+            const unique = new Set(ids);
+            if (ids.length !== currentIds.length || unique.size !== ids.length || ids.some(id => !unique.has(id)) ||
+                currentIds.some(id => !unique.has(id))) {
+              respondError(400, { error: "ids não correspondem às peças atuais" });
+              return null;
+            }
+            const requestedPositions = body.positions;
+            if (requestedPositions !== undefined &&
+                (!requestedPositions || typeof requestedPositions !== "object" || Array.isArray(requestedPositions))) {
+              respondError(400, { error: "positions devem ser um objeto de posições por ID" });
+              return null;
+            }
+            if (requestedPositions !== undefined) {
+              const entries = Object.entries(requestedPositions);
+              const values = entries.map(([, position]) => position);
+              const positionIds = new Set(entries.map(([id]) => id));
+              if (entries.length !== currentIds.length || positionIds.size !== entries.length ||
+                  currentIds.some(id => !positionIds.has(id)) ||
+                  values.some(position => !Number.isInteger(position) || position < 0 || position >= MAX_DOCK_SLOTS) ||
+                  new Set(values).size !== values.length) {
+                respondError(400, { error: "positions não correspondem às peças atuais" });
+                return null;
+              }
+              if (cfg.pieces.some(piece => piece.position !== requestedPositions[piece.id])) {
+                cfg.pieces = cfg.pieces
+                  .map(piece => ({ ...piece, position: requestedPositions[piece.id] }))
+                  .sort((a, b) => a.position - b.position);
+                cfg.revision += 1;
+              }
+            } else if (!isSameOrder(currentIds, ids)) {
+              const byId = new Map(cfg.pieces.map(piece => [piece.id, piece]));
+              const positions = cfg.pieces.map(piece => piece.position);
+              cfg.pieces = ids.map((id, index) => ({ ...byId.get(id), position: positions[index] }));
+              cfg.revision += 1;
+            }
+            return persistConfig(cfg);
+          })
+          .then(cfg => { if (cfg) { ok({ ok: true, config: publicCfg(cfg) }); if (onStatusChange) onStatusChange(); } })
+          .catch(err => fail(res, err)));
+      });
+      return;
+    }
+    const pieceDelete = url.pathname.match(/^\/api\/config\/pieces\/([^/]+)$/);
+    if (pieceDelete && req.method === "DELETE") {
+      let id;
+      try { id = decodeURIComponent(pieceDelete[1]); }
+      catch { respondError(400, { error: "ID inválido" }); return; }
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG) return;
+        if (body === BODY_INVALID || !Number.isInteger(body?.revision)) {
+          respondError(400, { error: "revisão é obrigatória" });
+          return;
+        }
+        withConfigLock(() => Promise.resolve()
+          .then(() => readConfig())
+          .then(cfg => {
+            if (body.revision !== cfg.revision) { rejectRevision(cfg); return null; }
+            cfg.pieces = materializePiecePositions(cfg.pieces);
+            const index = cfg.pieces.findIndex(piece => piece.id === id);
+            if (index < 0) { respondError(404, { error: "peça não encontrada" }); return null; }
+            cfg.pieces.splice(index, 1);
+            cfg.revision += 1;
+            return persistConfig(cfg);
+          })
+          .then(cfg => { if (cfg) { ok({ ok: true, config: publicCfg(cfg) }); if (onStatusChange) onStatusChange(); } })
+          .catch(err => fail(res, err)));
+      });
+      return;
+    }
+    const pieceOpen = url.pathname.match(/^\/api\/pieces\/([^/]+)\/open$/);
+    if (pieceOpen && req.method === "POST") {
+      let id;
+      try { id = decodeURIComponent(pieceOpen[1]); }
+      catch { respondError(400, { error: "ID inválido" }); return; }
+      // Consome o corpo para manter o mesmo limite dos demais POSTs. O
+      // conteúdo é deliberadamente ignorado: a URL vem somente da peça
+      // persistida no Mac, nunca do cliente remoto.
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG) return;
+        Promise.resolve()
+          .then(() => readConfig())
+          .then(cfg => {
+            const piece = cfg.pieces.find(current => current.id === id);
+            if (!piece) {
+              respondError(404, { error: "peça não encontrada" });
+              return null;
+            }
+            if (piece.type !== "website") {
+              respondError(409, { code: "PIECE_NOT_WEBSITE", error: "a peça não é um site" });
+              return null;
+            }
+            let safe;
+            try { safe = createWebsitePiece(piece.title, piece.url); }
+            catch (err) { respondError(409, { code: "INVALID_WEBSITE", error: "site inválido" }); return null; }
+            return Promise.resolve().then(() => actions.openWebsite(safe.url))
+              .then(() => ok({ ok: true, piece: safe }));
+          })
+          .catch(err => fail(res, err));
+      });
       return;
     }
     // Status p/ app Mac: quantos devices escutam o WS + health
@@ -520,8 +776,14 @@ export function makeApp(deps = {}) {
           ok: true,
           service: "Dokke",
           devices: typeof getDeviceCount === "function" ? getDeviceCount() : 0,
-          pinned: normalizePinned(cfg.pinned).length,
-          config: { pinned: normalizePinned(cfg.pinned) },
+          pinned: cfg.pinned.length,
+          config: {
+            schemaVersion: cfg.schemaVersion,
+            revision: cfg.revision,
+            pieces: cfg.pieces,
+            pinned: cfg.pinned,
+            limits: pinnedLimits(),
+          },
         }))
         .catch(err => fail(res, err));
       return;

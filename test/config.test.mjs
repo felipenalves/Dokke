@@ -12,6 +12,8 @@ import {
   MAX_PINNED_APPS,
 } from "../config.js";
 
+const emptyConfig = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
+
 test("limite do dock cabe em cinco páginas e reserva o botão Adicionar", () => {
   assert.equal(PINNED_PAGE_SIZE, 8);
   assert.equal(PINNED_MAX_PAGES, 5);
@@ -23,8 +25,8 @@ test("loadConfig cria com defaults e saveConfig persiste", async () => {
   const file = join(dir, "config.json");
   try {
     const c = await loadConfig(file);
-    assert.deepEqual(c, { pinned: [] });
-    c.pinned.push("Figma");
+    assert.deepEqual(c, emptyConfig);
+    c.pieces.push({ type: "app", name: "Figma" });
     await saveConfig(file, c);
     assert.deepEqual((await loadConfig(file)).pinned, ["Figma"]);
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -35,7 +37,7 @@ test("loadConfig com JSON corrupto retorna defaults", async () => {
   const file = join(dir, "config.json");
   try {
     await writeFile(file, "{isso nao é json válido");
-    assert.deepEqual(await loadConfig(file), { pinned: [] });
+    assert.deepEqual(await loadConfig(file), emptyConfig);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -44,10 +46,10 @@ test("loadConfig com partial {} preenche defaults e guard de tipo normaliza pinn
   try {
     const parcial = join(dir, "parcial.json");
     await saveConfig(parcial, {});
-    assert.deepEqual(await loadConfig(parcial), { pinned: [] });
+    assert.deepEqual(await loadConfig(parcial), emptyConfig);
     const guard = join(dir, "guard.json");
     await saveConfig(guard, { pinned: "nao-array" });
-    assert.deepEqual(await loadConfig(guard), { pinned: [] });
+    assert.deepEqual(await loadConfig(guard), emptyConfig);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

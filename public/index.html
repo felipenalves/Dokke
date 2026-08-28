@@ -9,6 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="icon" media="(prefers-color-scheme: light)" type="image/png" href="/icon-192.png">
+<link rel="icon" media="(prefers-color-scheme: dark)" type="image/png" href="/icon-192-dark.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
   <title>dokke</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -203,6 +205,16 @@
     container-type: inline-size;
     -webkit-touch-callout: none;
   }
+  .atile.empty{
+    cursor: default;
+    pointer-events: none;
+  }
+  .atile.empty .aglass{
+    background: rgba(0,0,0,.22);
+    border-color: rgba(0,0,0,.16);
+    box-shadow: none;
+  }
+  .atile.empty .aglass::before{ display:none; }
   /* O gesto controla apenas o pager; a superfície dos cards permanece
      idêntica durante e depois da troca de página. */
   body.swiping .launchpad{
@@ -243,6 +255,30 @@
     content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     background: linear-gradient(160deg, rgba(255,255,255,.28), transparent 45%);
     pointer-events: none;
+  }
+  /* Websites keep the same outer glass as apps, with the white plate used by
+     the native Mac tile so a small or dark favicon remains recognizable. */
+  .website-plate{
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    width: 82%; height: 82%;
+    border: 1px solid rgba(255,255,255,.72);
+    border-radius: 26%;
+    background: rgba(255,255,255,.96);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.52), 0 1px 3px rgba(0,0,0,.18);
+    overflow: hidden;
+  }
+  .atile .aglass .website-plate img.aicon{
+    width: 72%; height: 72%;
+    border-radius: 18%;
+    object-fit: cover;
+  }
+  .atile .aglass .website-plate .gicon{
+    width: 72%; height: 72%;
+    border-radius: 18%;
+    color: rgba(0,0,0,.62);
+    text-shadow: none;
+    font-size: 30cqi;
   }
   .aglass .gicon, .aglass img.aicon{
     object-fit: cover;
@@ -952,6 +988,9 @@
 
   function applyPinnedLimits(limits){
     if (!limits || typeof limits !== "object") return;
+    if (Number.isInteger(limits.maxPinnedPieces) && limits.maxPinnedPieces > 0){
+      state.maxPinnedPieces = limits.maxPinnedPieces;
+    }
     if (Number.isInteger(limits.maxPinnedApps) && limits.maxPinnedApps > 0){
       state.maxPinnedApps = limits.maxPinnedApps;
     }
@@ -993,8 +1032,9 @@
   const state = {
     online: false,
     screen: "apps",
-    pinned: [], running: [], installed: [],
+    pieces: [], revision: 0, pinned: [], running: [], installed: [],
     maxPinnedApps: DEFAULT_MAX_PINNED_APPS,
+    maxPinnedPieces: DEFAULT_MAX_PINNED_APPS,
     maxPinnedPages: DEFAULT_MAX_PINNED_PAGES,
     installedReady: false,
     obs: { connected: false, error: false, scenes: [], scene: null, recording: false, streaming: false },
@@ -1067,8 +1107,17 @@
     else loadApps();
   }
 
+  async function activatePiece(piece){
+    if (!piece || !piece.id) return;
+    if (piece.type !== "website") return activateApp(piece.name);
+    let r;
+    try { r = await post("/api/pieces/" + encodeURIComponent(piece.id) + "/open"); }
+    catch (e) { toast("Mac desconectado", "err"); return; }
+    if (!r || !r.data || r.data.ok !== true) toast("Não consegui abrir \"" + (piece.title || "site") + "\"", "err");
+  }
+
   async function pinApp(name){
-    if (state.pinned.indexOf(name) === -1 && state.pinned.length >= state.maxPinnedApps){
+    if (state.pinned.indexOf(name) === -1 && state.pieces.length >= state.maxPinnedPieces){
       toast(pinnedLimitMessage(), "err");
       return;
     }
@@ -1089,6 +1138,29 @@
     catch (e) { toast("Mac desconectado", "err"); return; }
     if (r.data && r.data.ok === true){ toast("\"" + name + "\" removido"); loadApps(); }
     else toast("Falha ao remover", "err");
+  }
+
+  async function unpinPiece(id){
+    const piece = state.pieces.find(function(item){ return item.id === id; });
+    if (!piece) return;
+    let r;
+    try {
+      r = await req("/api/config/pieces/" + encodeURIComponent(id), {
+        method: "DELETE", timeout: 4000,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: state.revision }),
+      });
+    } catch (e) { toast("Mac desconectado", "err"); return; }
+    if (r.data && r.data.ok === true){ toast("\"" + (piece.title || piece.name) + "\" removido"); loadApps(); }
+    else if (r.data && r.data.code === "REVISION_CONFLICT"){
+      applyConfigSnapshot(r.data.config);
+      toast("O dock mudou; tente novamente", "err");
+    } else toast("Falha ao remover", "err");
+  }
+
+  function applyConfigSnapshot(config){
+    if (!config || !Array.isArray(config.pieces) || !Array.isArray(config.pinned)) return;
+    applyAppsPayload(config.pieces, config.pinned, state.running, config.limits, config.revision);
   }
 
   let lastFocus = null;
@@ -1170,10 +1242,12 @@
   }
 
   function tileLong(el){
-    const name = el && el.dataset ? el.dataset.name : "";
-    if (!name) return;
-    if (state.pinned.indexOf(name) !== -1) favLong(name);
-    else pinApp(name);
+    const id = el && el.dataset ? el.dataset.id : "";
+    const piece = state.pieces.find(function(item){ return item.id === id; });
+    if (!piece) return;
+    if (piece.type === "website") unpinPiece(piece.id);
+    else if (state.pinned.indexOf(piece.name) !== -1) favLong(piece.name);
+    else pinApp(piece.name);
   }
 
   // ---------- rendering: launchpad ----------
@@ -1193,9 +1267,21 @@
   function iconPath(name){
     return "/api/apps/" + encodeURIComponent(name) + "/icon?v=" + ICON_REV;
   }
-  function iconFallback(img, glass, name){
+  function iconFallback(img, target, name){
     if (img && img.isConnected) img.remove();
-    if (glass && !glass.querySelector(".gicon")) glass.appendChild(giconEl(name));
+    if (target && !target.querySelector(".gicon")) target.appendChild(giconEl(name));
+  }
+  function websiteFaviconPath(raw){
+    try {
+      const u = new URL(raw);
+      return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(u.host) + "&sz=128";
+    } catch (e) { return ""; }
+  }
+  function websiteFaviconFallbackPath(raw){
+    try {
+      const u = new URL(raw);
+      return u.protocol + "//" + u.host + "/favicon.ico";
+    } catch (e) { return ""; }
   }
   function loadIcon(name, img, glass){
     const cached = iconCache.get(name);
@@ -1257,9 +1343,13 @@
   function buildTile(a, withIcon){
     const t = document.createElement("div");
     t.className = "atile";
-    t.dataset.name = a.name;
+    t.dataset.id = a.id;
+    t.dataset.type = a.type;
+    if (a.type === "app") t.dataset.name = a.name;
     const glass = document.createElement("div");
     glass.className = "aglass";
+    const websitePlate = a.type === "website" ? document.createElement("div") : null;
+    if (websitePlate) websitePlate.className = "website-plate";
     const img = document.createElement("img");
     img.className = "aicon";
     img.alt = "";
@@ -1270,24 +1360,49 @@
     img.addEventListener("load", function(){
       img.dataset.iconLoaded = "1";
       img.classList.add("ready");
-      if (!iconCache.has(a.name) && img.currentSrc) iconCache.set(a.name, img.currentSrc);
+      if (a.type === "app" && !iconCache.has(a.name) && img.currentSrc) iconCache.set(a.name, img.currentSrc);
     });
-    img.addEventListener("error", function(){ iconFallback(img, glass, a.name); });
-    glass.appendChild(img);
-    if (withIcon) loadIcon(a.name, img, glass);
+    img.addEventListener("error", function(){
+      if (a.type === "website" && img.dataset.faviconFallback !== "1") {
+        img.dataset.faviconFallback = "1";
+        const fallback = websiteFaviconFallbackPath(a.url);
+        if (fallback) {
+          img.src = fallback;
+          return;
+        }
+      }
+      iconFallback(img, websitePlate || glass, a.type === "website" ? (a.title || "Site") : a.name);
+    });
+    if (websitePlate) {
+      websitePlate.appendChild(img);
+      glass.appendChild(websitePlate);
+    } else {
+      glass.appendChild(img);
+    }
+    if (a.type === "website") img.src = websiteFaviconPath(a.url);
+    else if (withIcon) loadIcon(a.name, img, glass);
     else img.src = iconPath(a.name);
     t.appendChild(glass);
     const nm = document.createElement("span");
     nm.className = "aname";
-    nm.textContent = a.name;
+    nm.textContent = a.type === "website" ? a.title : a.name;
     const st = document.createElement("span");
     st.className = "astatus";
-    st.textContent = isRunning(a.name) ? "aberto" : "";
-    if (isRunning(a.name)) st.classList.add("on");
+    st.textContent = a.type === "app" && isRunning(a.name) ? "aberto" : "";
+    if (a.type === "app" && isRunning(a.name)) st.classList.add("on");
     t.appendChild(nm);
     t.appendChild(st);
-    makeBtn(t, a.name, function(el){ activateApp(el.dataset.name); });
+    makeBtn(t, a.type === "website" ? a.title : a.name, function(){ activatePiece(a); });
     bindHold(t, tileLong);
+    return t;
+  }
+
+  function buildEmptyTile(){
+    const t = document.createElement("div");
+    t.className = "atile empty";
+    const glass = document.createElement("div");
+    glass.className = "aglass";
+    t.appendChild(glass);
     return t;
   }
 
@@ -1311,26 +1426,34 @@
 
   function renderLaunchpad(keepPage){
     const prev = keepPage ? currentPage() : 0;
-    // Tela 1 = favoritos na MESMA ordem do pinned (arrastada no Mac), não em ordem alfabética.
-    const byName = new Map();
-    for (let i = 0; i < state.installed.length; i++) byName.set(state.installed[i].name, state.installed[i]);
-    const list = [];
-    for (let i = 0; i < state.pinned.length; i++){
-      const a = byName.get(state.pinned[i]);
-      if (a) list.push(a);
-    }
-    if (!state.installedReady){
+    // Tela 1 usa pieces como fonte: sites não dependem do inventário de apps.
+    if (!state.pieces.length && !state.installedReady){
       if (launchpadTrack) launchpadTrack.innerHTML = "";
-      dots.innerHTML = "";
-      return;
-    }
-    if (!list.length){
-      if (launchpadTrack) launchpadTrack.innerHTML = "<div class=\"page\" style=\"display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:13px\">nenhum app encontrado</div>";
       dots.innerHTML = "";
       pages = [];
       return;
     }
+    const byName = new Map();
+    for (let i = 0; i < state.installed.length; i++) byName.set(state.installed[i].name, state.installed[i]);
+    const byPosition = new Map();
+    let highestPosition = -1;
+    for (let i = 0; i < state.pieces.length; i++){
+      const piece = state.pieces[i];
+      const position = Number.isInteger(piece.position) ? piece.position : i;
+      highestPosition = Math.max(highestPosition, position);
+      if (piece.type === "website") byPosition.set(position, piece);
+      else {
+        const a = byName.get(piece.name);
+        if (a) byPosition.set(position, { id: piece.id, type: "app", name: a.name, icon: a.icon });
+      }
+    }
     const pz = pageSize();
+    // O PWA apenas espelha os slots persistidos; a criação de uma nova peça
+    // acontece no picker do host Mac, onde cada célula vazia tem seu Add.
+    const slotCount = Math.max(pz, highestPosition + 1);
+    const list = Array.from({ length: slotCount }, function(_, position){
+      return byPosition.get(position) || null;
+    });
     const chunked = [];
     for (let i = 0; i < list.length; i += pz) chunked.push(list.slice(i, i + pz));
     pages = chunked;
@@ -1340,7 +1463,9 @@
       p.className = "page";
       p.dataset.page = String(idx);
       const wantIcon = idx <= 1; // 1ª e 2ª página com ícone já no first paint
-      for (let i = 0; i < chunk.length; i++) p.appendChild(buildTile(chunk[i], wantIcon));
+      for (let i = 0; i < chunk.length; i++){
+        p.appendChild(chunk[i] ? buildTile(chunk[i], wantIcon) : buildEmptyTile());
+      }
       if (wantIcon) p.dataset.hydrated = "1";
       return p;
     });
@@ -1644,10 +1769,10 @@
     kids.push(head);
     const sub = document.createElement("div");
     sub.style.cssText = "margin-bottom:10px;color:var(--ink-3);font-size:12px";
-    sub.textContent = state.pinned.length >= state.maxPinnedApps
-      ? pinnedLimitMessage() + ". Remova um app para adicionar outro."
+    sub.textContent = state.pieces.length >= state.maxPinnedPieces
+      ? pinnedLimitMessage() + ". Remova uma peça para adicionar outra."
       : state.installed.length + " apps instalados";
-    if (state.pinned.length >= state.maxPinnedApps) sub.style.color = "var(--amber)";
+    if (state.pieces.length >= state.maxPinnedPieces) sub.style.color = "var(--amber)";
     kids.push(sub);
     state.installed.forEach(function(a){
       const pinned = state.pinned.indexOf(a.name) !== -1;
@@ -1672,13 +1797,13 @@
       row.appendChild(nm);
       const pin = document.createElement("span");
       pin.className = "pin";
-      const limitReached = !pinned && state.pinned.length >= state.maxPinnedApps;
+      const limitReached = !pinned && state.pieces.length >= state.maxPinnedPieces;
       pin.textContent = pinned ? "✓ fixado" : (limitReached ? "limite" : "+ fixar");
       if (limitReached) pin.style.color = "var(--amber)";
       row.appendChild(pin);
       makeBtn(row, a.name + (pinned ? ", fixado" : ", fixar"), function(el){
         if (state.pinned.indexOf(el.dataset.name) !== -1) unpinApp(el.dataset.name);
-        else if (state.pinned.length >= state.maxPinnedApps) toast(pinnedLimitMessage(), "err");
+        else if (state.pieces.length >= state.maxPinnedPieces) toast(pinnedLimitMessage(), "err");
         else pinApp(el.dataset.name);
         openPinSheet();
       });
@@ -1930,13 +2055,18 @@
     launchpadRenderPending = false;
     renderLaunchpad(true);
   }
-  function applyAppsPayload(pinned, running, limits){
-    if (!Array.isArray(pinned) || !Array.isArray(running)) return false;
+  function applyAppsPayload(pieces, pinned, running, limits, revision){
+    if (!Array.isArray(pieces) || !Array.isArray(pinned) || !Array.isArray(running)) return false;
+    const nextPieces = pieces.length && typeof pieces[0] === "object"
+      ? pieces
+      : pinned.map(function(name){ return { id: "app:" + name, type: "app", name: name }; });
     applyPinnedLimits(limits);
-    const nextSig = pinned.join("\u0000");
+    const nextSig = nextPieces.map(function(piece){ return piece.id; }).join("\u0000");
     const pinnedChanged = nextSig !== pinnedSig;
     pinnedSig = nextSig;
-    state.pinned = pinned;
+    state.pieces = nextPieces;
+    state.pinned = Array.isArray(pinned) ? pinned : nextPieces.filter(function(piece){ return piece.type === "app"; }).map(function(piece){ return piece.name; });
+    state.revision = Number.isInteger(revision) ? revision : state.revision;
     state.running = running;
     if (pinnedChanged){
       if (document.body.classList.contains("swiping")) launchpadRenderPending = true;
@@ -1985,7 +2115,7 @@
       } else if (m.type === "apps"){
         state.online = true;
         maybeReloadForUi(m.v);
-        applyAppsPayload(m.pinned, m.running, m.limits);
+        applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision);
       }
     };
     ws.onclose = function(){
@@ -2018,10 +2148,10 @@
       const r = await req("/api/apps", { timeout: 4200 });
       if (r.status === 200){
         authed = true;
-        if (Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
+        if (Array.isArray(r.data && (r.data.pieces || r.data.pinned)) && Array.isArray(r.data && r.data.running)){
           ok = true;
           maybeReloadForUi(r.data.v);
-          applyAppsPayload(r.data.pinned, r.data.running, r.data.limits);
+          applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision);
         }
       }
     } catch (e) { /* offline: keep last view */ }
@@ -2041,6 +2171,7 @@
     const at = document.querySelectorAll(".atile");
     for (let i = 0; i < at.length; i++){
       const st = at[i].querySelector(".astatus");
+      if (!st) continue;
       const on = running.has(at[i].dataset.name);
       if (on){ st.textContent = "aberto"; st.classList.add("on"); }
       else { st.textContent = ""; st.classList.remove("on"); }
@@ -2723,7 +2854,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v14").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v16").catch(function() {});
   }
 })();</script>
 </body>

@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openApp, focusApp, activateApp } from "../actions.js";
+import { openApp, openWebsite, focusApp, activateApp } from "../actions.js";
+
+test("@spec:AC-312 openWebsite usa /usr/bin/open com URL em argumento isolado", async () => {
+  const calls = [];
+  await openWebsite("https://example.com/a?b=1", {
+    exec: async (cmd, args) => { calls.push([cmd, args]); return { stdout: "" }; },
+  });
+  assert.deepEqual(calls, [["/usr/bin/open", ["https://example.com/a?b=1"]]]);
+});
 
 test("openApp roda open -a e focus roda osascript", async () => {
   const cmds = [];

@@ -22,8 +22,13 @@ final class DockStore: ObservableObject {
   @Published var online = false
   @Published var lastError: String?
   @Published var lastSyncNote: String?
+  /// Fonte de verdade tipada do dock. `pinned` permanece como projeção legada.
+  @Published private(set) var pieces: [DockPiece] = []
+  @Published private(set) var revision = 0
   @Published var pinned: [String] = []
   @Published var installed: [InstalledApp] = []
+  @Published private(set) var installedReady = false
+  @Published private(set) var installedLoading = false
   @Published var filter = ""
   @Published var loading = false
   @Published var devices = 0
@@ -31,6 +36,7 @@ final class DockStore: ObservableObject {
   @Published var pinCode: String?
   @Published var pinError: String?
   @Published var maxPinnedApps: Int = 39
+  @Published var maxPinnedPieces: Int = 39
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
@@ -133,18 +139,52 @@ final class DockStore: ObservableObject {
   }
 
   func isPinned(_ name: String) -> Bool {
-    pinned.contains(name)
+    pieces.contains { $0.type == .app && $0.name == name }
   }
 
   var isPinnedLimitReached: Bool {
-    pinned.count >= maxPinnedApps
+    pieces.count >= maxPinnedPieces
+  }
+
+  func isPiecePinned(_ id: String) -> Bool {
+    pieces.contains { $0.id == id }
+  }
+
+  private var firstAvailablePosition: Int {
+    let occupied = Set(pieces.map(\.position))
+    return (0..<40).first { !occupied.contains($0) } ?? 0
   }
 
   private func applyPinnedLimits(_ object: [String: Any]?) {
     guard let limits = object?["limits"] as? [String: Any],
-          let max = limits["maxPinnedApps"] as? Int,
+          let max = (limits["maxPinnedPieces"] as? Int) ?? (limits["maxPinnedApps"] as? Int),
           max > 0 else { return }
     if maxPinnedApps != max { maxPinnedApps = max }
+    if maxPinnedPieces != max { maxPinnedPieces = max }
+  }
+
+  private func decodePieces(_ raw: Any?, fallback: [String] = []) -> [DockPiece] {
+    if let rawPieces = raw as? [[String: Any]] {
+      return rawPieces.enumerated().compactMap { index, object in
+        DockPiece(json: object, fallbackPosition: index)
+      }.sorted { $0.position < $1.position }
+    }
+    return fallback.enumerated().map { DockPiece.app($0.element, position: $0.offset) }
+  }
+
+  private func applyConfig(_ cfg: [String: Any]) {
+    let p = cfg["pinned"] as? [String] ?? []
+    let pinnedChanged = pinned != p
+    let nextPieces = decodePieces(cfg["pieces"], fallback: p)
+    if pieces != nextPieces { pieces = nextPieces }
+    let nextRevision = (cfg["revision"] as? Int) ?? (cfg["revision"] as? Double).map(Int.init) ?? 0
+    if revision != nextRevision { revision = nextRevision }
+    // Mantém a projeção antiga para clientes/trechos que ainda a consomem.
+    if pinnedChanged {
+      pinned = p
+      preloadIcons()
+    }
+    applyPinnedLimits(cfg)
   }
 
   func refreshAll() async {
@@ -215,18 +255,21 @@ final class DockStore: ObservableObject {
       }
       if online != true { online = true }
       if lastError != nil { lastError = nil }
+      if !installedReady {
+        await loadInstalled()
+      }
       let nextDevices: Int?
       if let d = obj["devices"] as? Int { nextDevices = d }
       else if let d = obj["devices"] as? Double { nextDevices = Int(d) }
       else { nextDevices = nil }
       if let nextDevices, devices != nextDevices { devices = nextDevices }
       if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        applyPinnedLimits(cfg)
         let pinnedChanged = pinned != p
         if pinnedChanged {
           pinned = p
           preloadIcons()
         }
+        applyConfig(cfg)
       }
     } catch {
       await pingHealthOnly()
@@ -265,20 +308,20 @@ final class DockStore: ObservableObject {
     do {
       let (data, _) = try await session.data(from: url)
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let cfg = obj["config"] as? [String: Any],
-            let p = cfg["pinned"] as? [String] else { return }
-      applyPinnedLimits(cfg)
-      if pinned != p {
-        pinned = p
-        preloadIcons()
-      }
+            let cfg = obj["config"] as? [String: Any] else { return }
+      let p = cfg["pinned"] as? [String] ?? []
+      if pinned != p { pinned = p }
+      applyConfig(cfg)
     } catch {
       lastError = error.localizedDescription
     }
   }
 
   func loadInstalled() async {
+    guard !installedLoading else { return }
     guard let url = URL(string: baseURL + "/api/apps/installed") else { return }
+    installedLoading = true
+    defer { installedLoading = false }
     do {
       let (data, _) = try await session.data(from: url)
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -291,6 +334,7 @@ final class DockStore: ObservableObject {
           icon: (a["icon"] as? Bool) ?? true
         )
       }
+      installedReady = true
       if installed != nextInstalled {
         installed = nextInstalled
         nativeIconCache.removeAll(keepingCapacity: true)
@@ -310,14 +354,26 @@ final class DockStore: ObservableObject {
   }
 
   func pin(_ name: String) async {
-    if !pinned.contains(name) && isPinnedLimitReached {
+    await pin(name, at: firstAvailablePosition)
+  }
+
+  /// Fixa um app no slot exato escolhido pelo usuário; os demais slots não mudam.
+  func pin(_ name: String, at index: Int) async {
+    guard !isPinned(name) else { return }
+    if isPinnedLimitReached {
       lastError = "Limite de 5 páginas atingido"
       lastSyncNote = lastError
       return
     }
+    await pin(name, position: min(max(index, 0), 39))
+  }
+
+  private func pin(_ name: String, position: Int) async {
     // otimista: UI reage na hora; server empurra pros devices via WS
-    let prev = pinned
-    if !pinned.contains(name) { pinned.append(name) }
+    let prev = pieces
+    pieces.append(.app(name, position: position))
+    pieces.sort { $0.position < $1.position }
+    pinned = pieces.compactMap(\.appName)
     lastError = nil
     busyName = name
     defer { busyName = nil }
@@ -325,14 +381,15 @@ final class DockStore: ObservableObject {
     var req = URLRequest(url: url)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": name])
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": name, "position": position])
     req.timeoutInterval = 4
     do {
       let (data, resp) = try await session.data(for: req)
       let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
       if code == 409, let body = obj, body["code"] as? String == "PINNED_LIMIT_REACHED" {
-        pinned = prev
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
         applyPinnedLimits(body)
         let message = body["error"] as? String ?? "Limite de 5 páginas atingido"
         lastError = message
@@ -342,51 +399,31 @@ final class DockStore: ObservableObject {
       guard code == 200,
             let body = obj,
             (body["ok"] as? Bool) == true else {
-        pinned = prev
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
         lastError = "falha ao fixar"
         lastSyncNote = nil
         return
       }
       lastError = nil
-      if let cfg = body["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        applyPinnedLimits(cfg)
-        pinned = p
-      }
+      if let cfg = body["config"] as? [String: Any] { applyConfig(cfg) }
       await afterPinPush()
     } catch {
-      pinned = prev
+      pieces = prev
+      pinned = pieces.compactMap(\.appName)
       lastError = error.localizedDescription
       lastSyncNote = nil
     }
   }
 
-  /// Fixa um app na célula escolhida pelo usuário e preserva a ordem no servidor.
-  func pin(_ name: String, at index: Int) async {
-    guard !pinned.contains(name) else { return }
-    if isPinnedLimitReached {
-      lastError = "Limite de 5 páginas atingido"
-      lastSyncNote = lastError
-      return
-    }
-
-    let previous = pinned
-    let insertionIndex = min(max(index, 0), pinned.count)
-    pinned.insert(name, at: insertionIndex)
-    lastError = nil
-    busyName = name
-    defer { busyName = nil }
-
-    let saved = await savePinnedOrder()
-    guard saved else {
-      pinned = previous
-      return
-    }
-    await afterPinPush()
-  }
-
   func unpin(_ name: String) async {
-    let prev = pinned
-    pinned = pinned.filter { $0 != name }
+    if name.hasPrefix("website:") {
+      await removePiece(name)
+      return
+    }
+    let prev = pieces
+    pieces.removeAll { $0.type == .app && $0.name == name }
+    pinned = pieces.compactMap(\.appName)
     busyName = name
     defer { busyName = nil }
     let enc = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
@@ -400,48 +437,50 @@ final class DockStore: ObservableObject {
       guard code == 200,
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
-        pinned = prev
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
         lastError = "falha ao remover"
         lastSyncNote = nil
         return
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-      }
+      if let cfg = obj["config"] as? [String: Any] { applyConfig(cfg) }
       await afterPinPush()
     } catch {
-      pinned = prev
+      pieces = prev
+      pinned = pieces.compactMap(\.appName)
       lastError = error.localizedDescription
       lastSyncNote = nil
     }
   }
 
   func reorderPinned(from source: IndexSet, to destination: Int) {
-    pinned.move(fromOffsets: source, toOffset: destination)
+    var next = pieces
+    next.move(fromOffsets: source, toOffset: destination)
+    pieces = next
+    pinned = pieces.compactMap(\.appName)
     Task { await savePinnedOrder() }
   }
 
   @discardableResult
   private func savePinnedOrder() async -> Bool {
-    guard let url = URL(string: baseURL + "/api/config/pinned") else { return false }
+    guard let url = URL(string: baseURL + "/api/config/pieces/order") else { return false }
     var req = URLRequest(url: url)
     req.httpMethod = "PUT"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    // envia a lista NA ORDEM do drag (arrastada) — o servidor persiste e empurra pros devices via WS
-    req.httpBody = try? JSONSerialization.data(withJSONObject: ["pinned": pinned])
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["revision": revision, "ids": pieces.map(\.id)])
     req.timeoutInterval = 4
     do {
       let (data, resp) = try await session.data(for: req)
       let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
       guard code == 200,
-            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            (obj["ok"] as? Bool) == true else {
-        lastError = "failed to save order"
+            let object,
+            (object["ok"] as? Bool) == true else {
+        lastError = code == 409 ? "A configuração mudou; recarregue a ordem" : "Falha ao salvar a ordem"
+        if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
         return false
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-      }
+      if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
       return true
     } catch {
       lastError = error.localizedDescription
@@ -452,6 +491,91 @@ final class DockStore: ObservableObject {
   /// Persiste a ordem atual dos favoritos no servidor (chamado ao soltar o drag).
   func persistPinnedOrder() async {
     await savePinnedOrder()
+  }
+
+  func addWebsite(title: String?, url: String, at index: Int? = nil) async {
+    lastError = nil
+    busyName = url
+    defer { busyName = nil }
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces") else { return }
+    let targetPosition = index ?? firstAvailablePosition
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "type": "website", "title": title ?? "", "url": url,
+      "position": min(max(targetPosition, 0), 39),
+    ])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+      guard code == 200, let cfg = object["config"] as? [String: Any], let pieceObject = object["piece"] as? [String: Any], let piece = DockPiece(json: pieceObject) else {
+        lastError = object["error"] as? String ?? "Não foi possível adicionar o site"
+        return
+      }
+      applyConfig(cfg)
+      await afterPinPush()
+    } catch { lastError = error.localizedDescription }
+  }
+
+  func removePiece(_ id: String) async {
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)) else { return }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "DELETE"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["revision": revision])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+      if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
+      if code != 200 { lastError = object["error"] as? String ?? "Não foi possível remover"; return }
+      await afterPinPush()
+    } catch { lastError = error.localizedDescription }
+  }
+
+  func openWebsite(_ id: String) async {
+    guard let endpoint = URL(string: baseURL + "/api/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id) + "/open") else { return }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        lastError = object?["error"] as? String ?? "Não foi possível abrir o site"
+        return
+      }
+      lastError = nil
+    } catch { lastError = error.localizedDescription }
+  }
+
+  func reorderPieces(_ positions: [String: Int]) async {
+    _ = await savePiecesOrder(positions)
+  }
+
+  private func savePiecesOrder(_ positions: [String: Int]) async -> Bool {
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces/order") else { return false }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "PUT"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "revision": revision,
+      "ids": pieces.map(\.id),
+      "positions": positions,
+    ])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
+      if code != 200 { lastError = object?["error"] as? String ?? "Falha ao salvar a ordem"; return false }
+      return true
+    } catch { lastError = error.localizedDescription; return false }
   }
 
   /// Confirma devices escutando (WS) logo após pin — feedback rápido no Mac.

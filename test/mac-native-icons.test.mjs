@@ -38,6 +38,23 @@ test("grid e seletor priorizam o ícone nativo e só usam o endpoint como fallba
   assert.match(picker, /AsyncImage\(url: store\.iconURL\(for: app\.name\)\)/);
 });
 
+test("web link diferencia o favicon com uma moldura branca interna", () => {
+  assert.match(dockIcon, /private var websiteIconImage: some View/);
+  assert.match(dockIcon, /case \.website:\s*websiteIconImage/);
+  assert.match(dockIcon, /Color\.white\.opacity\(0\.96\)/);
+  assert.match(dockIcon, /RoundedRectangle\(cornerRadius: 16, style: \.continuous\)/);
+  assert.match(dockIcon, /clipShape\(RoundedRectangle\(cornerRadius: 12, style: \.continuous\)\)/);
+  assert.match(dockIcon, /frame\(width: 40, height: 40\)[\s\S]*?clipShape\(RoundedRectangle\(cornerRadius: 10, style: \.continuous\)\)/);
+  assert.match(dockIcon, /s2\/favicons/);
+  assert.match(dockIcon, /URLQueryItem\(name: "sz", value: "128"\)/);
+  assert.match(dockIcon, /private var websiteFaviconFallbackURL/);
+  assert.match(picker, /s2\/favicons/);
+  assert.match(picker, /URLQueryItem\(name: "sz", value: "128"\)/);
+  assert.match(picker, /private func websiteIconPlate/);
+  assert.match(picker, /Color\.white\.opacity\(0\.96\)/);
+  assert.match(picker, /RoundedRectangle\(cornerRadius: 10, style: \.continuous\)/);
+});
+
 test("preload não achata em PNG um ícone que o AppKit já fornece nativamente", () => {
   assert.match(store, /if nativeIcon\(for: name\) != nil \{ continue \}/);
 });

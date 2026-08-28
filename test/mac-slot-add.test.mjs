@@ -27,6 +27,21 @@ test("o slot escolhido abre o picker e preserva a posição", () => {
 
 test("inserção direcionada salva a ordem inteira no servidor", () => {
   assert.match(dockStore, /func pin\(_ name: String, at index: Int\) async/);
-  assert.match(dockStore, /pinned\.insert\(name, at: insertionIndex\)/);
-  assert.match(dockStore, /await savePinnedOrder\(\)/);
+  assert.match(dockStore, /"position": position/);
+});
+
+test("grade usa posição persistida e não compacta depois da remoção", () => {
+  assert.match(dockGrid, /let byPosition = Dictionary/);
+  assert.match(dockGrid, /\.position/);
+  assert.match(dockGrid, /case \.add\(let index\)/);
+  assert.doesNotMatch(dockGrid, /displayedPieces\.count \/ pageSize/);
+});
+
+test("modo reorganizar aceita mover um app para slot vazio", () => {
+  assert.match(dockGrid, /private var draftPositions: \[String: Int\]\?/);
+  assert.match(dockGrid, /addButtonModule\(at: index\)[\s\S]*?DropDelegate\(position: index/);
+  assert.match(dockGrid, /struct DropDelegate: SwiftUI\.DropDelegate/);
+  assert.match(dockGrid, /let position: Int/);
+  assert.match(dockGrid, /moveDragged\(to: position, dragged:/);
+  assert.match(dockStore, /"positions": positions/);
 });

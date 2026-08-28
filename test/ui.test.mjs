@@ -157,6 +157,8 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /name="apple-mobile-web-app-capable"\s+content="yes"/, "apple-mobile-web-app-capable=yes");
     assert.match(html, /name="apple-mobile-web-app-status-bar-style"/, "apple-mobile-web-app-status-bar-style deve existir");
     assert.match(html, /rel="apple-touch-icon"/, "apple-touch-icon deve existir");
+    assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: light\)"[^>]*href="\/icon-192\.png"/, "favicon claro deve existir");
+    assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: dark\)"[^>]*href="\/icon-192-dark\.png"/, "favicon escuro deve existir");
     assert.match(html, /viewport-fit=cover/, "viewport-fit=cover deve estar no viewport meta");
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
@@ -370,7 +372,8 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v14/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v16/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");
     assert.match(js, /install/, "sw.js deve ter evento install");

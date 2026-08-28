@@ -5,7 +5,7 @@ struct DockGridView: View {
   @State private var showPicker = false
   @State private var draggedItem: String?
   @State private var currentPage: Int? = 0
-  @State private var draftPinned: [String]?
+  @State private var draftPositions: [String: Int]?
   @State private var isReordering = false
   @State private var pickerInsertIndex: Int?
 
@@ -20,24 +20,35 @@ struct DockGridView: View {
   private let carouselMinPageWidth: CGFloat = 450
 
   private enum TileItem: Hashable {
-    case app(String)
+    case piece(DockPiece)
     case add(Int)
   }
 
-  private var displayedPinned: [String] {
-    draftPinned ?? store.pinned
+  private var displayedPieces: [DockPiece] {
+    guard let draftPositions else { return store.pieces }
+    return store.pieces.compactMap { piece in
+      guard let position = draftPositions[piece.id] else { return nil }
+      return piece.atPosition(position)
+    }.sorted { $0.position < $1.position }
+  }
+
+  private var slotCount: Int {
+    let highestPosition = store.pieces.map(\.position).max().map { $0 + 1 } ?? 0
+    let visibleSlots = max(pageSize, highestPosition)
+    guard store.pieces.count < store.maxPinnedPieces else { return min(40, visibleSlots) }
+    return min(40, visibleSlots % pageSize == 0 ? visibleSlots + 1 : visibleSlots)
   }
 
   private var pages: [[TileItem]] {
-    guard !displayedPinned.isEmpty else { return [] }
-    let pageCount = max(1, (displayedPinned.count / pageSize) + 1)
+    let pageCount = max(1, (slotCount + pageSize - 1) / pageSize)
+    let byPosition = Dictionary(displayedPieces.map { ($0.position, $0) }, uniquingKeysWith: { first, _ in first })
 
     return (0..<pageCount).map { page in
       let start = page * pageSize
       return (0..<pageSize).map { offset in
         let index = start + offset
-        guard index < displayedPinned.count else { return .add(index) }
-        return .app(displayedPinned[index])
+        guard let piece = byPosition[index] else { return .add(index) }
+        return .piece(piece)
       }
     }
   }
@@ -54,8 +65,6 @@ struct DockGridView: View {
     VStack(spacing: 0) {
       if !store.online {
         offlineView
-      } else if store.pinned.isEmpty {
-        emptyDock
       } else {
         dockPages
       }
@@ -66,7 +75,7 @@ struct DockGridView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(DokkeTheme.canvas.ignoresSafeArea())
     .overlay(alignment: .bottom) {
-      if store.online && !store.pinned.isEmpty {
+      if store.online {
         HStack(spacing: 0) {
           if isReordering {
             HStack(spacing: 6) {
@@ -88,13 +97,13 @@ struct DockGridView: View {
         .frame(maxWidth: .infinity)
       }
     }
-    .onChange(of: displayedPinned.count) { _, _ in
+    .onChange(of: displayedPieces.count) { _, _ in
       currentPage = min(currentPageIndex, pageCount - 1)
     }
     .onChange(of: isReordering) { _, active in
       guard !active else { return }
       draggedItem = nil
-      draftPinned = nil
+      draftPositions = nil
     }
     .sheet(isPresented: $showPicker, onDismiss: { pickerInsertIndex = nil }) {
       AppPickerSheet(insertAt: pickerInsertIndex)
@@ -199,8 +208,8 @@ struct DockGridView: View {
           LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
             ForEach(items, id: \.self) { item in
               switch item {
-              case .app(let name):
-                appTile(name: name)
+              case .piece(let piece):
+                pieceTile(piece: piece)
               case .add(let index):
                 addButtonModule(at: index)
               }
@@ -211,8 +220,8 @@ struct DockGridView: View {
         LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
           ForEach(items, id: \.self) { item in
             switch item {
-            case .app(let name):
-              appTile(name: name)
+            case .piece(let piece):
+              pieceTile(piece: piece)
             case .add(let index):
               addButtonModule(at: index)
             }
@@ -223,21 +232,37 @@ struct DockGridView: View {
     .frame(maxWidth: .infinity)
   }
 
-  private func startDrag(_ name: String) {
+  private func startDrag(_ id: String) {
     guard isReordering else { return }
-    draggedItem = name
-    draftPinned = nil
+    draggedItem = id
+    draftPositions = nil
   }
 
   @ViewBuilder
-  private func appTile(name: String) -> some View {
+  private func pieceTile(piece: DockPiece) -> some View {
+    if piece.type == .app {
+      appTile(name: piece.name ?? piece.displayTitle, id: piece.id, position: piece.position)
+    } else if isReordering {
+      DockIcon(piece: piece, allowsRemoval: false, isReordering: true)
+        .onDrag {
+          startDrag(piece.id)
+          return NSItemProvider(object: piece.id as NSString)
+        }
+        .onDrop(of: [.text], delegate: DropDelegate(position: piece.position, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
+    } else {
+      DockIcon(piece: piece, allowsRemoval: true, isReordering: false)
+    }
+  }
+
+  @ViewBuilder
+  private func appTile(name: String, id: String, position: Int) -> some View {
     if isReordering {
       DockIcon(name: name, allowsRemoval: false, isReordering: true)
         .onDrag {
-          startDrag(name)
-          return NSItemProvider(object: name as NSString)
+          startDrag(id)
+          return NSItemProvider(object: id as NSString)
         }
-        .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
+        .onDrop(of: [.text], delegate: DropDelegate(position: position, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
     } else {
       DockIcon(name: name, allowsRemoval: true, isReordering: false)
     }
@@ -263,29 +288,19 @@ struct DockGridView: View {
 
   @ViewBuilder
   private func addButtonModule(at index: Int) -> some View {
-    AddSlotButton(index: index, size: tileSize) {
+    let addSlot = AddSlotButton(index: index, size: tileSize) {
       pickerInsertIndex = index
       showPicker = true
     }
-    .disabled(store.isPinnedLimitReached)
-    .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar app nesta posição")
-  }
-
-  private var emptyDock: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "app.dashed")
-        .font(.system(size: 40))
-        .foregroundStyle(.white.opacity(0.6))
-      Text("Nenhum app fixado")
-        .font(.headline)
-        .foregroundStyle(.white.opacity(0.9))
-      Text("Clique em + para adicionar apps ao dock")
-        .font(.subheadline)
-        .foregroundStyle(.white.opacity(0.56))
-      Button("Adicionar Apps") { showPicker = true }
-        .buttonStyle(.bordered)
+    if isReordering {
+      addSlot
+        .onDrop(of: [.text], delegate: DropDelegate(position: index, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
+        .help("Mover app para a posição \(index + 1)")
+    } else {
+      addSlot
+        .disabled(store.isPinnedLimitReached)
+        .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar app nesta posição")
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private var offlineView: some View {
@@ -335,33 +350,37 @@ private struct AddSlotButton: View {
 }
 
 struct DropDelegate: SwiftUI.DropDelegate {
-  let item: String
+  let position: Int
   let store: DockStore
   @Binding var draggedItem: String?
-  @Binding var draft: [String]?
+  @Binding var draftPositions: [String: Int]?
 
   func performDrop(info: DropInfo) -> Bool {
-    guard let d = draft else { return false }
-    store.pinned = d
+    guard let positions = draftPositions else { return false }
     draggedItem = nil
-    draft = nil
-    Task { await store.persistPinnedOrder() }
+    draftPositions = nil
+    Task { await store.reorderPieces(positions) }
     return true
   }
 
   func dropEntered(info: DropInfo) {
     guard let dragged = draggedItem,
-          dragged != item else { return }
+          let sourcePosition = (draftPositions ?? Dictionary(uniqueKeysWithValues: store.pieces.map { ($0.id, $0.position) }))[dragged],
+          sourcePosition != position else { return }
 
-    let base = draft ?? store.pinned
-    guard let fromIndex = base.firstIndex(of: dragged),
-          let toIndex = base.firstIndex(of: item) else { return }
-
-    var next = base
+    var next = draftPositions ?? Dictionary(uniqueKeysWithValues: store.pieces.map { ($0.id, $0.position) })
     withAnimation(.spring(response: 0.3)) {
-      next.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+      moveDragged(to: position, dragged: dragged, in: &next)
     }
-    draft = next
+    draftPositions = next
+  }
+
+  private func moveDragged(to targetPosition: Int, dragged: String, in positions: inout [String: Int]) {
+    guard let sourcePosition = positions[dragged] else { return }
+    if let displacedID = positions.first(where: { $0.key != dragged && $0.value == targetPosition })?.key {
+      positions[displacedID] = sourcePosition
+    }
+    positions[dragged] = targetPosition
   }
 
   func dropUpdated(info: DropInfo) -> DropProposal? {

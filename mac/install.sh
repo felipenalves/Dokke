@@ -17,6 +17,33 @@ BUILD_ONLY=0
 MAX_BUNDLE_SIZE_MB=121
 VERIFY_BUNDLE=""
 
+find_actool() {
+  local candidate help_output
+  local -a candidates=()
+
+  if [[ -n "${DOKKE_ACTOOL:-}" ]]; then
+    candidates+=("${DOKKE_ACTOOL}")
+  fi
+  if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    candidates+=("${DEVELOPER_DIR}/usr/bin/actool")
+  fi
+  candidate="$(xcrun --find actool 2>/dev/null || true)"
+  if [[ -n "${candidate}" ]]; then
+    candidates+=("${candidate}")
+  fi
+  candidates+=("/Applications/Xcode.app/Contents/Developer/usr/bin/actool")
+
+  for candidate in "${candidates[@]}"; do
+    [[ -x "${candidate}" ]] || continue
+    help_output="$("${candidate}" --help 2>&1 || true)"
+    if [[ "${help_output}" == *"actool"* && "${help_output}" != *"requires Xcode"* ]]; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 validate_bundle_budget() {
   local bundle_path="$1" node_count bundle_kib max_bundle_kib
   if [[ ! -d "${bundle_path}" ]]; then
@@ -67,6 +94,11 @@ if [[ ! -x "${BIN_PATH}" ]]; then
   echo "error: missing binary: ${BIN_PATH}" >&2
   exit 1
 fi
+# O binário release não precisa carregar símbolos locais para distribuição.
+# Removê-los reduz o app sem alterar o executável ou o comportamento do host.
+if command -v strip >/dev/null 2>&1; then
+  strip -x "${BIN_PATH}"
+fi
 ICON_HELPER_PATH="$(swift build -c debug --show-bin-path)/DokkeIconHelper"
 if [[ ! -x "${ICON_HELPER_PATH}" ]]; then
   echo "error: missing icon helper: ${ICON_HELPER_PATH}" >&2
@@ -85,7 +117,38 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 cp "${BIN_PATH}" "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 cp "${ROOT}/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
-cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+# O .icns mantém compatibilidade com sistemas anteriores ao Icon Composer.
+if [[ -f "${ROOT}/AppIcon.icns" ]]; then
+  cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/Dokke.icns"
+else
+  echo "error: legacy icon missing: ${ROOT}/AppIcon.icns" >&2
+  exit 1
+fi
+
+# The raw .icon source is compiled by actool into Assets.car and is not copied into the final bundle;
+# shipping the source package alone can make the system show a generic placeholder.
+ICON_SOURCE="${ROOT}/../assets/branding/dokke-icon/Dokke.icon"
+ACTOOL="$(find_actool || true)"
+if [[ ! -d "${ICON_SOURCE}" ]]; then
+  echo "error: Icon Composer source missing: ${ICON_SOURCE}" >&2
+  exit 1
+elif [[ -n "${ACTOOL}" ]]; then
+  echo "==> compile adaptive icon (${ACTOOL})"
+  "${ACTOOL}" "${ICON_SOURCE}" \
+    --compile "${APP_BUNDLE}/Contents/Resources" \
+    --app-icon Dokke \
+    --enable-on-demand-resources NO \
+    --development-region pt-BR \
+    --target-device mac \
+    --platform macosx \
+    --minimum-deployment-target 14.0 \
+    --enable-icon-stack-fallback-generation=disabled \
+    --include-all-app-icons \
+    --errors --warnings \
+    --output-partial-info-plist /dev/null
+else
+  echo "warn: actool ausente — usando Dokke.icns; o ícone adaptativo exige Xcode 26."
+fi
 
 # pack do server no bundle (Contents/Resources/Dokke/) — sem isso o app instalado
 # não acha o server.js (cwd do Launchpad é /) e o dock morre offline.
@@ -105,6 +168,7 @@ PUBLIC_FILES=(
   "manifest.webmanifest"
   "sw.js"
   "icon-192.png"
+  "icon-192-dark.png"
   "icon-512.png"
   "version.json"
   "dokke.apk"

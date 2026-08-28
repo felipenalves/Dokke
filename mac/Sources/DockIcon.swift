@@ -216,10 +216,24 @@ private struct HoverControlGlassModifier: ViewModifier {
 
 struct DockIcon: View {
   @EnvironmentObject private var store: DockStore
-  let name: String
+  let piece: DockPiece
   let allowsRemoval: Bool
   var isReordering: Bool = false
   @State private var isHovered = false
+
+  private var name: String {
+    piece.type == .app ? (piece.name ?? piece.displayTitle) : piece.id
+  }
+
+  init(piece: DockPiece, allowsRemoval: Bool, isReordering: Bool = false) {
+    self.piece = piece
+    self.allowsRemoval = allowsRemoval
+    self.isReordering = isReordering
+  }
+
+  init(name: String, allowsRemoval: Bool, isReordering: Bool = false) {
+    self.init(piece: .app(name), allowsRemoval: allowsRemoval, isReordering: isReordering)
+  }
 
   private let iconSize: CGFloat = 68
   private let iconCardSize: CGFloat = 80
@@ -280,8 +294,8 @@ struct DockIcon: View {
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          .help("Remover app fixado")
-          .accessibilityLabel("Remover app fixado")
+          .help(piece.type == .website ? "Remover site fixado" : "Remover app fixado")
+          .accessibilityLabel(piece.type == .website ? "Remover site fixado" : "Remover app fixado")
           .frame(width: iconCardSize, height: iconCardSize)
           .zIndex(5)
         }
@@ -322,7 +336,7 @@ struct DockIcon: View {
         }
       }
 
-      Text(name)
+      Text(piece.displayTitle)
         .font(.system(size: 11))
         .lineLimit(1)
         .truncationMode(.middle)
@@ -332,7 +346,10 @@ struct DockIcon: View {
     }
     .frame(width: iconCardSize, height: iconCardSize + 24)
     .contentShape(Rectangle())
-    .onTapGesture { /* future: launch app */ }
+    .onTapGesture {
+      guard piece.type == .website else { return }
+      Task { await store.openWebsite(piece.id) }
+    }
     .contextMenu {
       Button("Remover do Dock") {
         Task { await store.unpin(name) }
@@ -343,7 +360,7 @@ struct DockIcon: View {
   @ViewBuilder
   private var iconWithEffects: some View {
     iconImage
-      .modifier(JiggleModifier(isActive: isReordering, seed: name.hashValue))
+      .modifier(JiggleModifier(isActive: isReordering, seed: piece.id.hashValue))
       .frame(width: iconSize, height: iconSize)
       .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
       .blur(radius: isHovered ? hoverBlurRadius : 0)
@@ -354,26 +371,99 @@ struct DockIcon: View {
 
   @ViewBuilder
   private var iconImage: some View {
-    if let native = store.nativeIcon(for: name) {
-      Image(nsImage: native)
-        .resizable()
-        .scaledToFit()
-    } else if let cached = store.cachedIcon(for: name) {
-      cached.resizable().scaledToFit()
-    } else {
-      AsyncImage(url: store.iconURL(for: name)) { phase in
-        switch phase {
-        case .success(let img):
-          img.resizable().scaledToFit()
-        default:
-          ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
-              .fill(Color.white.opacity(0.14))
-            Text(String(name.prefix(1)))
-              .font(.title.bold())
-              .foregroundStyle(.white)
-          }
+    switch piece.type {
+    case .app:
+      let name = piece.name ?? piece.displayTitle
+      if let native = store.nativeIcon(for: name) {
+        Image(nsImage: native).resizable().scaledToFit()
+      } else if let cached = store.cachedIcon(for: name) {
+        cached.resizable().scaledToFit()
+      } else {
+        AsyncImage(url: store.iconURL(for: name)) { phase in
+          fallbackIcon(phase: phase, label: name)
         }
+    }
+    case .website:
+      websiteIconImage
+    }
+  }
+
+  @ViewBuilder
+  private var websiteIconImage: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color.white.opacity(0.96))
+      AsyncImage(url: websiteFaviconURL) { phase in
+        switch phase {
+        case .success(let image):
+          roundedWebsiteImage(image)
+        case .failure:
+          AsyncImage(url: websiteFaviconFallbackURL) { fallbackPhase in
+            switch fallbackPhase {
+            case .success(let image):
+              roundedWebsiteImage(image)
+            default:
+              websiteFallbackGlyph
+            }
+          }
+        default:
+          websiteFallbackGlyph
+        }
+      }
+      .frame(width: 50, height: 50)
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+    .frame(width: 56, height: 56)
+  }
+
+  private func roundedWebsiteImage(_ image: Image) -> some View {
+    image
+      .resizable()
+      .interpolation(.high)
+      .scaledToFit()
+      .frame(width: 40, height: 40)
+      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+  }
+
+  private var websiteFaviconURL: URL? {
+    guard let host = websiteHost else { return nil }
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "www.google.com"
+    components.path = "/s2/favicons"
+    components.queryItems = [
+      URLQueryItem(name: "domain", value: host),
+      URLQueryItem(name: "sz", value: "128"),
+    ]
+    return components.url
+  }
+
+  private var websiteFaviconFallbackURL: URL? {
+    guard let raw = piece.url, let siteURL = URL(string: raw),
+          let scheme = siteURL.scheme, let host = siteURL.host else { return nil }
+    return URL(string: "\(scheme)://\(host)/favicon.ico")
+  }
+
+  private var websiteHost: String? {
+    guard let raw = piece.url, let siteURL = URL(string: raw) else { return nil }
+    return siteURL.host
+  }
+
+  @ViewBuilder
+  private var websiteFallbackGlyph: some View {
+    Image(systemName: "globe")
+      .font(.system(size: 22, weight: .medium))
+      .foregroundStyle(.black.opacity(0.58))
+  }
+
+  @ViewBuilder
+  private func fallbackIcon(phase: AsyncImagePhase, label: String) -> some View {
+    switch phase {
+    case .success(let image): image.resizable().scaledToFit()
+    default:
+      ZStack {
+        RoundedRectangle(cornerRadius: cornerRadius).fill(Color.white.opacity(0.14))
+        Text(label).font(.title.bold()).foregroundStyle(.white)
       }
     }
   }

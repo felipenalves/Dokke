@@ -24,7 +24,10 @@ test("GET /api/config vazio retorna pinned vazio", async () => {
   try {
     const r = await fetch(`${base(s)}/api/config`);
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true, config: { pinned: [], limits: pinnedLimits() } });
+    assert.deepEqual(await r.json(), {
+      ok: true,
+      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits() },
+    });
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 

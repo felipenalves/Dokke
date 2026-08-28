@@ -33,6 +33,8 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>O Dokke precisa acessar a rede local para que seus dispositivos encontrem e se conectem ao servidor do Mac.</string>
 	<key>CFBundleIconFile</key>
-	<string>AppIcon.icns</string>
+	<string>Dokke.icns</string>
+	<key>CFBundleIconName</key>
+	<string>Dokke</string>
 </dict>
 </plist>
