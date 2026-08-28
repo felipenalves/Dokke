@@ -37,6 +37,7 @@ test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () 
   assert.match(picker, /\("TikTok", "https:\/\/tiktok\.com"\)/);
   assert.match(picker, /\("LinkedIn", "https:\/\/linkedin\.com"\)/);
   assert.match(picker, /\("ChatGPT", "https:\/\/chatgpt\.com"\)/);
+  assert.match(picker, /\("Documente", "https:\/\/documenteclub\.vercel\.app"\)/);
   assert.doesNotMatch(picker, /\("Notion", "https:\/\/notion\.so"\)/);
   assert.doesNotMatch(picker, /\("Figma", "https:\/\/figma\.com"\)/);
   assert.match(picker, /\("Pinterest", "https:\/\/pinterest\.com"\)/);

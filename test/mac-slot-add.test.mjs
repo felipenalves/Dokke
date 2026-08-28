@@ -51,3 +51,13 @@ test("modo reorganizar aceita mover um app para slot vazio", () => {
   assert.match(dockGrid, /moveDragged\(to: position, dragged:/);
   assert.match(dockStore, /"positions": positions/);
 });
+
+test("reordenação anima o movimento e mantém o preview até salvar", () => {
+  assert.match(dockGrid, /private enum TileItem: Hashable, Identifiable/);
+  assert.match(dockGrid, /case \.piece\(let piece\): return piece\.id/);
+  assert.match(dockGrid, /case \.add\(let index\): return "add:/);
+  assert.match(dockGrid, /ForEach\(items\) \{ item in/);
+  assert.match(dockGrid, /withAnimation\(reduceMotion \? nil : \.snappy\(duration: 0\.24, extraBounce: 0\.02\)\) \{[\s\S]*draftPositions = next/);
+  assert.match(dockGrid, /let didSave = await store\.reorderPieces\(positions\)[\s\S]*draftPositions == positions[\s\S]*draftPositions = nil/);
+  assert.match(dockGrid, /accessibilityReduceMotion/);
+});

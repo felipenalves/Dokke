@@ -21,6 +21,7 @@ struct AppPickerSheet: View {
     ("TikTok", "https://tiktok.com"),
     ("LinkedIn", "https://linkedin.com"),
     ("ChatGPT", "https://chatgpt.com"),
+    ("Documente", "https://documenteclub.vercel.app"),
   ]
 
   init(insertAt: Int? = nil) {

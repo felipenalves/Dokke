@@ -553,8 +553,9 @@ final class DockStore: ObservableObject {
     } catch { lastError = error.localizedDescription }
   }
 
-  func reorderPieces(_ positions: [String: Int]) async {
-    _ = await savePiecesOrder(positions)
+  @discardableResult
+  func reorderPieces(_ positions: [String: Int]) async -> Bool {
+    await savePiecesOrder(positions)
   }
 
   private func savePiecesOrder(_ positions: [String: Int]) async -> Bool {

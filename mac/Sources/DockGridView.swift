@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DockGridView: View {
   @EnvironmentObject private var store: DockStore
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showPicker = false
   @State private var draggedItem: String?
   @State private var currentPage: Int? = 0
@@ -20,9 +21,16 @@ struct DockGridView: View {
   private let carouselMaxPageWidth: CGFloat = 458
   private let carouselMinPageWidth: CGFloat = 450
 
-  private enum TileItem: Hashable {
+  private enum TileItem: Hashable, Identifiable {
     case piece(DockPiece)
     case add(Int)
+
+    var id: String {
+      switch self {
+      case .piece(let piece): return piece.id
+      case .add(let index): return "add:\(index)"
+      }
+    }
   }
 
   private var displayedPieces: [DockPiece] {
@@ -204,7 +212,7 @@ struct DockGridView: View {
       if #available(macOS 26, *) {
         GlassEffectContainer(spacing: tileSpacing) {
           LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
-            ForEach(items, id: \.self) { item in
+            ForEach(items) { item in
               switch item {
               case .piece(let piece):
                 pieceTile(piece: piece)
@@ -216,7 +224,7 @@ struct DockGridView: View {
         }
       } else {
         LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
-          ForEach(items, id: \.self) { item in
+          ForEach(items) { item in
             switch item {
             case .piece(let piece):
               pieceTile(piece: piece)
@@ -246,7 +254,7 @@ struct DockGridView: View {
           startDrag(piece.id)
           return NSItemProvider(object: piece.id as NSString)
         }
-        .onDrop(of: [.text], delegate: DropDelegate(position: piece.position, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
+        .onDrop(of: [.text], delegate: DropDelegate(position: piece.position, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
     } else {
       DockIcon(piece: piece, allowsRemoval: true, isReordering: false)
     }
@@ -260,7 +268,7 @@ struct DockGridView: View {
           startDrag(id)
           return NSItemProvider(object: id as NSString)
         }
-        .onDrop(of: [.text], delegate: DropDelegate(position: position, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
+        .onDrop(of: [.text], delegate: DropDelegate(position: position, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
     } else {
       DockIcon(name: name, allowsRemoval: true, isReordering: false)
     }
@@ -292,7 +300,7 @@ struct DockGridView: View {
     }
     if isReordering {
       addSlot
-        .onDrop(of: [.text], delegate: DropDelegate(position: index, store: store, draggedItem: $draggedItem, draftPositions: $draftPositions))
+        .onDrop(of: [.text], delegate: DropDelegate(position: index, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
         .help("Mover app para a posição \(index + 1)")
     } else {
       addSlot
@@ -354,14 +362,24 @@ private struct AddSlotButton: View {
 struct DropDelegate: SwiftUI.DropDelegate {
   let position: Int
   let store: DockStore
+  let reduceMotion: Bool
   @Binding var draggedItem: String?
   @Binding var draftPositions: [String: Int]?
 
   func performDrop(info: DropInfo) -> Bool {
     guard let positions = draftPositions else { return false }
     draggedItem = nil
-    draftPositions = nil
-    Task { await store.reorderPieces(positions) }
+    Task { @MainActor in
+      let didSave = await store.reorderPieces(positions)
+      guard draftPositions == positions else { return }
+      if didSave {
+        draftPositions = nil
+      } else {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) {
+          draftPositions = nil
+        }
+      }
+    }
     return true
   }
 
@@ -371,10 +389,10 @@ struct DropDelegate: SwiftUI.DropDelegate {
           sourcePosition != position else { return }
 
     var next = draftPositions ?? Dictionary(uniqueKeysWithValues: store.pieces.map { ($0.id, $0.position) })
-    withAnimation(.spring(response: 0.3)) {
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.24, extraBounce: 0.02)) {
       moveDragged(to: position, dragged: dragged, in: &next)
+      draftPositions = next
     }
-    draftPositions = next
   }
 
   private func moveDragged(to targetPosition: Int, dragged: String, in positions: inout [String: Int]) {
