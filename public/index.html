@@ -1224,7 +1224,11 @@
 
   function favLong(el){
     // aceita elemento (hold) ou string (nome) — evita TypeError se alguém passar name direto
-    const name = typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : "");
+    const piece = typeof el === "object" && el && el.type ? el : null;
+    const isWebsite = piece && piece.type === "website";
+    const name = piece
+      ? (piece.title || piece.url || "site")
+      : (typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : ""));
     if (!name) return;
     const content = document.createDocumentFragment();
     const icon = document.createElement("div");
@@ -1239,16 +1243,34 @@
       iconImg.dataset.iconLoaded = "1";
       iconImg.classList.add("ready");
     });
-    iconImg.addEventListener("error", function(){ iconFallback(iconImg, icon, name); });
+    iconImg.addEventListener("error", function(){
+      if (isWebsite && iconImg.dataset.faviconFallback !== "1") {
+        iconImg.dataset.faviconFallback = "1";
+        const fallback = websiteFaviconFallbackPath(piece.url);
+        if (fallback) {
+          iconImg.src = fallback;
+          return;
+        }
+      }
+      iconFallback(iconImg, icon, name);
+    });
     icon.appendChild(iconImg);
-    loadIcon(name, iconImg, icon);
+    if (isWebsite) {
+      const favicon = websiteFaviconPath(piece.url);
+      if (favicon) iconImg.src = favicon;
+      else iconFallback(iconImg, icon, name);
+    } else {
+      loadIcon(name, iconImg, icon);
+    }
     content.appendChild(icon);
     const title = document.createElement("h3");
-    title.textContent = "Remover dos favoritos?";
+    title.textContent = isWebsite ? "Remover website dos favoritos?" : "Remover dos favoritos?";
     content.appendChild(title);
     const body = document.createElement("div");
     body.className = "body";
-    body.textContent = "\"" + name + "\" sai dos fixos. O app continua no Launchpad.";
+    body.textContent = isWebsite
+      ? "\"" + name + "\" sai dos fixos."
+      : "\"" + name + "\" sai dos fixos. O app continua no Launchpad.";
     content.appendChild(body);
     const btns = document.createElement("div");
     btns.className = "btns";
@@ -1267,7 +1289,11 @@
       content,
       function(){
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
-        $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){ closeModal(); unpinApp(name); });
+        $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){
+          closeModal();
+          if (isWebsite) unpinPiece(piece.id);
+          else unpinApp(name);
+        });
       }, "confirm");
   }
 
@@ -1275,7 +1301,7 @@
     const id = el && el.dataset ? el.dataset.id : "";
     const piece = state.pieces.find(function(item){ return item.id === id; });
     if (!piece) return;
-    if (piece.type === "website") unpinPiece(piece.id);
+    if (piece.type === "website") favLong(piece);
     else if (state.pinned.indexOf(piece.name) !== -1) favLong(piece.name);
     else pinApp(piece.name);
   }

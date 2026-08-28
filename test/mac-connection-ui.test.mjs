@@ -149,20 +149,22 @@ test("paleta usa canvas, página e seleção próximas da captura", () => {
 });
 
 test("menu bar abre o Dokke, sincroniza dados e expõe atualização somente quando necessário", () => {
-  assert.match(app, /WindowGroup\("Dokke", id: "main"\)/);
+  assert.match(app, /Window\("Dokke", id: "main"\)/);
+  assert.doesNotMatch(app, /WindowGroup\("Dokke", id: "main"\)/);
   assert.match(menuBar, /@EnvironmentObject private var updater: DokkeUpdateManager/);
   assert.match(menuBar, /openWindow\(id: "main"\)/);
   assert.match(menuBar, /Sincronizar agora/);
   assert.match(menuBar, /Verificar atualizações/);
 });
 
-test("menu bar destaca o estado e exibe métricas úteis", () => {
-  assert.match(menuBar, /Image\(systemName: "circle\.fill"\)/);
-  assert.match(menuBar, /foregroundStyle\(store\.online \? Color\.green : Color\.red/);
-  assert.match(menuBar, /Text\("Dokke"\)[\s\S]*?foregroundStyle\(\.primary\)/);
+test("menu bar mantém o topo neutro e exibe métricas úteis", () => {
+  const intro = menuBar.slice(0, menuBar.indexOf("Divider()"));
+  assert.doesNotMatch(intro, /Image\(systemName: "circle\.fill"\)/);
+  assert.doesNotMatch(intro, /Text\("Dokke"\)/);
   assert.doesNotMatch(menuBar, /Dokke online|Dokke offline/);
-  assert.ok(menuBar.includes('Text("Dispositivos conectados: \\(store.devices)")'));
-  assert.ok(menuBar.includes('Text("Slots fixados: \\(store.pinned.count)")'));
+  assert.ok(menuBar.includes('Text("Dispositivo: \\(store.devices)")'));
+  assert.ok(menuBar.includes('Text("Fixados: \\(store.pinned.count)")'));
+  assert.doesNotMatch(menuBar, /Dispositivos conectados|Slots fixados/);
   assert.match(menuBar, /\.font\(\.caption\)/);
   assert.match(menuBar, /\.foregroundStyle\(\.secondary\)/);
 });
@@ -174,7 +176,14 @@ test("menu bar usa ícones nos comandos e mostra a versão no rodapé", () => {
   assert.match(menuBar, /Label\("Baixar e instalar", systemImage: "arrow\.down\.circle"\)/);
   assert.match(menuBar, /Label\("Sair", systemImage: "power"\)/);
   assert.match(menuBar, /CFBundleShortVersionString/);
-  assert.ok(menuBar.includes('Text("Versão \\(appVersion)")'));
+  const footer = menuBar.slice(menuBar.lastIndexOf("      Divider()"));
+  assert.match(footer, /Button\s*\{\s*\}\s*label: \{/);
+  assert.match(footer, /HStack\(alignment: \.center, spacing: 0\)/);
+  assert.ok(footer.includes('Text("Versão \\(appVersion)")'));
+  assert.match(footer, /fixedSize\(horizontal: true, vertical: false\)/);
+  assert.match(footer, /Spacer\(minLength: 12\)[\s\S]*Text\("Dokke"\)/);
+  assert.match(footer, /\.frame\(width: 250, alignment: \.leading\)/);
+  assert.match(footer, /\.disabled\(true\)/);
   assert.match(menuBar, /\.frame\(minWidth: 250\)/);
 });
 

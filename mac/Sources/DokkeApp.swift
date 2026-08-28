@@ -80,7 +80,7 @@ struct DokkeApp: App {
   @StateObject private var updater = DokkeUpdateManager()
 
   var body: some Scene {
-    WindowGroup("Dokke", id: "main") {
+    Window("Dokke", id: "main") {
       ContentView()
         .environmentObject(store)
         .environmentObject(server)

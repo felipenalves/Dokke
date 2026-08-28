@@ -172,7 +172,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(settleBody, /if \(nextName === "recents"\)\{[\s\S]*renderPendingRecentsBeforeTransition\(\);[\s\S]*void screensEl\.offsetHeight;/, "render pendente deve sair do frame final da transição");
     assert.match(settleBody, /if \(nextName === "apps"\)\{[\s\S]*renderPendingLaunchpadBeforeTransition\(\);[\s\S]*void screensEl\.offsetHeight;/, "render pendente do launchpad deve sair do frame final da transição");
     assert.doesNotMatch(html, /landscape = next;\s*renderLaunchpad\(true\)/, "rotação não deve reconstruir a tela 1");
-    assert.match(html, /function favLong[\s\S]*?textContent = "\\\"" \+ name/, "nome de app no modal deve entrar via textContent");
+    assert.match(html, /function favLong[\s\S]*?title\.textContent = isWebsite \?[\s\S]*?body\.textContent = isWebsite/, "nomes de apps e websites devem entrar no modal via textContent");
     assert.match(html, /function modal\(html, beforeMount, kind\)/, "modal deve aceitar variação visual sem duplicar a lógica");
     assert.match(html, /classList\.toggle\("confirm-scrim", isConfirm\)/, "confirmação deve usar scrim próprio do Dokke");
     assert.match(html, /className = "aglass confirm-icon"/, "confirmação deve mostrar o ícone real do app");
@@ -187,6 +187,35 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /scene\.dataset\.scene = s[\s\S]*?scene\.textContent = s/, "nome de cena deve entrar via DOM, não HTML cru");
     assert.doesNotMatch(html, /data-scene=\\\"" \+ s/, "nome de cena não pode ser concatenado em atributo HTML");
   } finally { await close(); }
+});
+
+test("long press de website pede confirmação antes de remover o fixo", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    config: {
+      schemaVersion: 2,
+      revision: 1,
+      pieces: [{ id: "website:https://example.com", type: "website", title: "Example", url: "https://example.com", position: 0 }],
+      pinned: [],
+    },
+  });
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    const tileLongStart = html.indexOf("function tileLong");
+    const tileLongEnd = html.indexOf("// ---------- rendering: launchpad", tileLongStart);
+    const tileLong = html.slice(tileLongStart, tileLongEnd);
+    const favLongStart = html.indexOf("function favLong");
+    const favLongEnd = html.indexOf("function tileLong", favLongStart);
+    const favLong = html.slice(favLongStart, favLongEnd);
+    assert.match(tileLong, /if \(piece\.type === "website"\) favLong\(piece\)/);
+    assert.doesNotMatch(tileLong, /if \(piece\.type === "website"\) unpinPiece\(piece\.id\)/);
+    assert.match(favLong, /const isWebsite = piece && piece\.type === "website"/);
+    assert.match(favLong, /websiteFaviconPath\(piece\.url\)/);
+    assert.match(favLong, /unpinPiece\(piece\.id\)/);
+    assert.match(favLong, /\}, "confirm"\);/);
+  } finally {
+    await close();
+  }
 });
 
 test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", async () => {

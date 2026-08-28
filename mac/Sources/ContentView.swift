@@ -622,17 +622,9 @@ struct MenuBarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      HStack(spacing: 8) {
-        Image(systemName: "circle.fill")
-          .font(.system(size: 8, weight: .semibold))
-          .foregroundStyle(store.online ? Color.green : Color.red)
-        Text("Dokke")
-          .fontWeight(.semibold)
-          .foregroundStyle(.primary)
-      }
       HStack(spacing: 10) {
-        Text("Dispositivos conectados: \(store.devices)")
-        Text("Slots fixados: \(store.pinned.count)")
+        Text("Dispositivo: \(store.devices)")
+        Text("Fixados: \(store.pinned.count)")
       }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -678,10 +670,22 @@ struct MenuBarView: View {
         Label("Sair", systemImage: "power")
       }
       Divider()
-      Text("Versão \(appVersion)")
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .center)
+      Button {} label: {
+        HStack(alignment: .center, spacing: 0) {
+          Text("Versão \(appVersion)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: true, vertical: false)
+          Spacer(minLength: 12)
+          Text("Dokke")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .frame(width: 250, alignment: .leading)
+      }
+      .buttonStyle(.plain)
+      .disabled(true)
     }
     .padding(8)
     .frame(minWidth: 250)
