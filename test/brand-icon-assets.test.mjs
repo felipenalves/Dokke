@@ -72,3 +72,15 @@ test("o AppIcon do macOS contém todas as escalas e o icns regenerado", () => {
   const icns = readFileSync(path.join(root, "mac", "AppIcon.icns"));
   assert.equal(icns.subarray(0, 4).toString("ascii"), "icns");
 });
+
+test("o fallback legado do Mac usa o mesmo ícone Default atualizado", () => {
+  const iconset = path.join(root, "mac", "AppIcon.iconset");
+  assert.deepEqual(
+    readFileSync(path.join(iconset, "icon_512x512.png")),
+    readFileSync(path.join(root, "public", "icon-512.png"))
+  );
+  assert.deepEqual(
+    readFileSync(path.join(iconset, "icon_512x512@2x.png")),
+    readFileSync(path.join(sourceDir, "Icon-dokke-iOS-Default-1024@1x.png"))
+  );
+});

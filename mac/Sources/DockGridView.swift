@@ -10,6 +10,7 @@ struct DockGridView: View {
   @State private var pickerInsertIndex: Int?
 
   private let pageSize = 8
+  private let maxPageCount = 5
   private let tileSize: CGFloat = 80
   private let tileSpacing: CGFloat = 22
   private let pageHeight: CGFloat = 288
@@ -33,10 +34,7 @@ struct DockGridView: View {
   }
 
   private var slotCount: Int {
-    let highestPosition = store.pieces.map(\.position).max().map { $0 + 1 } ?? 0
-    let visibleSlots = max(pageSize, highestPosition)
-    guard store.pieces.count < store.maxPinnedPieces else { return min(40, visibleSlots) }
-    return min(40, visibleSlots % pageSize == 0 ? visibleSlots + 1 : visibleSlots)
+    pageSize * maxPageCount
   }
 
   private var pages: [[TileItem]] {
@@ -325,7 +323,11 @@ private struct AddSlotButton: View {
       VStack(spacing: 8) {
         ZStack {
           RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(Color.black.opacity(isHovered ? 0.38 : 0.30))
+            .fill(Color.white.opacity(isHovered ? 0.12 : 0.05))
+            .overlay(
+              RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(isHovered ? 0.18 : 0.08), lineWidth: 1)
+            )
             .frame(width: size, height: size)
 
           if isHovered {

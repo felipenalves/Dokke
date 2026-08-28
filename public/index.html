@@ -29,7 +29,7 @@
     --edge: rgba(255,255,255,.10);
     --dokke-safe-top: env(safe-area-inset-top, 0px);
     --dokke-safe-bottom: env(safe-area-inset-bottom, 0px);
-    --app-tile: 38vmin;
+    --app-tile: min(40vmin, max(21vw,21vh), 180px);
     --icon-turn: 0deg;
   }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
@@ -152,49 +152,49 @@
     flex: 0 0 100%;
     scroll-snap-align: start;
     scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    /* A largura do slide permanece integral para não alterar o scrollLeft. */
+    --tile: var(--app-tile);
+    --tile-r: 0.28;
+    --tile-in: 0.90;
+    --tile-in-r: 0.19;
+  }
+  .page-grid{
+    width: 100%; height: 100%;
     display: grid;
     grid-template-columns: repeat(2, var(--tile));
     grid-template-rows: repeat(4, var(--tile));
-    grid-gap: 8px;
+    grid-gap: 12px;
     justify-content: center;
     align-content: center;
     padding: 10px 24px;
     box-sizing: border-box;
-    /* tile orientação-independente (vmin = dimensão menor): rotação não relayouta nada */
-    --tile: var(--app-tile);
-    --tile-r: 0.28;
-    --tile-in: 0.92;
-    --tile-in-r: 0.19;
+    transform-origin: center;
   }
   @supports (width: min(1px, 2px)){
-    .page{
-      grid-gap: min(2.5vmin, 12px);
+    .page-grid{
+      /* Uma régua única evita que o giro aumente demais o vão entre slides
+         ou deixe os slots colados no retrato. */
+      grid-gap: clamp(20px, 3vw, 32px);
       padding: clamp(8px, 2vw, 24px) clamp(12px, 3vw, 32px);
-      --tile: var(--app-tile);
     }
   }
-  /* Tablets have room for a larger launchpad. The tile still respects both
-     axes so the 2x4/4x2 grid never overflows the viewport. */
+  /* A régua do landscape é compartilhada com o portrait: trocar o sentido
+     não pode aumentar ou reduzir os cards. */
   @media (min-width:700px){
-    :root{ --app-tile: min(42vw, 22vh, 220px); }
-  }
-  @media (orientation: portrait) and (max-width:699px){
-    /* Em celulares, a régua é limitada pela largura e pelas quatro linhas.
-       O 38vmin anterior deixava muito espaço vazio nas laterais. O limite
-       vertical desconta stage, dots, gaps e safe area do PWA standalone; sem
-       isso o último glass escapava alguns pixels pelo rodapé do iPhone. */
-    :root{ --app-tile: min(44vw, calc((100vh - var(--dokke-safe-top) - var(--dokke-safe-bottom) - 96px) / 4), 190px); }
-    @supports (height: 100dvh){
-      :root{ --app-tile: min(44vw, calc((100dvh - var(--dokke-safe-top) - var(--dokke-safe-bottom) - 96px) / 4), 190px); }
-    }
+    :root{ --app-tile: min(max(22vw,22vh), min(30vw,30vh), 220px); }
   }
   /* WebView antigo (ex.: Android 6 sem grid): fallback flex 2x4 */
   @supports not (display: grid){
-    .page{
+    .page-grid{
       display: flex; flex-wrap: wrap;
       align-content: center; justify-content: space-around;
     }
-    .page .atile{ flex: 0 0 38vmin; }
+    .page-grid .atile{ flex: 0 0 var(--app-tile); }
   }
   .atile{
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -210,9 +210,9 @@
     pointer-events: none;
   }
   .atile.empty .aglass{
-    background: rgba(0,0,0,.22);
-    border-color: rgba(0,0,0,.16);
-    box-shadow: none;
+    background: rgba(255,255,255,.035);
+    border-color: rgba(240,135,55,.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 0 0 1px rgba(0,0,0,.12);
   }
   .atile.empty .aglass::before{ display:none; }
   /* O gesto controla apenas o pager; a superfície dos cards permanece
@@ -309,7 +309,7 @@
   }
   .atile .aglass::before{ border-radius: 26%; }
   .atile .aglass .gicon, .atile .aglass img.aicon{
-    width: 92%; height: 92%;
+    width: 90%; height: 90%;
     border-radius: 18%;
   }
   .atile .aglass img.aicon:not(.ready){ opacity:0; transition: opacity .16s ease; }
@@ -419,14 +419,14 @@
   .deck::-webkit-scrollbar{ display: none; }
   .deck-inner{
     display: flex; flex-direction: row; align-items: flex-end; justify-content: safe center;
-    gap: min(2.5vmin, 12px);
+    gap: min(3vmin, 14px);
     min-width: 100%; height: 100%;
     padding: 0;
     box-sizing: border-box;
   }
   .deck-group{
     display: flex; flex: 0 0 auto; align-items: flex-end;
-    gap: min(2.5vmin, 12px);
+    gap: min(3vmin, 14px);
     height: 100%;
   }
   .dcard{
@@ -484,30 +484,26 @@
   .robscard .os{ font-size: 11px; font-weight: 600; color: var(--ink-2); }
   .robscard .arr{ font-size: 16px; color: var(--ink-2); }
 
-  /* ---- landscape: grid 4x2, dock escala (GPU) ---- */
+  /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
   @media (orientation: landscape){
     main{ padding: calc(env(safe-area-inset-top, 0px) + 6px) 0 0; }
-    .page{
+    .page-grid{
       grid-template-columns: repeat(4, var(--tile));
       grid-template-rows: repeat(2, var(--tile));
     }
     .launchpad{
-      transform-origin: 50% 50%;
-      transition: transform .25s ease;
+      /* A interface não gira nem escala; o APK pode ajustar apenas a arte
+         interna, enquanto o PWA mantém os ícones na posição normal. */
     }
     .dots{
       padding: 18px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     }
   }
-  @media (orientation: landscape) and (min-width:700px){
-    :root{ --app-tile: min(22vw, 30vh, 220px); }
+  /* Em touch landscape a régua de tamanho continua responsiva; o espaçamento
+     dos slots permanece o mesmo contrato global do retrato. */
+  @media (orientation: landscape) and (pointer: coarse){
+    :root{ --app-tile: min(max(22vw,22vh), min(30vw,40vh), 200px); }
   }
-  /* Em celulares deitados, reserve folga para os dois rows, o gap e o
-     safe-area do Android; sem isso o glass encosta e pode ser cortado. */
-  @media (orientation: landscape) and (max-height:500px){
-    :root{ --app-tile: min(40vmin, 21vw, 180px); }
-  }
-
   /* ---- drawer (OBS) ---- */
   .drawer{
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
@@ -743,18 +739,6 @@
   .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
   .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
 
-  /* ---- trava da tela de auth em retrato somente no mobile ---- */
-  /* Em celulares touch deitados, mantemos o scrim em proporção retrato,
-     rodando 90° no eixo. Navegadores desktop e telas grandes permanecem
-     horizontais, mesmo quando a janela está em landscape. */
-  @media (orientation: landscape) and (pointer: coarse) and (max-width:1024px){
-    body.is-login .login-scrim{
-      position: fixed; top: 50%; left: 50%;
-      width: 100vh; height: 100vw;
-      transform: translate(-50%, -50%) rotate(90deg);
-      transform-origin: center;
-    }
-  }
 </style>
 </head>
 <body id="dokke">
@@ -874,7 +858,8 @@
   }
 
   // ---------- login wall (pin de acesso) ----------
-  let authed = false, loginOpen = false, portraitLockRequested = false;
+  let authed = false, loginOpen = false;
+  let portraitLockRequested = false, appPortraitLockRequested = false;
   function isMobileTouchViewport(){
     return window.matchMedia("(pointer: coarse) and (max-width:1024px)").matches;
   }
@@ -906,9 +891,9 @@
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
     $("loginScrim").classList.add("show");
-    // trava a orientação em retrato apenas no mobile touch
+    // O APK pode travar a orientação nativamente; o PWA segue o navegador.
     document.body.classList.add("is-login");
-    portraitLockRequested = isMobileTouchViewport();
+    portraitLockRequested = isMobileTouchViewport() && IS_ANDROID_WEBVIEW;
     if (portraitLockRequested) lockPortrait();
     syncLoginViewport();
     if (pin) setTimeout(function(){ pin.focus(); }, 80);
@@ -917,7 +902,7 @@
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
-    if (portraitLockRequested){
+    if (portraitLockRequested && !appPortraitLockRequested){
       portraitLockRequested = false;
       unlockOrientation();
     }
@@ -935,6 +920,11 @@
     try {
       if (screen.orientation && screen.orientation.unlock){ screen.orientation.unlock(); }
     } catch (e){}
+  }
+  function requestAppPortraitLock(){
+    if (!isMobileTouchViewport()) return;
+    appPortraitLockRequested = IS_ANDROID_WEBVIEW;
+    if (IS_ANDROID_WEBVIEW) lockPortrait();
   }
   function loginError(msg){
     const err = $("loginErr");
@@ -982,7 +972,7 @@
     }
     return next;
   }
-  const DEFAULT_MAX_PINNED_APPS = 39;
+  const DEFAULT_MAX_PINNED_APPS = 40;
   const DEFAULT_MAX_PINNED_PAGES = 5;
   function pageSize(){ return 8; }
 
@@ -1274,6 +1264,8 @@
   function websiteFaviconPath(raw){
     try {
       const u = new URL(raw);
+      const host = u.hostname.toLowerCase().replace(/^www\./, "");
+      if (host === "github.com") return "https://github.githubassets.com/favicons/favicon.svg";
       return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(u.host) + "&sz=128";
     } catch (e) { return ""; }
   }
@@ -1436,11 +1428,9 @@
     const byName = new Map();
     for (let i = 0; i < state.installed.length; i++) byName.set(state.installed[i].name, state.installed[i]);
     const byPosition = new Map();
-    let highestPosition = -1;
     for (let i = 0; i < state.pieces.length; i++){
       const piece = state.pieces[i];
       const position = Number.isInteger(piece.position) ? piece.position : i;
-      highestPosition = Math.max(highestPosition, position);
       if (piece.type === "website") byPosition.set(position, piece);
       else {
         const a = byName.get(piece.name);
@@ -1450,7 +1440,8 @@
     const pz = pageSize();
     // O PWA apenas espelha os slots persistidos; a criação de uma nova peça
     // acontece no picker do host Mac, onde cada célula vazia tem seu Add.
-    const slotCount = Math.max(pz, highestPosition + 1);
+    const pageCount = Math.max(1, Number(state.maxPinnedPages) || DEFAULT_MAX_PINNED_PAGES);
+    const slotCount = pageCount * pz;
     const list = Array.from({ length: slotCount }, function(_, position){
       return byPosition.get(position) || null;
     });
@@ -1462,10 +1453,13 @@
       const p = document.createElement("div");
       p.className = "page";
       p.dataset.page = String(idx);
+      const grid = document.createElement("div");
+      grid.className = "page-grid";
       const wantIcon = idx <= 1; // 1ª e 2ª página com ícone já no first paint
       for (let i = 0; i < chunk.length; i++){
-        p.appendChild(chunk[i] ? buildTile(chunk[i], wantIcon) : buildEmptyTile());
+        grid.appendChild(chunk[i] ? buildTile(chunk[i], wantIcon) : buildEmptyTile());
       }
+      p.appendChild(grid);
       if (wantIcon) p.dataset.hydrated = "1";
       return p;
     });
@@ -1516,27 +1510,56 @@
   // ---- paisagem: dock mantém geometria retrato, só escala (GPU); ícones legíveis ----
   function layoutDockScale(){
     if (document.body.classList.contains("swiping")) return;
-    if (!launchpad || !pages.length){
+    const pageEls = launchpadTrack ? [...launchpadTrack.children] : [];
+    const gridEls = pageEls.map(page => page.firstElementChild).filter(Boolean);
+    if (!launchpad || !pages.length || !pageEls.length || !gridEls.length){
       if (launchpad && launchpad.style.transform) launchpad.style.transform = "";
+      for (const grid of gridEls) grid.style.transform = "";
       return;
     }
-    let cleared = true;
-    const land = typeof matchMedia === "function" && matchMedia("(orientation: landscape)").matches;
-    if (land){
-      const pg = launchpadTrack && launchpadTrack.firstElementChild;
-      const kids = pg && pg.children.length ? pg.children : null;
-      if (kids){
-        const first = kids[0], last = kids[kids.length - 1];
-        const contentH = (last.offsetTop + last.offsetHeight) - first.offsetTop;
-        const s = (launchpad.clientHeight || 1) / contentH;
-        const cur = parseFloat(launchpad.style.transform) || 0;
-        if (contentH > 0 && s < 1 && Math.abs(s - cur) > 0.01){
-          launchpad.style.transform = "scale(" + s.toFixed(3) + ")";
-          cleared = false;
-        }
-      }
+    // O pager continua sendo a janela fixa de recorte. Escalar o próprio
+    // launchpad também move essa janela e deixa os extremos dos cards fora
+    // dela; a escala deve ficar na página, ao redor do centro da grade.
+    if (launchpad.style.transform) launchpad.style.transform = "";
+    // A escala anterior altera os rects. Limpe-a antes de medir para que a
+    // próxima execução seja idempotente e não fique alternando/pulsando.
+    for (const grid of gridEls){
+      grid.style.transform = "";
     }
-    if (cleared && launchpad.style.transform) launchpad.style.transform = "";
+    const availableH = launchpad.clientHeight;
+    let scale = 1;
+    const firstGrid = gridEls[0];
+    const firstKids = firstGrid && firstGrid.children.length ? firstGrid.children : null;
+    if (firstKids){
+      const first = firstKids[0], last = firstKids[firstKids.length - 1];
+      const firstRect = first.getBoundingClientRect();
+      const lastRect = last.getBoundingClientRect();
+      const contentH = lastRect.bottom - firstRect.top;
+      if (contentH > 0) scale = Math.min(1, availableH / contentH);
+    }
+    if (scale < 1){
+      const next = "scale(" + scale.toFixed(3) + ")";
+      for (const grid of gridEls) grid.style.transform = next;
+    }
+  }
+  function physicalIconTurn(){
+    try {
+      // deviceorientation continua disponível quando o viewport está travado
+      // em retrato; por isso tem prioridade sobre a orientação CSS.
+      if (typeof window._lastGamma === "number" && Math.abs(window._lastGamma) > 30){
+        return window._lastGamma < 0 ? "-90deg" : "90deg";
+      }
+      if (typeof window.orientation === "number"){
+        if (window.orientation === 90) return "90deg";
+        if (window.orientation === -90 || window.orientation === 270) return "-90deg";
+      }
+      if (screen.orientation){
+        const angle = screen.orientation.angle;
+        if (angle === 90) return "90deg";
+        if (angle === 270 || angle === -90) return "-90deg";
+      }
+    } catch (err) {}
+    return "0deg";
   }
   function landNeedsSecondary(){
     if (!matchMedia("(orientation: landscape)").matches) return false;
@@ -1560,30 +1583,36 @@
     syncIconOrientation();
   }
   function syncIconOrientation(){
-    // O browser já gira o viewport. A grade muda para 4x2 via CSS; girar
-    // novamente a imagem real do app deixa ícones como Notas e Warp de lado.
-    document.documentElement.style.setProperty("--icon-turn", "0deg");
+    // No PWA o navegador controla a orientação do viewport; a arte continua
+    // na posição normal. Só o APK nativo usa o sensor para girar o ícone.
+    const iconTurn = IS_ANDROID_WEBVIEW ? physicalIconTurn() : "0deg";
+    document.documentElement.style.setProperty("--icon-turn", iconTurn);
   }
   try {
     window.addEventListener("deviceorientation", function(e){
       if (typeof e.gamma !== "number") return;
       window._lastGamma = e.gamma;
-      if (Math.abs(e.gamma) > 30 && matchMedia("(orientation: landscape)").matches) updateLandDir();
+      if (Math.abs(e.gamma) > 30 || !matchMedia("(orientation: landscape)").matches) updateLandDir();
     });
   } catch (err) {}
   let scaleTimer = null;
   function watchScale(){
     clearInterval(scaleTimer);
     scaleTimer = setInterval(function(){
-      if (matchMedia("(orientation: landscape)").matches) layoutDockScale();
+      layoutDockScale();
     }, 800);
   }
   try {
     matchMedia("(orientation: landscape)").addEventListener("change", function(){ layoutDockScale(); updateLandDir(); });
     window.addEventListener("resize", function(){ layoutDockScale(); updateLandDir(); });
-    window.addEventListener("orientationchange", function(){ layoutDockScale(); updateLandDir(); });
-    document.addEventListener("visibilitychange", function(){ layoutDockScale(); updateLandDir(); });
-    window.addEventListener("pageshow", function(){ layoutDockScale(); updateLandDir(); });
+    window.addEventListener("orientationchange", function(){
+      if (appPortraitLockRequested) lockPortrait();
+      layoutDockScale();
+      updateLandDir();
+    });
+    document.addEventListener("visibilitychange", function(){ layoutDockScale(); updateLandDir(); syncScreenWakeLock(); });
+    window.addEventListener("pageshow", function(){ layoutDockScale(); updateLandDir(); requestScreenWakeLock(); });
+    window.addEventListener("pagehide", releaseScreenWakeLock);
   } catch (err) {}
   updateLandDir();
   watchScale();
@@ -1978,6 +2007,40 @@
   // ---------- polling (pausa com aba/PWA em background) ----------
   function pageHidden(){
     return typeof document.hidden !== "undefined" && document.hidden;
+  }
+  let screenWakeLock = null;
+  let screenWakeLockRequest = 0;
+  async function requestScreenWakeLock(){
+    if (IS_ANDROID_WEBVIEW || !window.isSecureContext || pageHidden() || !navigator.wakeLock || typeof navigator.wakeLock.request !== "function") return;
+    if (screenWakeLock && !screenWakeLock.released) return;
+    const requestId = ++screenWakeLockRequest;
+    try {
+      const lock = await navigator.wakeLock.request("screen");
+      if (requestId !== screenWakeLockRequest || pageHidden()){
+        try { await lock.release(); } catch (e) {}
+        return;
+      }
+      screenWakeLock = lock;
+      lock.addEventListener("release", function(){
+        if (screenWakeLock === lock) screenWakeLock = null;
+      });
+    } catch (e) {
+      screenWakeLock = null;
+    }
+  }
+  function releaseScreenWakeLock(){
+    screenWakeLockRequest += 1;
+    const lock = screenWakeLock;
+    screenWakeLock = null;
+    if (!lock || typeof lock.release !== "function") return;
+    try {
+      const released = lock.release();
+      if (released && typeof released.catch === "function") released.catch(function(){});
+    } catch (e) {}
+  }
+  function syncScreenWakeLock(){
+    if (pageHidden()) releaseScreenWakeLock();
+    else requestScreenWakeLock();
   }
   let healthT = null, appsT = null;
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
@@ -2844,6 +2907,8 @@
 
   // boot real depende do login (cookie válido) — 401 reabre a wall
   function boot(){
+    requestAppPortraitLock();
+    requestScreenWakeLock();
     connectStatusWs();
     loadApps();
     loadInstalled();
@@ -2854,7 +2919,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v16").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v24").catch(function() {});
   }
 })();</script>
 </body>

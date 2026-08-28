@@ -6,8 +6,8 @@ const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
 export const MAX_DOCK_SLOTS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES;
-// Mantém o teto em cinco páginas e uma célula livre no último slide.
-export const MAX_PINNED_PIECES = PINNED_PAGE_SIZE * PINNED_MAX_PAGES - 1;
+// Mantém o teto em cinco páginas completas; Add existe em cada slot vazio.
+export const MAX_PINNED_PIECES = PINNED_PAGE_SIZE * PINNED_MAX_PAGES;
 // Alias público mantido para o contrato legado de apps.
 export const MAX_PINNED_APPS = MAX_PINNED_PIECES;
 export const PINNED_LIMIT_CODE = "PINNED_LIMIT_REACHED";

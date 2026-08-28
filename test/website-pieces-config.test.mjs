@@ -93,13 +93,13 @@ test("@spec:AC-307 normalização não reconstrói sites a partir de pinned lega
 });
 
 test("@spec:AC-319 limite anuncia peças totais e mantém alias de apps", () => {
-  assert.equal(MAX_PINNED_PIECES, 39);
+  assert.equal(MAX_PINNED_PIECES, 40);
   assert.equal(MAX_PINNED_APPS, MAX_PINNED_PIECES);
   assert.deepEqual(pinnedLimits(), {
     pageSize: 8,
     maxPages: 5,
-    maxPinnedPieces: 39,
-    maxPinnedApps: 39,
+    maxPinnedPieces: 40,
+    maxPinnedApps: 40,
   });
 });
 

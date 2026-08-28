@@ -35,8 +35,8 @@ final class DockStore: ObservableObject {
   @Published var busyName: String?
   @Published var pinCode: String?
   @Published var pinError: String?
-  @Published var maxPinnedApps: Int = 39
-  @Published var maxPinnedPieces: Int = 39
+  @Published var maxPinnedApps: Int = 40
+  @Published var maxPinnedPieces: Int = 40
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?

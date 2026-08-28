@@ -5,6 +5,7 @@ import test from "node:test";
 const dockGrid = await readFile(new URL("../mac/Sources/DockGridView.swift", import.meta.url), "utf8");
 const dockIcon = await readFile(new URL("../mac/Sources/DockIcon.swift", import.meta.url), "utf8");
 const contentView = await readFile(new URL("../mac/Sources/ContentView.swift", import.meta.url), "utf8");
+const dockIconStart = dockIcon.indexOf("struct DockIcon");
 const dockRoot = dockGrid.slice(
   dockGrid.indexOf("var body: some View"),
   dockGrid.indexOf(".overlay(alignment: .bottom"),
@@ -23,11 +24,11 @@ const iconCard = dockIcon.slice(
 );
 const iconCardSurface = dockIcon.slice(
   dockIcon.indexOf("private var iconCardSurface"),
-  dockIcon.indexOf("var body: some View"),
+  dockIcon.indexOf("var body: some View", dockIconStart),
 );
 const dockIconBody = dockIcon.slice(
-  dockIcon.indexOf("var body: some View"),
-  dockIcon.indexOf("@ViewBuilder\n  private var iconWithEffects"),
+  dockIcon.indexOf("var body: some View", dockIconStart),
+  dockIcon.indexOf("@ViewBuilder\n  private var iconWithEffects", dockIconStart),
 );
 const appKitHoverTracker = dockIcon.slice(
   dockIcon.indexOf("private struct AppKitHoverTracker"),
@@ -47,6 +48,13 @@ test("slides de apps seguem o carrossel visual da referência", () => {
   assert.doesNotMatch(dockGrid, /Text\("Apps fixados"\)/);
   assert.doesNotMatch(dockGrid, /arrow\.clockwise|Atualizar apps/);
   assert.doesNotMatch(dockGrid, /Página anterior|Próxima página|chevron\.left|chevron\.right/);
+});
+
+test("nomes longos dos apps usam reticências no final e têm leitura reforçada", () => {
+  assert.match(
+    dockIcon,
+    /Text\(piece\.displayTitle\)[\s\S]*?\.font\(\.system\(size: 12, weight: \.semibold\)\)[\s\S]*?\.lineLimit\(1\)[\s\S]*?\.truncationMode\(\.tail\)/,
+  );
 });
 
 test("Apps e Conectar usam o mesmo canvas visual", () => {
@@ -100,6 +108,8 @@ test("conteúdo ocupa o topo sem barra nativa e preserva os semáforos", () => {
 
 test("paginação continua baseada em oito apps por slide", () => {
   assert.match(dockGrid, /let pageSize = 8/);
+  assert.match(dockGrid, /private let maxPageCount = 5/);
+  assert.match(dockGrid, /pageSize \* maxPageCount/);
   assert.match(dockGrid, /tileSize: CGFloat = 80/);
   assert.match(dockGrid, /\.scrollTargetBehavior\(\.viewAligned\)/);
   assert.match(dockGrid, /\.scrollPosition\(id: \$currentPage, anchor: \.leading\)/);
@@ -208,12 +218,13 @@ test("ícone preserva respiro visível dentro do card glass e label legível", (
   assert.match(iconCardSurface, /\.fill\(Color\.white\.opacity\(0\.07\)\)/);
   assert.match(iconCardSurface, /\.fill\(DokkeTheme\.page\.opacity\(0\.26\)\)/);
   assert.match(iconCardSurface, /\.overlay\(iconCardBorder\)/);
-  assert.match(dockIcon, /\.strokeBorder\(Color\.white\.opacity\(0\.12\), lineWidth: 1\)/);
+  assert.match(dockIcon, /\.strokeBorder\(Color\.white\.opacity\(0\.08\), lineWidth: 1\)/);
   assert.doesNotMatch(iconCardSurface, /\.shadow\(/);
   assert.match(dockIcon, /\.padding\(6\)/);
   assert.match(dockIcon, /\.frame\(width: iconCardSize, height: iconCardSize \+ 24\)/);
+  assert.match(dockIcon, /\.font\(\.system\(size: 12, weight: \.semibold\)\)/);
   assert.match(dockIcon, /\.lineLimit\(1\)/);
-  assert.match(dockIcon, /\.truncationMode\(\.middle\)/);
+  assert.match(dockIcon, /\.truncationMode\(\.tail\)/);
 });
 
 test("ícone do app fica nítido acima da superfície do card", () => {

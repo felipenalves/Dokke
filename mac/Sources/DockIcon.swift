@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import SwiftUI
 
 private struct AppKitHoverTracker: NSViewRepresentable {
@@ -214,6 +215,237 @@ private struct HoverControlGlassModifier: ViewModifier {
   }
 }
 
+enum WebsiteFaviconSource {
+  static func urls(for rawURL: String) -> [URL] {
+    let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    let candidate = trimmed.range(of: "^[a-z][a-z\\d+.-]*:", options: .regularExpression) == nil
+      ? "https://\(trimmed)"
+      : trimmed
+    guard let siteURL = URL(string: candidate), let host = siteURL.host else { return [] }
+
+    let normalizedHost = host.lowercased().replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
+    var urls: [URL] = []
+    var seen = Set<String>()
+
+    func add(_ url: URL?) {
+      guard let url, seen.insert(url.absoluteString).inserted else { return }
+      urls.append(url)
+    }
+
+    switch normalizedHost {
+    case "github.com":
+      add(URL(string: "https://github.com/apple-touch-icon.png"))
+    case "whatsapp.com":
+      add(URL(string: "https://whatsapp.com/favicon.ico"))
+    case "youtube.com":
+      add(URL(string: "https://www.youtube.com/s/desktop/f13793d9/img/favicon_144x144.png"))
+    case "pinterest.com":
+      add(URL(string: "https://s.pinimg.com/webapp/logo_transparent_144x144-3da7a67b.png"))
+    case "linkedin.com":
+      add(URL(string: "https://www.linkedin.com/favicon.ico"))
+    case "tiktok.com":
+      add(URL(string: "https://www.tiktok.com/favicon.ico"))
+    default:
+      break
+    }
+
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = host
+    components.path = "/apple-touch-icon.png"
+    add(components.url)
+
+    components.scheme = siteURL.scheme ?? "https"
+    components.path = "/favicon.ico"
+    add(components.url)
+
+    var googleComponents = URLComponents()
+    googleComponents.scheme = "https"
+    googleComponents.host = "www.google.com"
+    googleComponents.path = "/s2/favicons"
+    googleComponents.queryItems = [
+      URLQueryItem(name: "domain", value: normalizedHost),
+      URLQueryItem(name: "sz", value: "128"),
+    ]
+    add(googleComponents.url)
+
+    return urls
+  }
+}
+
+@MainActor
+final class WebsiteFaviconLoader: ObservableObject {
+  @Published private(set) var image: NSImage?
+  private var loadedURL = ""
+
+  func load(rawURL: String) async {
+    guard !rawURL.isEmpty, loadedURL != rawURL || image == nil else { return }
+    loadedURL = rawURL
+    image = nil
+
+    guard let pageURL = WebsiteFaviconSource.pageURL(for: rawURL) else { return }
+    let discovered = await discoveredIconURLs(from: pageURL)
+    var candidates = discovered
+    var seen = Set<URL>()
+    candidates.append(contentsOf: WebsiteFaviconSource.urls(for: rawURL))
+
+    for candidate in candidates where seen.insert(candidate).inserted {
+      do {
+        try Task.checkCancellation()
+      } catch {
+        return
+      }
+      guard let resolved = await image(from: candidate) else { continue }
+      image = resolved
+      return
+    }
+  }
+
+  private func discoveredIconURLs(from pageURL: URL) async -> [URL] {
+    var request = URLRequest(url: pageURL)
+    request.timeoutInterval = 6
+    request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+    request.setValue("Mozilla/5.0 Dokke/1.0", forHTTPHeaderField: "User-Agent")
+
+    do {
+      let (data, response) = try await URLSession.shared.data(for: request)
+      guard let httpResponse = response as? HTTPURLResponse,
+            (200..<400).contains(httpResponse.statusCode),
+            let html = String(data: data, encoding: .utf8) else { return [] }
+      let baseURL = httpResponse.url ?? pageURL
+      return Self.parseIconLinks(from: html, baseURL: baseURL)
+    } catch {
+      return []
+    }
+  }
+
+  private func image(from url: URL) async -> NSImage? {
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 6
+    request.setValue("image/avif,image/webp,image/png,image/x-icon,image/*;q=0.8", forHTTPHeaderField: "Accept")
+
+    do {
+      let (data, response) = try await URLSession.shared.data(for: request)
+      guard let httpResponse = response as? HTTPURLResponse,
+            (200..<400).contains(httpResponse.statusCode) else { return nil }
+      return NSImage(data: data)
+    } catch {
+      return nil
+    }
+  }
+
+  private struct IconLink {
+    let url: URL
+    let score: Int
+  }
+
+  private static func parseIconLinks(from html: String, baseURL: URL) -> [URL] {
+    guard let linkRegex = try? NSRegularExpression(
+      pattern: "<link\\b[^>]*>",
+      options: [.caseInsensitive]
+    ) else { return [] }
+    let linkRange = NSRange(html.startIndex..<html.endIndex, in: html)
+    let attributeRegex = try? NSRegularExpression(
+      pattern: "(href|rel|sizes|type)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))",
+      options: [.caseInsensitive]
+    )
+    var links: [IconLink] = []
+
+    for match in linkRegex.matches(in: html, range: linkRange) {
+      guard let tagRange = Range(match.range, in: html),
+            let attributeRegex else { continue }
+      let tag = String(html[tagRange])
+      let tagNSRange = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+      var attributes: [String: String] = [:]
+
+      for attribute in attributeRegex.matches(in: tag, range: tagNSRange) {
+        guard let keyRange = Range(attribute.range(at: 1), in: tag) else { continue }
+        let key = String(tag[keyRange]).lowercased()
+        let valueRange = [2, 3, 4].compactMap { Range(attribute.range(at: $0), in: tag) }.first
+        if let valueRange {
+          attributes[key] = String(tag[valueRange])
+        }
+      }
+
+      let rels = Set((attributes["rel"] ?? "").lowercased().split { $0 == " " || $0 == "\t" })
+      let isIcon = rels.contains("icon") || rels.contains("shortcut") || rels.contains("apple-touch-icon") || rels.contains("apple-touch-icon-precomposed")
+      guard isIcon, let href = attributes["href"], !href.isEmpty,
+            !href.lowercased().hasPrefix("data:"),
+            !(attributes["type"] ?? "").lowercased().contains("svg"),
+            !href.lowercased().contains(".svg"),
+            let url = URL(string: href, relativeTo: baseURL)?.absoluteURL else { continue }
+
+      let sizes = (attributes["sizes"] ?? "").split(separator: " ").compactMap { token -> Int? in
+        let dimension = token.split(separator: "x").compactMap { Int($0) }
+        return dimension.max()
+      }.max() ?? 0
+      let isAppleTouch = rels.contains("apple-touch-icon") || rels.contains("apple-touch-icon-precomposed")
+      links.append(IconLink(url: url, score: sizes + (isAppleTouch ? 1_000 : 0)))
+    }
+
+    var seen = Set<URL>()
+    return links
+      .sorted { $0.score > $1.score }
+      .compactMap { seen.insert($0.url).inserted ? $0.url : nil }
+      .prefix(8)
+      .map { $0 }
+  }
+}
+
+extension WebsiteFaviconSource {
+  static func pageURL(for rawURL: String) -> URL? {
+    let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    let candidate = trimmed.range(of: "^[a-z][a-z\\d+.-]*:", options: .regularExpression) == nil
+      ? "https://\(trimmed)"
+      : trimmed
+    return URL(string: candidate)
+  }
+}
+
+struct WebsiteFaviconView: View {
+  let rawURL: String
+  let imageSize: CGFloat
+  let fallbackSize: CGFloat
+  let imageCornerRadius: CGFloat
+  @StateObject private var loader = WebsiteFaviconLoader()
+
+  init(rawURL: String, imageSize: CGFloat, fallbackSize: CGFloat, imageCornerRadius: CGFloat) {
+    self.rawURL = rawURL
+    self.imageSize = imageSize
+    self.fallbackSize = fallbackSize
+    self.imageCornerRadius = imageCornerRadius
+  }
+
+  var body: some View {
+    Group {
+      if let image = loader.image {
+        resolvedImage(image)
+      } else {
+        fallbackGlyph
+      }
+    }
+    .task(id: rawURL) {
+      await loader.load(rawURL: rawURL)
+    }
+  }
+
+  private func resolvedImage(_ image: NSImage) -> some View {
+    Image(nsImage: image)
+      .resizable()
+      .interpolation(.high)
+      .scaledToFit()
+      .frame(width: imageSize, height: imageSize)
+      .clipShape(RoundedRectangle(cornerRadius: imageCornerRadius, style: .continuous))
+  }
+
+  private var fallbackGlyph: some View {
+    Image(systemName: "globe")
+      .font(.system(size: fallbackSize, weight: .medium))
+      .foregroundStyle(.black.opacity(0.58))
+  }
+}
+
 struct DockIcon: View {
   @EnvironmentObject private var store: DockStore
   let piece: DockPiece
@@ -242,7 +474,7 @@ struct DockIcon: View {
 
   private var iconCardBorder: some View {
     RoundedRectangle(cornerRadius: 28, style: .continuous)
-      .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+      .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
   }
 
   private var iconCardSurface: some View {
@@ -337,9 +569,9 @@ struct DockIcon: View {
       }
 
       Text(piece.displayTitle)
-        .font(.system(size: 11))
+        .font(.system(size: 12, weight: .semibold))
         .lineLimit(1)
-        .truncationMode(.middle)
+        .truncationMode(.tail)
         .frame(width: 88)
         .foregroundStyle(.primary)
         .multilineTextAlignment(.center)
@@ -393,67 +625,16 @@ struct DockIcon: View {
     ZStack {
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(Color.white.opacity(0.96))
-      AsyncImage(url: websiteFaviconURL) { phase in
-        switch phase {
-        case .success(let image):
-          roundedWebsiteImage(image)
-        case .failure:
-          AsyncImage(url: websiteFaviconFallbackURL) { fallbackPhase in
-            switch fallbackPhase {
-            case .success(let image):
-              roundedWebsiteImage(image)
-            default:
-              websiteFallbackGlyph
-            }
-          }
-        default:
-          websiteFallbackGlyph
-        }
-      }
+      WebsiteFaviconView(
+        rawURL: piece.url ?? "",
+        imageSize: 40,
+        fallbackSize: 22,
+        imageCornerRadius: 10
+      )
       .frame(width: 50, height: 50)
       .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     .frame(width: 56, height: 56)
-  }
-
-  private func roundedWebsiteImage(_ image: Image) -> some View {
-    image
-      .resizable()
-      .interpolation(.high)
-      .scaledToFit()
-      .frame(width: 40, height: 40)
-      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-  }
-
-  private var websiteFaviconURL: URL? {
-    guard let host = websiteHost else { return nil }
-    var components = URLComponents()
-    components.scheme = "https"
-    components.host = "www.google.com"
-    components.path = "/s2/favicons"
-    components.queryItems = [
-      URLQueryItem(name: "domain", value: host),
-      URLQueryItem(name: "sz", value: "128"),
-    ]
-    return components.url
-  }
-
-  private var websiteFaviconFallbackURL: URL? {
-    guard let raw = piece.url, let siteURL = URL(string: raw),
-          let scheme = siteURL.scheme, let host = siteURL.host else { return nil }
-    return URL(string: "\(scheme)://\(host)/favicon.ico")
-  }
-
-  private var websiteHost: String? {
-    guard let raw = piece.url, let siteURL = URL(string: raw) else { return nil }
-    return siteURL.host
-  }
-
-  @ViewBuilder
-  private var websiteFallbackGlyph: some View {
-    Image(systemName: "globe")
-      .font(.system(size: 22, weight: .medium))
-      .foregroundStyle(.black.opacity(0.58))
   }
 
   @ViewBuilder

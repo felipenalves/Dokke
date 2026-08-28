@@ -17,6 +17,12 @@ test("cada slot vazio do dock tem seu próprio Add com hover", () => {
   assert.doesNotMatch(dockGrid, /private func emptySlot/);
 });
 
+test("slots vazios ficam levemente mais claros que a página", () => {
+  assert.match(dockGrid, /\.fill\(Color\.white\.opacity\(isHovered \? 0\.12 : 0\.05\)\)/);
+  assert.match(dockGrid, /\.strokeBorder\(Color\.white\.opacity\(isHovered \? 0\.18 : 0\.08\), lineWidth: 1\)/);
+  assert.doesNotMatch(dockGrid, /\.fill\(Color\.black\.opacity\(isHovered \? 0\.38 : 0\.30\)\)/);
+});
+
 test("o slot escolhido abre o picker e preserva a posição", () => {
   assert.match(dockGrid, /@State private var pickerInsertIndex: Int\?/);
   assert.match(dockGrid, /pickerInsertIndex = index/);

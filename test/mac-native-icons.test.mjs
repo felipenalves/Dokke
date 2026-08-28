@@ -43,13 +43,13 @@ test("web link diferencia o favicon com uma moldura branca interna", () => {
   assert.match(dockIcon, /case \.website:\s*websiteIconImage/);
   assert.match(dockIcon, /Color\.white\.opacity\(0\.96\)/);
   assert.match(dockIcon, /RoundedRectangle\(cornerRadius: 16, style: \.continuous\)/);
-  assert.match(dockIcon, /clipShape\(RoundedRectangle\(cornerRadius: 12, style: \.continuous\)\)/);
-  assert.match(dockIcon, /frame\(width: 40, height: 40\)[\s\S]*?clipShape\(RoundedRectangle\(cornerRadius: 10, style: \.continuous\)\)/);
+  assert.match(dockIcon, /WebsiteFaviconView\(\s*rawURL: piece\.url/);
+  assert.match(dockIcon, /imageSize: 40/);
+  assert.match(dockIcon, /imageCornerRadius: 10/);
+  assert.match(dockIcon, /apple-touch-icon\.png/);
+  assert.match(dockIcon, /whatsapp\.com\/favicon\.ico/);
   assert.match(dockIcon, /s2\/favicons/);
-  assert.match(dockIcon, /URLQueryItem\(name: "sz", value: "128"\)/);
-  assert.match(dockIcon, /private var websiteFaviconFallbackURL/);
-  assert.match(picker, /s2\/favicons/);
-  assert.match(picker, /URLQueryItem\(name: "sz", value: "128"\)/);
+  assert.match(picker, /WebsiteFaviconView\(rawURL: rawURL/);
   assert.match(picker, /private func websiteIconPlate/);
   assert.match(picker, /Color\.white\.opacity\(0\.96\)/);
   assert.match(picker, /RoundedRectangle\(cornerRadius: 10, style: \.continuous\)/);
@@ -57,4 +57,15 @@ test("web link diferencia o favicon com uma moldura branca interna", () => {
 
 test("preload não achata em PNG um ícone que o AppKit já fornece nativamente", () => {
   assert.match(store, /if nativeIcon\(for: name\) != nil \{ continue \}/);
+});
+
+test("favicon web descobre o maior ícone raster declarado pela página antes dos fallbacks", () => {
+  assert.match(dockIcon, /final class WebsiteFaviconLoader/);
+  assert.match(dockIcon, /URLSession\.shared\.data\(for: request\)/);
+  assert.match(dockIcon, /NSRegularExpression/);
+  assert.match(dockIcon, /apple-touch-icon/);
+  assert.match(dockIcon, /rel/);
+  assert.match(dockIcon, /NSImage\(data:/);
+  assert.match(dockIcon, /Task\.checkCancellation\(\)/);
+  assert.doesNotMatch(dockIcon, /AsyncImage\(url: faviconURLs/);
 });

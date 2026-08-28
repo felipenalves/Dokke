@@ -21,6 +21,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
@@ -108,6 +109,8 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A tela permanece acesa somente enquanto a janela do APK está visível.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

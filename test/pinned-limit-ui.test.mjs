@@ -15,7 +15,8 @@ test("PWA e Android usam o limite anunciado pela API e informam quando ele foi a
 });
 
 test("Mac mantém o limite no estado local e desabilita novos pins no picker", () => {
-  assert.match(store, /@Published var maxPinnedApps: Int = 39/);
+  assert.match(store, /@Published var maxPinnedApps: Int = 40/);
+  assert.match(store, /@Published var maxPinnedPieces: Int = 40/);
   assert.match(store, /var isPinnedLimitReached: Bool/);
   assert.match(store, /PINNED_LIMIT_REACHED/);
   assert.match(picker, /store\.isPinnedLimitReached/);

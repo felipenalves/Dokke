@@ -15,10 +15,12 @@ struct AppPickerSheet: View {
   private let websiteSuggestions = [
     ("GitHub", "https://github.com"),
     ("YouTube", "https://youtube.com"),
-    ("Notion", "https://notion.so"),
-    ("Figma", "https://figma.com"),
+    ("WhatsApp", "https://whatsapp.com"),
     ("Pinterest", "https://pinterest.com"),
     ("Threads", "https://threads.net"),
+    ("TikTok", "https://tiktok.com"),
+    ("LinkedIn", "https://linkedin.com"),
+    ("ChatGPT", "https://chatgpt.com"),
   ]
 
   init(insertAt: Int? = nil) {
@@ -30,7 +32,7 @@ struct AppPickerSheet: View {
     let sorted = store.installed.sorted {
       let aPinned = store.isPinned($0.name)
       let bPinned = store.isPinned($1.name)
-      if aPinned != bPinned { return aPinned && !bPinned }
+      if aPinned != bPinned { return !aPinned && bPinned }
       return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
     }
     if q.isEmpty { return sorted }
@@ -216,7 +218,7 @@ struct AppPickerSheet: View {
 
   private func websiteSuggestionRow(_ suggestion: (String, String)) -> some View {
     HStack(spacing: 12) {
-      websiteIconPlate(url: websiteFaviconURL(for: suggestion.1))
+      websiteIconPlate(rawURL: suggestion.1)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(suggestion.0)
@@ -250,41 +252,13 @@ struct AppPickerSheet: View {
   }
 
   @ViewBuilder
-  private func websiteIconPlate(url: URL?) -> some View {
+  private func websiteIconPlate(rawURL: String) -> some View {
     ZStack {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
         .fill(Color.white.opacity(0.96))
-      AsyncImage(url: url) { phase in
-        switch phase {
-        case .success(let image):
-          image
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: 22, height: 22)
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        default:
-          Image(systemName: "globe")
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.black.opacity(0.58))
-        }
-      }
+      WebsiteFaviconView(rawURL: rawURL, imageSize: 22, fallbackSize: 13, imageCornerRadius: 7)
     }
     .frame(width: 30, height: 30)
-  }
-
-  private func websiteFaviconURL(for rawURL: String) -> URL? {
-    guard let siteURL = URL(string: rawURL),
-          let host = siteURL.host else { return nil }
-    var components = URLComponents()
-    components.scheme = "https"
-    components.host = "www.google.com"
-    components.path = "/s2/favicons"
-    components.queryItems = [
-      URLQueryItem(name: "domain", value: host),
-      URLQueryItem(name: "sz", value: "128"),
-    ]
-    return components.url
   }
 
   private func beginWebsiteAdd(url rawURL: String, suggestedTitle: String? = nil) {
@@ -307,6 +281,7 @@ struct AppPickerSheet: View {
         pendingWebsiteURL = ""
         pendingWebsiteTitle = ""
         showWebsiteNamePrompt = false
+        dismiss()
       }
     }
   }
@@ -332,19 +307,8 @@ struct AppPickerSheet: View {
 
   private var websiteNamePrompt: some View {
     VStack(spacing: 16) {
-      AsyncImage(url: websiteFaviconURL(for: pendingWebsiteURL)) { phase in
-        switch phase {
-        case .success(let image):
-          image
-            .resizable()
-            .scaledToFit()
-            .padding(7)
-        default:
-          Image(systemName: "globe")
-            .font(.system(size: 23, weight: .medium))
-            .foregroundStyle(.secondary)
-        }
-      }
+      WebsiteFaviconView(rawURL: pendingWebsiteURL, imageSize: 32, fallbackSize: 23, imageCornerRadius: 8)
+        .padding(7)
       .frame(width: 48, height: 48)
       .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
 
@@ -405,7 +369,7 @@ struct AppPickerSheet: View {
           }
         }
       }
-      .frame(width: 32, height: 32)
+      .frame(width: 34, height: 34)
       .clipShape(RoundedRectangle(cornerRadius: 8))
 
       Text(app.name)
@@ -414,17 +378,20 @@ struct AppPickerSheet: View {
       Spacer()
 
       if store.isPinned(app.name) {
-        Label("Adicionado", systemImage: "checkmark.circle.fill")
-          .font(.caption)
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 18, weight: .semibold))
           .foregroundStyle(.green)
+          .accessibilityLabel("Adicionado")
       } else {
         Button("Adicionar") {
           Task {
             if let insertAt {
               await store.pin(app.name, at: insertAt)
-              dismiss()
             } else {
               await store.pin(app.name)
+            }
+            if store.lastError == nil {
+              dismiss()
             }
           }
         }

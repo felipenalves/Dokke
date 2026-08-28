@@ -12,3 +12,11 @@ test("APK expõe haptic contextual pelo bridge sem forçar vibração", () => {
   assert.match(source, /web\.performHapticFeedback\(constant\)/);
   assert.doesNotMatch(manifest, /android\.permission\.VIBRATE/, "o feedback deve respeitar as configurações do sistema");
 });
+
+test("APK mantém a interface em retrato e deixa a arte acompanhar o sensor", () => {
+  assert.match(manifest, /android:screenOrientation="portrait"/);
+});
+
+test("APK mantém a tela acesa enquanto a Activity está visível", () => {
+  assert.match(source, /window\.addFlags\(WindowManager\.LayoutParams\.FLAG_KEEP_SCREEN_ON\)/);
+});

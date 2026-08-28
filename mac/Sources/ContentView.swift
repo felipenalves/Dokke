@@ -286,7 +286,7 @@ private struct TrafficLightsClearanceReader: NSViewRepresentable {
             let contentView = window.contentView
       else { return }
 
-      let dx: CGFloat = 18
+      let dx: CGFloat = 12
       let dy: CGFloat = -10
       for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] as [NSWindow.ButtonType] {
         guard let btn = window.standardWindowButton(type) else { continue }
@@ -615,13 +615,15 @@ struct MenuBarView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
-        Circle()
-          .fill(store.online ? Color.green : Color.red.opacity(0.85))
-          .frame(width: 8, height: 8)
+        Image(systemName: "circle.fill")
+          .font(.system(size: 8, weight: .semibold))
+          .foregroundStyle(store.online ? Color.green : Color.red)
         Text(store.online ? "Dokke online" : "Dokke offline")
           .fontWeight(.semibold)
+          .foregroundStyle(.primary)
       }
       Text("Dispositivos: \(store.devices) · Fixados: \(store.pinned.count)")
+        .font(.caption)
         .foregroundStyle(.secondary)
       if let note = store.lastSyncNote {
         Text(note)

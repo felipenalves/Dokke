@@ -14,10 +14,10 @@ import {
 
 const emptyConfig = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
 
-test("limite do dock cabe em cinco páginas e reserva o botão Adicionar", () => {
+test("limite do dock cabe em cinco páginas completas", () => {
   assert.equal(PINNED_PAGE_SIZE, 8);
   assert.equal(PINNED_MAX_PAGES, 5);
-  assert.equal(MAX_PINNED_APPS, 39);
+  assert.equal(MAX_PINNED_APPS, 40);
 });
 
 test("loadConfig cria com defaults e saveConfig persiste", async () => {

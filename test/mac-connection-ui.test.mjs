@@ -55,6 +55,16 @@ test("AppKit configura a janela sem título duplicado nem debug temporário", ()
   assert.doesNotMatch(app, /\/tmp\/dokke-tf\.txt/);
 });
 
+test("janela principal deixa o macOS desenhar uma única moldura arredondada", () => {
+  assert.match(app, /styleMask\.insert\(\.fullSizeContentView\)/);
+  assert.doesNotMatch(app, /let windowCornerRadius: CGFloat = 28/);
+  assert.doesNotMatch(app, /window\.isOpaque = false/);
+  assert.doesNotMatch(app, /window\.backgroundColor = \.clear/);
+  assert.doesNotMatch(app, /contentView\.wantsLayer = true/);
+  assert.doesNotMatch(app, /contentView\.layer\?\.cornerRadius/);
+  assert.doesNotMatch(app, /contentView\.layer\?\.masksToBounds/);
+});
+
 test("sidebar flutuante replica largura, seleção azul opaca e contraste da referência", () => {
   assert.match(contentView, /sidebar\s*\.frame\(width: isSidebarVisible \? 208 : 0\)/);
   assert.match(sidebar, /VStack\(alignment: \.leading, spacing: 4\)/);
@@ -98,7 +108,7 @@ test("ícone de recolher alterna a sidebar de verdade", () => {
 });
 
 test("semáforos deixam respiro da moldura quando a sidebar está visível", () => {
-  assert.match(contentView, /let dx: CGFloat = 18/);
+  assert.match(contentView, /let dx: CGFloat = 12/);
   assert.match(contentView, /let dy: CGFloat = -10/);
   assert.doesNotMatch(contentView, /let d[xy]: CGFloat = isSidebarVisible/);
 });
@@ -132,6 +142,28 @@ test("menu bar abre o Dokke, sincroniza dados e expõe atualização somente qua
   assert.match(menuBar, /openWindow\(id: "main"\)/);
   assert.match(menuBar, /Sincronizar agora/);
   assert.match(menuBar, /Verificar atualizações/);
+});
+
+test("menu bar destaca o estado online e mantém a contagem como informação secundária", () => {
+  assert.match(menuBar, /Image\(systemName: "circle\.fill"\)/);
+  assert.match(menuBar, /foregroundStyle\(store\.online \? Color\.green : Color\.red/);
+  assert.match(menuBar, /Text\(store\.online \? "Dokke online" : "Dokke offline"\)[\s\S]*?foregroundStyle\(\.primary\)/);
+  assert.ok(menuBar.includes('Text("Dispositivos: \\(store.devices) · Fixados: \\(store.pinned.count)")'));
+  assert.match(menuBar, /Text\("Dispositivos:/);
+  assert.match(menuBar, /\.font\(\.caption\)/);
+  assert.match(menuBar, /\.foregroundStyle\(\.secondary\)/);
+});
+
+test("menu bar usa o glifo atualizado do Dokke em monocromático", () => {
+  assert.match(app, /MenuBarExtra\s*\{\s*MenuBarView\(\)/);
+  assert.match(app, /private enum MenuBarIconImage/);
+  assert.match(app, /NSImage\(\s*size: NSSize\(width: 18, height: 18\),\s*flipped: true/);
+  assert.match(app, /image\.isTemplate = true/);
+  assert.match(app, /Image\(nsImage: MenuBarIconImage\.image\)/);
+  assert.match(app, /frame\(width: 18, height: 18\)/);
+  assert.match(app, /MenuBarIcon\(\)\s*\.accessibilityLabel\("Dokke"\)/);
+  assert.doesNotMatch(app, /NSApplication\.shared\.applicationIconImage/);
+  assert.doesNotMatch(app, /Canvas\s*\{/);
 });
 
 test("cards de código e QR compartilham largura total, padding, raio e espaçamento idênticos", () => {

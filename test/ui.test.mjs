@@ -57,10 +57,28 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /function clearDrag\(\)[\s\S]*is-recents[\s\S]*translate3d\(0, -100%, 0\)/, "limpeza do gesto não pode trazer a tela inativa de volta");
     assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
     assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
-    assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(2\.5vmin, 12px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
+    assert.match(html, /\.page-grid\{[\s\S]*grid-gap: clamp\(20px, 3vw, 32px\);/, "a grade deve usar uma régua única e moderada de espaçamento");
+    assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(3vmin, 14px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
     assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
-    assert.match(html, /orientation: portrait\) and \(max-width:699px\)[\s\S]*--app-tile: min\(44vw, calc\(\(100dvh - var\(--dokke-safe-top\) - var\(--dokke-safe-bottom\) - 96px\) \/ 4\), 190px\)/, "celular em retrato deve caber no viewport standalone");
-    assert.match(html, /orientation: landscape\) and \(max-height:500px\)[\s\S]*--app-tile: min\(40vmin, 21vw, 180px\)/, "celular deitado deve manter folga vertical no A02");
+    assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve usar a régua do landscape nos dois sentidos");
+    assert.match(html, /@media \(min-width:700px\)[\s\S]*--app-tile: min\(max\(22vw,22vh\), min\(30vw,30vh\), 220px\);/, "telas maiores devem preservar o tamanho do landscape no portrait");
+    assert.doesNotMatch(html, /--app-tile: min\(44vw,/, "portrait não deve ampliar os cards em relação ao landscape");
+    assert.match(html, /--tile-in: 0\.90;/, "ícones devem ter uma folga ligeiramente maior dentro do card");
+    assert.match(html, /function requestAppPortraitLock\(\)/, "o app mobile deve solicitar orientação fixa em retrato");
+    assert.match(html, /function boot\(\)[\s\S]*requestAppPortraitLock\(\);/, "o bloqueio de orientação deve ser pedido ao iniciar o app");
+    assert.match(html, /appPortraitLockRequested = IS_ANDROID_WEBVIEW;/, "o PWA não deve manter estado de lock nativo");
+    assert.match(html, /if \(IS_ANDROID_WEBVIEW\) lockPortrait\(\);/, "o lock nativo de orientação deve ficar restrito ao APK");
+    assert.match(html, /function physicalIconTurn\(\)/, "a rotação dos ícones deve usar a orientação física, não o relayout da tela");
+    assert.match(html, /setProperty\("--icon-turn", iconTurn\)/, "somente o APK deve poder alterar a rotação da arte");
+    assert.match(html, /const iconTurn = IS_ANDROID_WEBVIEW \? physicalIconTurn\(\) : "0deg";/, "o PWA deve manter os ícones na orientação normal");
+    assert.match(html, /const availableH = launchpad\.clientHeight/, "o pager deve medir a altura útil antes de escalar a grade");
+    assert.match(
+      html,
+      /for \(const grid of gridEls\)\{\s*grid\.style\.transform = "";\s*\}/,
+      "a medição deve limpar a escala anterior antes de calcular a nova",
+    );
+    assert.match(html, /className = "page-grid"/, "a escala deve ficar numa grade interna, fora do item do pager");
+    assert.match(html, /const gridEls = pageEls\.map\(page => page\.firstElementChild\)/, "o pager deve preservar a largura integral de cada página");
     assert.match(html, /function setLayer\(on, axis\)/, "camadas GPU devem ser escolhidas pelo eixo do gesto");
     const layerStart = html.indexOf("function setLayer(on, axis)");
     const layerEnd = html.indexOf("let dragRaf", layerStart);
@@ -135,7 +153,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /classList\.toggle\("confirm-scrim", isConfirm\)/, "confirmação deve usar scrim próprio do Dokke");
     assert.match(html, /className = "aglass confirm-icon"/, "confirmação deve mostrar o ícone real do app");
     assert.match(html, /\}, "confirm"\);/, "remoção de favorito deve abrir a confirmação visual correta");
-    assert.match(html, /function syncIconOrientation\(\)[\s\S]*setProperty\("--icon-turn", "0deg"\)/, "ícones reais devem permanecer na orientação normal");
+    assert.match(html, /function syncIconOrientation\(\)[\s\S]*const iconTurn = IS_ANDROID_WEBVIEW \? physicalIconTurn\(\) : "0deg";/, "o PWA deve manter os ícones sem rotação");
     assert.match(html, /hOriginInLaunchpad = !!\(e\.target[\s\S]*closest\("\.launchpad"\)\)/, "gesto horizontal deve guardar a origem antes do pointer capture do Android");
     assert.match(html, /if \(!hOriginInLaunchpad && !hOriginInDeck\) return/, "gesto Android não deve depender do target capturado");
     assert.match(html, /hOriginInDeck = !!\(e\.target[\s\S]*closest\("\.deck"\)\)/, "gesto iniciado sobre um app da tela 2 deve guardar a origem");
@@ -193,6 +211,44 @@ test("toque no app não revela um segundo glass durante a animação", async () 
     assert.equal(state.tileAnimation, "appPress", "a animação deve ficar no tile inteiro");
     assert.equal(state.tileBackground, "rgba(0, 0, 0, 0)", "o tile não deve criar um glass por baixo");
     assert.equal(state.glassAnimation, "none", "o glass interno não deve ser comprimido separadamente");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [
+        { id: "app:App Store", type: "app", name: "App Store", position: 0 },
+        { id: "app:Claude", type: "app", name: "Claude", position: 1 },
+      ],
+      pinned: ["App Store", "Claude"],
+    },
+  });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.querySelectorAll(".atile.empty").length === 38);
+    const empty = page.locator(".atile.empty .aglass").first();
+    const style = await empty.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return { background: computed.backgroundColor, border: computed.border, boxShadow: computed.boxShadow };
+    });
+    assert.equal(await page.locator(".atile.empty").count(), 38);
+    assert.equal(style.background, "rgba(255, 255, 255, 0.035)");
+    assert.match(style.border, /rgba\(240, 135, 55, 0\.18\)/);
+    assert.match(style.boxShadow, /rgba\(255, 255, 255, 0\.035\)/);
   } finally {
     await browser.close();
     await close();
@@ -361,6 +417,7 @@ test("GET /manifest.webmanifest retorna JSON válido com display standalone", as
     const m = await r.json();
     assert.equal(m.display, "standalone");
     assert.equal(m.name, "dokke");
+    assert.equal(m.orientation, "any");
     assert.ok(Array.isArray(m.icons) && m.icons.length >= 2, "manifest deve ter icons");
   } finally { await close(); }
 });
@@ -372,7 +429,7 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v16/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v24/, "service worker deve invalidar o cache antigo da UI");
     assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");
@@ -409,7 +466,7 @@ test("grid em retrato não corta cards quando o PWA tem safe area", async () => 
     // O Playwright não expõe safe-area-inset-*; estas dimensões reproduzem o
     // recuo do status bar e do indicador Home do PWA em um iPhone moderno.
     await page.addStyleTag({ content: ":root{--dokke-safe-top:59px;--dokke-safe-bottom:44px}.screen{padding-top:59px !important}.dots{padding-bottom:44px !important}" });
-    await page.waitForFunction(() => document.querySelectorAll(".atile").length === 8);
+    await page.waitForFunction(() => document.querySelectorAll(".atile").length === 40);
     const bounds = await page.evaluate(() => {
       const pageRect = document.querySelector(".page").getBoundingClientRect();
       const launchpad = document.querySelector(".launchpad").getBoundingClientRect();
@@ -423,6 +480,190 @@ test("grid em retrato não corta cards quando o PWA tem safe area", async () => 
     });
     assert.ok(bounds.first.top >= bounds.launchpad.top - 0.5, "primeiro card não pode escapar pelo topo do pager");
     assert.ok(bounds.last.bottom <= bounds.launchpad.bottom + 0.5, "último card não pode ser cortado pelo rodapé do PWA");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe area alta", async () => {
+  const pieces = Array.from({ length: 8 }, (_, i) => ({
+    id: `website:https://site-${i + 1}.example.com`,
+    type: "website",
+    title: `Site ${i + 1}`,
+    url: `https://site-${i + 1}.example.com`,
+    position: i,
+  }));
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: { schemaVersion: 2, revision: 0, pieces, pinned: [] },
+  });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent: "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36",
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.addStyleTag({ content: ":root{--dokke-safe-top:100px;--dokke-safe-bottom:100px}.screen{padding-top:100px !important}.dots{padding-bottom:100px !important}" });
+    await page.waitForFunction(() => document.querySelectorAll(".atile").length === 40);
+    await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+    await page.waitForFunction(() => document.querySelector(".page-grid")?.style.transform.startsWith("scale("));
+    const bounds = await page.evaluate(() => {
+      const pager = document.querySelector(".launchpad");
+      const firstPage = document.querySelector(".page");
+      const firstGrid = document.querySelector(".page-grid");
+      const tiles = [...document.querySelectorAll(".page:first-child .atile")];
+      const pagerRect = pager.getBoundingClientRect();
+      const tileRects = tiles.map(tile => tile.getBoundingClientRect());
+      const style = getComputedStyle(firstGrid);
+      return {
+        pager: { left: pagerRect.left, right: pagerRect.right, top: pagerRect.top, bottom: pagerRect.bottom },
+        first: { top: tileRects[0].top, bottom: tileRects[0].bottom },
+        last: { top: tileRects.at(-1).top, bottom: tileRects.at(-1).bottom },
+        columns: style.gridTemplateColumns.split(" ").length,
+        rows: style.gridTemplateRows.split(" ").length,
+        columnGap: style.columnGap,
+        rowGap: style.rowGap,
+        scale: firstGrid.style.transform,
+        pageWidth: firstPage.getBoundingClientRect().width,
+        scrollLeft: pager.scrollLeft,
+      };
+    });
+    assert.equal(bounds.columns, 2, "o retrato deve continuar em duas colunas");
+    assert.equal(bounds.rows, 4, "o retrato deve continuar em quatro linhas");
+    assert.equal(bounds.columnGap, "20px", "o retrato deve usar o espaçamento global mínimo entre slots");
+    assert.equal(bounds.rowGap, "20px", "o retrato deve usar o mesmo espaçamento global nas linhas");
+    assert.ok(bounds.first.top >= bounds.pager.top - 0.5, "o primeiro card não pode escapar pelo topo após a escala");
+    assert.ok(bounds.last.bottom <= bounds.pager.bottom + 0.5, "o último card não pode ser cortado após a escala");
+    assert.match(bounds.scale, /^scale\(/, "a escala deve ser aplicada somente quando a safe area reduzir a altura útil");
+    assert.ok(Math.abs(bounds.pageWidth - (bounds.pager.right - bounds.pager.left)) < 0.5, "a página deve conservar a largura integral do pager");
+    assert.ok(Math.abs(bounds.scrollLeft) < 1, "a escala interna não pode deslocar o scroll horizontal inicial");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("PWA solicita Wake Lock quando visível, libera oculto e readquire ao voltar", async () => {
+  const { port, close } = await startServer({ port: 0, obs: null });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await page.addInitScript(() => {
+      const probe = { requests: [], releases: 0 };
+      Object.defineProperty(navigator, "wakeLock", {
+        configurable: true,
+        value: {
+          request: async type => {
+            const listeners = {};
+            const sentinel = {
+              released: false,
+              addEventListener(name, fn) { listeners[name] = fn; },
+              async release() {
+                if (sentinel.released) return;
+                sentinel.released = true;
+                probe.releases += 1;
+                if (listeners.release) listeners.release();
+              },
+            };
+            probe.requests.push(type);
+            return sentinel;
+          },
+        },
+      });
+      window.__dokkeWakeLockProbe = probe;
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.__dokkeWakeLockProbe?.requests.length === 1, null, { timeout: 2500 });
+    assert.deepEqual(await page.evaluate(() => window.__dokkeWakeLockProbe.requests), ["screen"]);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.waitForFunction(() => window.__dokkeWakeLockProbe.releases === 1, null, { timeout: 2500 });
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.waitForFunction(() => window.__dokkeWakeLockProbe.requests.length === 2, null, { timeout: 2500 });
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("landscape touch mantém o slide centralizado sem girar o pager", async () => {
+  const pieces = Array.from({ length: 8 }, (_, i) => ({
+    id: `website:https://landscape-${i + 1}.example.com`,
+    type: "website",
+    title: `Landscape ${i + 1}`,
+    url: `https://landscape-${i + 1}.example.com`,
+    position: i,
+  }));
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: { schemaVersion: 2, revision: 0, pieces, pinned: [] },
+  });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 1024, height: 473 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1",
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.querySelectorAll(".atile").length === 40);
+    await page.waitForSelector(".page-grid");
+    await page.waitForTimeout(900);
+    const layout = await page.evaluate(() => {
+      const pager = document.querySelector(".launchpad");
+      const firstPage = document.querySelector(".page");
+      const pageTiles = [...document.querySelectorAll(".page")].slice(0, 2).map(page => [...page.querySelectorAll(":scope .atile")]);
+      const grid = document.querySelector(".page-grid");
+      const pagerRect = pager.getBoundingClientRect();
+      const pageRect = firstPage.getBoundingClientRect();
+      const gridRect = grid.getBoundingClientRect();
+      const style = getComputedStyle(grid);
+      const firstRow = pageTiles[0].slice(0, 4).map(tile => tile.getBoundingClientRect());
+      const nextPageFirst = pageTiles[1][0]?.getBoundingClientRect();
+      return {
+        scrollLeft: pager.scrollLeft,
+        page: { left: pageRect.left, right: pageRect.right, width: pageRect.width },
+        pager: { left: pagerRect.left, right: pagerRect.right, width: pagerRect.width },
+        grid: { left: gridRect.left, right: gridRect.right, width: gridRect.width },
+        pageTransform: firstPage.style.transform,
+        gridTransform: grid.style.transform,
+        iconTurn: getComputedStyle(document.documentElement).getPropertyValue("--icon-turn").trim(),
+        tileWidth: grid.firstElementChild?.getBoundingClientRect().width || 0,
+        slotGap: firstRow[1].left - firstRow[0].right,
+        pageGap: nextPageFirst ? nextPageFirst.left - firstRow[3].right : Infinity,
+        columns: style.gridTemplateColumns.split(" ").length,
+        rows: style.gridTemplateRows.split(" ").length,
+        columnGap: style.columnGap,
+        rowGap: style.rowGap,
+      };
+    });
+    assert.equal(layout.columns, 4, "landscape touch deve ocupar quatro colunas");
+    assert.equal(layout.rows, 2, "landscape touch deve ocupar duas linhas");
+    assert.ok(layout.tileWidth >= 180, "landscape touch deve aproveitar melhor o espaço com ícones grandes");
+    assert.ok(layout.slotGap >= 30 && layout.slotGap <= 32, "landscape touch deve usar o espaçamento global moderado dos slots");
+    assert.equal(layout.columnGap, "30.72px", "landscape touch deve seguir a mesma régua responsiva do retrato");
+    assert.equal(layout.rowGap, "30.72px", "landscape touch deve seguir a mesma régua responsiva do retrato");
+    assert.ok(layout.pageGap <= 180, "landscape touch não deve deixar um vão excessivo entre slides");
+    assert.equal(layout.pageTransform, "", "o item do pager não deve ser transformado");
+    assert.equal(layout.iconTurn, "0deg", "o PWA não deve girar os ícones no landscape");
+    assert.ok(layout.gridTransform === "" || /^scale\(/.test(layout.gridTransform), "se houver escala, ela deve ficar na grade interna");
+    assert.ok(Math.abs(layout.scrollLeft) < 1, "o primeiro slide deve permanecer no scroll inicial");
+    assert.ok(Math.abs(layout.page.width - layout.pager.width) < 0.5, "o slide deve conservar a largura integral do pager");
+    assert.ok(Math.abs((layout.grid.left + layout.grid.right) / 2 - (layout.pager.left + layout.pager.right) / 2) < 0.5, "a grade deve continuar centrada no pager");
   } finally {
     await browser.close();
     await close();
