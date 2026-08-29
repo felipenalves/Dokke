@@ -51,6 +51,9 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    private fun message(key: String, values: Map<String, String> = emptyMap()): String =
+        AndroidLanguage.text(this, key, values)
+
     private lateinit var web: WebView
     private lateinit var loader: ProgressBar
     private lateinit var root: FrameLayout
@@ -76,21 +79,21 @@ class MainActivity : ComponentActivity() {
             val cursor = manager.query(DownloadManager.Query().setFilterById(id))
             try {
                 if (!cursor.moveToFirst()) {
-                    showUpdateMessage("Não foi possível verificar o download.")
+                    showUpdateMessage(message("update.downloadCheck"))
                     return
                 }
                 val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                 if (status != DownloadManager.STATUS_SUCCESSFUL) {
-                    showUpdateMessage("Não foi possível baixar a atualização.")
+                    showUpdateMessage(message("update.downloadError"))
                     return
                 }
                 val uri = manager.getUriForDownloadedFile(id)
                 if (uri == null) {
-                    showUpdateMessage("O arquivo da atualização não está disponível.")
+                    showUpdateMessage(message("update.fileMissing"))
                     return
                 }
                 if (!validateDownloadedApk(uri)) {
-                    showUpdateMessage("A atualização não corresponde ao Dokke instalado.")
+                    showUpdateMessage(message("update.invalidPackage"))
                     manager.remove(id)
                     return
                 }
@@ -271,7 +274,7 @@ class MainActivity : ComponentActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(raw)).addCategory(Intent.CATEGORY_BROWSABLE))
             } catch (_: Exception) {
-                Toast.makeText(this, "Não foi possível abrir o link externo.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, message("external.openError"), Toast.LENGTH_SHORT).show()
             }
         } else {
             Log.w("Dokke", "navegação rejeitada fora da origem confiável: $raw")
@@ -403,26 +406,26 @@ class MainActivity : ComponentActivity() {
 
     private fun beginUpdate(version: String) {
         if (updateDownloadId != null) {
-            showUpdateMessage("A atualização já está sendo baixada.")
+            showUpdateMessage(message("update.alreadyDownloading"))
             return
         }
         val releaseTag = UpdateVersion.releaseTag(version)
         if (releaseTag == null) {
-            showUpdateMessage("Versão de atualização inválida.")
+            showUpdateMessage(message("update.invalidVersion"))
             return
         }
         val versionName = releaseTag.removePrefix("v")
         if (!UpdateVersion.isNewer(versionName, BuildConfig.VERSION_NAME)) {
-            showUpdateMessage("O Dokke já está atualizado.")
+            showUpdateMessage(message("update.current"))
             return
         }
         if (!canInstallPackages()) {
             pendingUpdateVersion = versionName
             AlertDialog.Builder(this)
-                .setTitle("Permitir atualização")
-                .setMessage("Para atualizar o Dokke, permita que este app instale a nova versão.")
-                .setNegativeButton("Agora não") { _, _ -> pendingUpdateVersion = null }
-                .setPositiveButton("Abrir configurações") { _, _ -> openInstallSettings() }
+                .setTitle(message("update.permissionTitle"))
+                .setMessage(message("update.permissionMessage"))
+                .setNegativeButton(message("update.cancel")) { _, _ -> pendingUpdateVersion = null }
+                .setPositiveButton(message("update.settings")) { _, _ -> openInstallSettings() }
                 .show()
             return
         }
@@ -447,15 +450,15 @@ class MainActivity : ComponentActivity() {
 
     private fun enqueueUpdate(version: String) {
         val releaseTag = UpdateVersion.releaseTag(version) ?: run {
-            showUpdateMessage("Versão de atualização inválida.")
+            showUpdateMessage(message("update.invalidVersion"))
             return
         }
         val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val filename = "dokke-update-$version.apk"
         val apkUrl = "$updateApkBaseUrl/$releaseTag/dokke.apk"
         val request = DownloadManager.Request(Uri.parse(apkUrl))
-            .setTitle("Atualização do Dokke")
-            .setDescription("Baixando a versão $version")
+            .setTitle(message("update.downloadTitle"))
+            .setDescription(message("update.downloadDescription", mapOf("version" to version)))
             .setMimeType(updateMime)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
@@ -463,7 +466,7 @@ class MainActivity : ComponentActivity() {
             .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, filename)
         updateExpectedVersion = version
         updateDownloadId = manager.enqueue(request)
-        Toast.makeText(this, "Baixando a atualização…", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, message("update.downloadStarted"), Toast.LENGTH_LONG).show()
     }
 
     private fun validateDownloadedApk(uri: Uri): Boolean {
@@ -525,7 +528,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installDownloadedApk(uri: Uri) {
         if (!canInstallPackages()) {
-            showUpdateMessage("Permissão para instalar a atualização não concedida.")
+            showUpdateMessage(message("update.permissionDenied"))
             return
         }
         val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -536,7 +539,7 @@ class MainActivity : ComponentActivity() {
         try {
             startActivity(intent)
         } catch (_: Exception) {
-            showUpdateMessage("Não foi possível abrir o instalador do Android.")
+            showUpdateMessage(message("update.installerError"))
         }
     }
 
@@ -561,7 +564,7 @@ class MainActivity : ComponentActivity() {
         })
 
         val title = TextView(this).apply {
-            text = "O Dokke está fechado no computador"
+            text = message("offline.title")
             setTextColor(Color.WHITE)
             textSize = 22f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -571,7 +574,7 @@ class MainActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
         val description = TextView(this).apply {
-            text = "Abra o aplicativo Dokke no computador para liberar o dock neste celular."
+            text = message("offline.description")
             setTextColor(Color.rgb(177, 177, 190))
             textSize = 15f
             gravity = Gravity.CENTER
@@ -583,7 +586,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val status = TextView(this).apply {
-            text = "Computador desconectado"
+            text = message("offline.status")
             setTextColor(Color.rgb(255, 174, 132))
             textSize = 14f
             gravity = Gravity.CENTER
@@ -596,7 +599,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val retry = Button(this).apply {
-            text = "Tentar novamente"
+            text = message("offline.retry")
             isAllCaps = false
             textSize = 15f
             setTextColor(Color.WHITE)
@@ -610,7 +613,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val hint = TextView(this).apply {
-            text = "O celular está funcionando. Só falta abrir o Dokke no computador."
+            text = message("offline.hint")
             setTextColor(Color.rgb(125, 125, 140))
             textSize = 12f
             gravity = Gravity.CENTER

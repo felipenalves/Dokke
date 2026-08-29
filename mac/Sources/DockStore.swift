@@ -125,6 +125,17 @@ final class DockStore: ObservableObject {
     return s
   }
 
+  private var language: DokkeLanguage { I18n.currentLanguage() }
+
+  private func localizedServerError(_ object: [String: Any]?, fallbackKey: String) -> String {
+    if let code = object?["code"] as? String {
+      let key = "error.\(code)"
+      let translated = I18n.text(key, language: language)
+      if translated != key { return translated }
+    }
+    return I18n.text(fallbackKey, language: language)
+  }
+
   var filteredInstalled: [InstalledApp] {
     let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     // pinados primeiro, depois o resto (config rápida)
@@ -213,7 +224,7 @@ final class DockStore: ObservableObject {
   func resetPin() async {
     pinError = nil
     guard let url = URL(string: baseURL + "/api/pin") else {
-      pinError = "URL inválida"
+      pinError = I18n.text("error.invalidURL", language: language)
       return
     }
     var req = URLRequest(url: url)
@@ -224,12 +235,12 @@ final class DockStore: ObservableObject {
       guard (resp as? HTTPURLResponse)?.statusCode == 200,
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let p = obj["pin"] as? String else {
-        pinError = "Não foi possível gerar o código. O servidor está no ar?"
+        pinError = I18n.text("error.generateCode", language: language)
         return
       }
       pinCode = p
     } catch {
-      pinError = error.localizedDescription
+      pinError = I18n.text("error.network", language: language)
     }
   }
 
@@ -250,7 +261,8 @@ final class DockStore: ObservableObject {
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
         if online { online = false }
-        if lastError != "status inválido" { lastError = "status inválido" }
+        let message = I18n.text("error.health", language: language)
+        if lastError != message { lastError = message }
         return
       }
       if online != true { online = true }
@@ -285,14 +297,16 @@ final class DockStore: ObservableObject {
   private func pingHealthOnly() async {
     guard let url = URL(string: baseURL + "/health") else {
       if online { online = false }
-      if lastError != "URL inválida" { lastError = "URL inválida" }
+      let message = I18n.text("error.invalidURL", language: language)
+      if lastError != message { lastError = message }
       return
     }
     do {
       let (data, resp) = try await session.data(from: url)
       guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
         if online { online = false }
-        if lastError != "offline" { lastError = "offline" }
+        let message = I18n.text("error.network", language: language)
+        if lastError != message { lastError = message }
         return
       }
       if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -301,11 +315,13 @@ final class DockStore: ObservableObject {
         if lastError != nil { lastError = nil }
       } else {
         if online { online = false }
-        if lastError != "health inválido" { lastError = "health inválido" }
+        let message = I18n.text("error.health", language: language)
+        if lastError != message { lastError = message }
       }
     } catch {
       if online { online = false }
-      if lastError != error.localizedDescription { lastError = error.localizedDescription }
+      let message = I18n.text("error.network", language: language)
+      if lastError != message { lastError = message }
     }
   }
 
@@ -319,7 +335,7 @@ final class DockStore: ObservableObject {
       if pinned != p { pinned = p }
       applyConfig(cfg)
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
     }
   }
 
@@ -347,7 +363,7 @@ final class DockStore: ObservableObject {
         preloadIcons()
       }
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
     }
   }
 
@@ -367,7 +383,7 @@ final class DockStore: ObservableObject {
   func pin(_ name: String, at index: Int) async {
     guard !isPinned(name) else { return }
     if isPinnedLimitReached {
-      lastError = "Limite de 5 páginas atingido"
+      lastError = I18n.text("error.PINNED_LIMIT_REACHED", language: language)
       lastSyncNote = lastError
       return
     }
@@ -397,7 +413,7 @@ final class DockStore: ObservableObject {
         pieces = prev
         pinned = pieces.compactMap(\.appName)
         applyPinnedLimits(body)
-        let message = body["error"] as? String ?? "Limite de 5 páginas atingido"
+        let message = localizedServerError(body, fallbackKey: "error.pin")
         lastError = message
         lastSyncNote = message
         return
@@ -407,7 +423,7 @@ final class DockStore: ObservableObject {
             (body["ok"] as? Bool) == true else {
         pieces = prev
         pinned = pieces.compactMap(\.appName)
-        lastError = "falha ao fixar"
+        lastError = localizedServerError(obj, fallbackKey: "error.pin")
         lastSyncNote = nil
         return
       }
@@ -417,7 +433,7 @@ final class DockStore: ObservableObject {
     } catch {
       pieces = prev
       pinned = pieces.compactMap(\.appName)
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
       lastSyncNote = nil
     }
   }
@@ -445,7 +461,7 @@ final class DockStore: ObservableObject {
             (obj["ok"] as? Bool) == true else {
         pieces = prev
         pinned = pieces.compactMap(\.appName)
-        lastError = "falha ao remover"
+        lastError = localizedServerError(nil, fallbackKey: "error.remove")
         lastSyncNote = nil
         return
       }
@@ -454,7 +470,7 @@ final class DockStore: ObservableObject {
     } catch {
       pieces = prev
       pinned = pieces.compactMap(\.appName)
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
       lastSyncNote = nil
     }
   }
@@ -482,14 +498,16 @@ final class DockStore: ObservableObject {
       guard code == 200,
             let object,
             (object["ok"] as? Bool) == true else {
-        lastError = code == 409 ? "A configuração mudou; recarregue a ordem" : "Falha ao salvar a ordem"
+        lastError = code == 409
+          ? localizedServerError(object, fallbackKey: "error.REVISION_CONFLICT")
+          : localizedServerError(object, fallbackKey: "error.saveOrder")
         if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
         return false
       }
       if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
       return true
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
       return false
     }
   }
@@ -517,13 +535,13 @@ final class DockStore: ObservableObject {
       let (data, response) = try await session.data(for: req)
       let code = (response as? HTTPURLResponse)?.statusCode ?? 0
       guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-      guard code == 200, let cfg = object["config"] as? [String: Any], let pieceObject = object["piece"] as? [String: Any], let piece = DockPiece(json: pieceObject) else {
-        lastError = object["error"] as? String ?? "Não foi possível adicionar o site"
+      guard code == 200, let cfg = object["config"] as? [String: Any], let pieceObject = object["piece"] as? [String: Any], DockPiece(json: pieceObject) != nil else {
+        lastError = localizedServerError(object, fallbackKey: "error.addWebsite")
         return
       }
       applyConfig(cfg)
       await afterPinPush()
-    } catch { lastError = error.localizedDescription }
+    } catch { lastError = I18n.text("error.network", language: language) }
   }
 
   func removePiece(_ id: String) async {
@@ -538,9 +556,9 @@ final class DockStore: ObservableObject {
       let code = (response as? HTTPURLResponse)?.statusCode ?? 0
       guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
       if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
-      if code != 200 { lastError = object["error"] as? String ?? "Não foi possível remover"; return }
+      if code != 200 { lastError = localizedServerError(object, fallbackKey: "error.remove"); return }
       await afterPinPush()
-    } catch { lastError = error.localizedDescription }
+    } catch { lastError = I18n.text("error.network", language: language) }
   }
 
   func openWebsite(_ id: String) async {
@@ -552,11 +570,11 @@ final class DockStore: ObservableObject {
       let (data, response) = try await session.data(for: req)
       guard (response as? HTTPURLResponse)?.statusCode == 200 else {
         let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        lastError = object?["error"] as? String ?? "Não foi possível abrir o site"
+        lastError = localizedServerError(object, fallbackKey: "error.openWebsite")
         return
       }
       lastError = nil
-    } catch { lastError = error.localizedDescription }
+    } catch { lastError = I18n.text("error.network", language: language) }
   }
 
   @discardableResult
@@ -580,18 +598,20 @@ final class DockStore: ObservableObject {
       let code = (response as? HTTPURLResponse)?.statusCode ?? 0
       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
       if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
-      if code != 200 { lastError = object?["error"] as? String ?? "Falha ao salvar a ordem"; return false }
+      if code != 200 { lastError = localizedServerError(object, fallbackKey: "error.saveOrder"); return false }
       return true
-    } catch { lastError = error.localizedDescription; return false }
+    } catch { lastError = I18n.text("error.network", language: language); return false }
   }
 
   /// Confirma devices escutando (WS) logo após pin — feedback rápido no Mac.
   private func afterPinPush() async {
     await pingStatus()
     if devices > 0 {
-      lastSyncNote = "Enviado a \(devices) dispositivo\(devices == 1 ? "" : "s")"
+      lastSyncNote = I18n.text("sync.sent", language: language, [
+        "count": "\(devices)", "suffix": devices == 1 ? "" : "s"
+      ])
     } else {
-      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no seu celular)"
+      lastSyncNote = I18n.text("sync.savedNoDevice", language: language)
     }
   }
 

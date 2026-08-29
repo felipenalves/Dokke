@@ -6,13 +6,13 @@ const dockGrid = await readFile(new URL("../mac/Sources/DockGridView.swift", imp
 const dockStore = await readFile(new URL("../mac/Sources/DockStore.swift", import.meta.url), "utf8");
 const appPicker = await readFile(new URL("../mac/Sources/AppPickerSheet.swift", import.meta.url), "utf8");
 
-test("cada slot vazio do dock tem seu próprio Add com hover", () => {
+test("cada slot vazio do dock tem seu próprio texto de adição localizado com hover", () => {
   assert.match(dockGrid, /case add\(Int\)/);
   assert.match(dockGrid, /addButtonModule\(at: index\)/);
   assert.match(dockGrid, /private struct AddSlotButton: View/);
-  assert.match(dockGrid, /Text\(isHovered \? "Add"/);
+  assert.match(dockGrid, /Text\(isHovered \? I18n\.text\("picker\.add", language: languageStore\.selected\)/);
   assert.match(dockGrid, /\.onHover \{ isHovered = \$0 \}/);
-  assert.match(dockGrid, /Adicionar app na posição/);
+  assert.match(dockGrid, /I18n\.text\("grid\.add", language: languageStore\.selected, \["position":/);
   assert.doesNotMatch(dockGrid, /case \.add:/);
   assert.doesNotMatch(dockGrid, /private func emptySlot/);
 });

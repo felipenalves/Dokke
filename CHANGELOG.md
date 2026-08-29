@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.2.8 — próxima release
+
+Esta versão consolida a experiência multiplataforma do Dokke, adiciona suporte
+a inglês e prepara a atualização pelo próprio macOS e Android.
+
+### Novidades
+
+- Suporte a Português (Brasil) e English no PWA/APK, macOS, landing page e documentação.
+- Detecção automática de idioma no PWA/APK e seletor persistente no macOS e na landing.
+- Descoberta e validação automática de hosts Dokke na rede local.
+- Melhorias de conexão, safe area, viewport, gestos e orientação no Android/PWA.
+- Ajustes de layout, ícones, hover, picker e reordenação do dock no macOS.
+- Website Links com favicon, fallback e confirmação antes da remoção.
+- Login do PWA enviado automaticamente ao completar o quarto dígito do PIN.
+- Atualização do macOS via DMG com verificação SHA-256.
+- Atualização do Android via APK com validação de pacote, versão e assinatura.
+- README em inglês, novos assets de marca e documentação dos contratos de host e UI.
+
+### Correções
+
+- APK volta a exibir os apps corretamente após a correção do conflito de escopo do tradutor.
+- Mensagens de erro da API, macOS e Android passam a respeitar o idioma selecionado ou detectado.
+- Limites de dock, autenticação e validação de hosts reforçados.
+
+Os links dos artefatos e os checksums serão adicionados na GitHub Release após a
+geração do DMG universal e do APK release assinado.
+
 ## v0.2.7 — 11 de agosto de 2026
 
 Esta versão concentra a rodada de correções de uso real em Android, iPhone e

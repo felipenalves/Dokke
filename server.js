@@ -654,7 +654,7 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID || !Number.isInteger(body?.revision) || !Array.isArray(body?.ids)) {
-          respondError(400, { error: "revisão e ids são obrigatórios" });
+          respondError(400, { code: "INVALID_REQUEST", error: "revisão e ids são obrigatórios" });
           return;
         }
         withConfigLock(() => Promise.resolve()
@@ -670,13 +670,13 @@ export function makeApp(deps = {}) {
             const unique = new Set(ids);
             if (ids.length !== currentIds.length || unique.size !== ids.length || ids.some(id => !unique.has(id)) ||
                 currentIds.some(id => !unique.has(id))) {
-              respondError(400, { error: "ids não correspondem às peças atuais" });
+              respondError(400, { code: "INVALID_REQUEST", error: "ids não correspondem às peças atuais" });
               return null;
             }
             const requestedPositions = body.positions;
             if (requestedPositions !== undefined &&
                 (!requestedPositions || typeof requestedPositions !== "object" || Array.isArray(requestedPositions))) {
-              respondError(400, { error: "positions devem ser um objeto de posições por ID" });
+              respondError(400, { code: "INVALID_REQUEST", error: "positions devem ser um objeto de posições por ID" });
               return null;
             }
             if (requestedPositions !== undefined) {
@@ -687,7 +687,7 @@ export function makeApp(deps = {}) {
                   currentIds.some(id => !positionIds.has(id)) ||
                   values.some(position => !Number.isInteger(position) || position < 0 || position >= MAX_DOCK_SLOTS) ||
                   new Set(values).size !== values.length) {
-                respondError(400, { error: "positions não correspondem às peças atuais" });
+                respondError(400, { code: "INVALID_REQUEST", error: "positions não correspondem às peças atuais" });
                 return null;
               }
               if (cfg.pieces.some(piece => piece.position !== requestedPositions[piece.id])) {
@@ -717,7 +717,7 @@ export function makeApp(deps = {}) {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
         if (body === BODY_INVALID || !Number.isInteger(body?.revision)) {
-          respondError(400, { error: "revisão é obrigatória" });
+          respondError(400, { code: "INVALID_REQUEST", error: "revisão é obrigatória" });
           return;
         }
         withConfigLock(() => Promise.resolve()
@@ -726,7 +726,7 @@ export function makeApp(deps = {}) {
             if (body.revision !== cfg.revision) { rejectRevision(cfg); return null; }
             cfg.pieces = materializePiecePositions(cfg.pieces);
             const index = cfg.pieces.findIndex(piece => piece.id === id);
-            if (index < 0) { respondError(404, { error: "peça não encontrada" }); return null; }
+            if (index < 0) { respondError(404, { code: "PIECE_NOT_FOUND", error: "peça não encontrada" }); return null; }
             cfg.pieces.splice(index, 1);
             cfg.revision += 1;
             return persistConfig(cfg);
@@ -751,7 +751,7 @@ export function makeApp(deps = {}) {
           .then(cfg => {
             const piece = cfg.pieces.find(current => current.id === id);
             if (!piece) {
-              respondError(404, { error: "peça não encontrada" });
+              respondError(404, { code: "PIECE_NOT_FOUND", error: "peça não encontrada" });
               return null;
             }
             if (piece.type !== "website") {

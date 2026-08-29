@@ -854,6 +854,15 @@
       "toast.removeFailed": "Falha ao remover", "toast.dockChanged": "O dock mudou; tente novamente",
       "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "OBS offline",
       "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando…",
+      "error.PINNED_LIMIT_REACHED": "Limite de {pages} páginas atingido",
+      "error.REVISION_CONFLICT": "O dock mudou; tente novamente",
+      "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "Essa configuração exige um cliente atualizado",
+      "error.INVALID_PIECE_POSITION": "Posição inválida",
+      "error.PIECE_SLOT_OCCUPIED": "Essa posição do dock já está ocupada",
+      "error.INVALID_WEBSITE": "Website inválido",
+      "error.PIECE_NOT_WEBSITE": "Essa peça não é um website",
+      "error.PIECE_NOT_FOUND": "Peça não encontrada",
+      "error.INVALID_REQUEST": "Solicitação inválida",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — abra o OBS para liberar as cenas",
       "obs.unavailable": "OBS indisponível — verifique o WebSocket", "obs.live": "AO VIVO", "obs.connected": "conectado",
       "obs.startRecording": "Gravar", "obs.stopRecording": "Parar", "obs.startLive": "Live", "obs.stopLive": "Parar live", "obs.stopAll": "Encerrar",
@@ -888,6 +897,15 @@
       "toast.removeFailed": "Failed to remove", "toast.dockChanged": "The dock changed; try again",
       "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "OBS offline",
       "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating…",
+      "error.PINNED_LIMIT_REACHED": "Limit of {pages} pages reached",
+      "error.REVISION_CONFLICT": "The dock changed; try again",
+      "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "This configuration requires an updated client",
+      "error.INVALID_PIECE_POSITION": "Invalid position",
+      "error.PIECE_SLOT_OCCUPIED": "That dock position is already occupied",
+      "error.INVALID_WEBSITE": "Invalid website",
+      "error.PIECE_NOT_WEBSITE": "This piece is not a website",
+      "error.PIECE_NOT_FOUND": "Piece not found",
+      "error.INVALID_REQUEST": "Invalid request",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — open OBS to enable scenes",
       "obs.unavailable": "OBS unavailable — check the WebSocket", "obs.live": "LIVE", "obs.connected": "connected",
       "obs.startRecording": "Record", "obs.stopRecording": "Stop", "obs.startLive": "Live", "obs.stopLive": "Stop live", "obs.stopAll": "Stop",
@@ -1087,6 +1105,13 @@
     return t("toast.pinnedLimit", { pages: state.maxPinnedPages });
   }
 
+  function serverErrorMessage(data, fallbackKey, values = {}){
+    const code = data && typeof data.code === "string" ? data.code : "";
+    const codeKey = code ? "error." + code : "";
+    const catalog = I18N[currentLanguage] || I18N["pt-BR"];
+    return codeKey && catalog[codeKey] ? t(codeKey, values) : t(fallbackKey, values);
+  }
+
   async function req(path, opts){
     opts = opts || {};
     const timeout = opts.timeout || 2500;
@@ -1269,7 +1294,7 @@
     if (r && r.data.ok === true){ toast(t("toast.pinAdded", { name: name })); loadApps(); }
     else if (r && r.data && r.data.code === "PINNED_LIMIT_REACHED") {
       applyPinnedLimits(r.data.limits);
-      toast(r.data.error || pinnedLimitMessage(), "err");
+      toast(serverErrorMessage(r.data, "toast.pinFailed", { pages: state.maxPinnedPages }), "err");
     }
     else toast(t("toast.pinFailed"), "err");
   }

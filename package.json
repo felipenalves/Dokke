@@ -1,6 +1,6 @@
 {
   "name": "dokke",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "type": "module",
   "portless": { "name": "dokke", "script": "start" },

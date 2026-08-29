@@ -31,7 +31,7 @@ final class ServerManager: ObservableObject {
   private static let logPath = "/tmp/dokke-server.log"
   // Mantido em sincronia com package.json e Info.plist para execuções fora do
   // bundle, quando Bundle.main não expõe o Info.plist do app distribuído.
-  private static let packageVersionFallback = "0.2.7"
+  private static let packageVersionFallback = "0.2.8"
   private let maxConsecutiveRestartFailures = 5
   private let restartDelay: TimeInterval = 3
   private let serverBaseURL = "http://127.0.0.1:3000"
@@ -205,7 +205,7 @@ final class ServerManager: ObservableObject {
       case .available:
         guard let serverPath = self.serverPath, let nodePath = self.nodePath else {
           self.isStarting = false
-          self.lastError = "Node ou server.js não foi encontrado. Reinstale o Dokke pelo DMG mais recente."
+          self.lastError = I18n.text("error.missingNode", language: I18n.currentLanguage())
           self.appendLog("[startup-error] Node ou server.js não foi encontrado\n")
           self.finishStartupLog()
           print("[dokke] server.js ou node não encontrado — defina DOKKE_SERVER / DOKKE_NODE (env) ou dokke.serverPath / dokke.nodePath (UserDefaults)")
@@ -221,7 +221,7 @@ final class ServerManager: ObservableObject {
   private func preflightExistingServer() async -> ServerPreflight {
     guard let healthURL = URL(string: serverBaseURL + "/health"),
           let versionURL = URL(string: serverBaseURL + "/api/version") else {
-      return .conflict("Não foi possível montar a URL local do Dokke.")
+      return .conflict(I18n.text("error.invalidURL", language: I18n.currentLanguage()))
     }
     do {
       let (healthData, healthResponse) = try await session.data(from: healthURL)
@@ -230,7 +230,7 @@ final class ServerManager: ObservableObject {
             let health = try JSONSerialization.jsonObject(with: healthData) as? [String: Any],
             (health["ok"] as? Bool) == true,
             health["service"] as? String == "Dokke" else {
-        return .conflict("A porta 3000 já está ocupada por um serviço que não é Dokke compatível.")
+        return .conflict(I18n.text("error.portConflict", language: I18n.currentLanguage()))
       }
 
       let (versionData, versionResponse) = try await session.data(from: versionURL)
@@ -241,14 +241,14 @@ final class ServerManager: ObservableObject {
             let local = version["local"] as? [String: Any],
             let tag = local["tag"] as? String,
             Self.isCompatibleDokkeVersion(tag) else {
-        return .conflict("A porta 3000 já está ocupada por um Dokke incompatível.")
+        return .conflict(I18n.text("error.portConflict", language: I18n.currentLanguage()))
       }
       return .adopted(version: tag)
     } catch {
       if Self.isNoLocalListenerError(error) {
         return .available
       }
-      return .conflict("A porta 3000 está ocupada, mas o serviço local não pôde ser identificado com segurança.")
+      return .conflict(I18n.text("error.portUnknown", language: I18n.currentLanguage()))
     }
   }
 
@@ -308,7 +308,7 @@ final class ServerManager: ObservableObject {
         self.appendLog("[exit] status=\(process.terminationStatus)\n")
         self.failOwnedAttempt(
           process,
-          message: "O servidor encerrou (código \(process.terminationStatus)). Veja /tmp/dokke-server.log.",
+          message: I18n.text("error.serverExited", language: I18n.currentLanguage()),
           terminate: false
         )
       }
@@ -330,7 +330,7 @@ final class ServerManager: ObservableObject {
       ownership = .none
       appendLog("[startup-error] \(error.localizedDescription)\n")
       print("[dokke] failed to start server: \(error)")
-      handleOwnedFailure("Não foi possível iniciar o servidor: \(error.localizedDescription)")
+      handleOwnedFailure(I18n.text("error.start", language: I18n.currentLanguage()))
       finishStartupLog()
     }
   }
@@ -372,7 +372,7 @@ final class ServerManager: ObservableObject {
 
     guard process === proc, ownership == .owned, !intentionalStop else { return }
     appendLog("[startup-error] bind não confirmado\n")
-    failOwnedAttempt(proc, message: "O servidor não confirmou o bind na porta 3000.")
+    failOwnedAttempt(proc, message: I18n.text("error.server", language: I18n.currentLanguage()))
   }
 
   private func finishStartupLog() {
@@ -401,7 +401,7 @@ final class ServerManager: ObservableObject {
     lastError = message
     restartFailures += 1
     guard restartFailures <= maxConsecutiveRestartFailures else {
-      lastError = "O servidor falhou \(restartFailures) vezes consecutivas e foi interrompido. Veja /tmp/dokke-server.log."
+      lastError = I18n.text("error.restartLimit", language: I18n.currentLanguage())
       appendLog("[restart-limit] failures=\(restartFailures)\n")
       return
     }
