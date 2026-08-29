@@ -103,6 +103,12 @@ a { color: inherit; }
 .nav-links a { text-decoration: none; transition: color .2s ease; }
 .nav-links a:hover { color: var(--ink); }
 
+.nav-actions { display: inline-flex; align-items: center; gap: 8px; }
+.language-toggle { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid rgba(255,255,255,.38); border-radius: 999px; background: rgba(255,255,255,.28); }
+.language-toggle button { border: 0; border-radius: 999px; background: transparent; color: #716d78; cursor: pointer; font: 700 10px/1 Inter, sans-serif; padding: 7px 8px; }
+.language-toggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.language-toggle button:focus-visible { outline: 2px solid var(--hero-orange); outline-offset: 2px; }
+
 .download-link,
 .github-link {
   display: inline-flex;
@@ -794,6 +800,10 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
   .site-header { width: min(calc(100% - 28px), 676px); margin-top: 14px; }
   .nav-shell { grid-template-columns: auto auto; justify-content: space-between; gap: 10px; padding-left: 16px; }
   .nav-links { display: none; }
+  .nav-actions { min-width: 0; gap: 6px; }
+  .nav-actions .github-link { min-height: 34px; padding: 0 12px; }
+  .language-toggle { padding: 2px; }
+  .language-toggle button { padding: 7px 6px; }
   .hero { min-height: calc(100svh - 66px); padding-top: 56px; }
   .hero-emblem { width: 132px; height: 132px; margin-bottom: 29px; }
   .hero-icon { width: 124px; height: 124px; }

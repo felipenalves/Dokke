@@ -20,6 +20,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 struct ContentView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var updater: DokkeUpdateManager
+  @EnvironmentObject private var languageStore: LanguageStore
   @State private var selection: SidebarItem? = .apps
   @State private var isSidebarVisible = true
   @State private var hoveredSidebarItem: SidebarItem?
@@ -91,7 +92,7 @@ struct ContentView: View {
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(isSidebarVisible ? "Ocultar sidebar" : "Mostrar sidebar")
+    .accessibilityLabel(I18n.text(isSidebarVisible ? "sidebar.hide" : "sidebar.show", language: languageStore.selected))
   }
 
   private var customTrafficLights: some View {
@@ -137,7 +138,7 @@ struct ContentView: View {
             Image(systemName: item.icon)
               .font(.system(size: 12, weight: .medium))
               .frame(width: 14, height: 14)
-            Text(item.rawValue)
+            Text(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
               .font(.system(size: 13, weight: .medium))
             Spacer(minLength: 0)
           }
@@ -158,8 +159,8 @@ struct ContentView: View {
             hoveredSidebarItem = nil
           }
         }
-        .accessibilityLabel(item.rawValue)
-        .accessibilityValue(selection == item ? "Selecionado" : "")
+        .accessibilityLabel(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
+        .accessibilityValue(selection == item ? I18n.text("sidebar.selected", language: languageStore.selected) : "")
       }
       Spacer()
     }
@@ -318,6 +319,7 @@ struct AboutView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var server: ServerManager
   @EnvironmentObject private var updater: DokkeUpdateManager
+  @EnvironmentObject private var languageStore: LanguageStore
   @State private var showingReleaseNotes = false
   @State private var showingResetPinConfirmation = false
   private let aboutContentMaxWidth: CGFloat = 980
@@ -325,16 +327,32 @@ struct AboutView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
+        HStack {
+          Text(I18n.text("aria.language", language: languageStore.selected))
+            .font(.subheadline.weight(.semibold))
+          Spacer()
+          Picker("Idioma", selection: Binding(
+            get: { languageStore.selected },
+            set: { languageStore.select($0) }
+          )) {
+            ForEach(DokkeLanguage.allCases) { language in
+              Text(language.displayName).tag(language)
+            }
+          }
+          .pickerStyle(.menu)
+          .accessibilityLabel("Idioma")
+        }
+
         VStack(alignment: .leading, spacing: 4) {
-          Text("Conectar outro dispositivo")
+          Text(I18n.text("connect.title", language: languageStore.selected))
             .font(.title.bold())
-          Text("Use o código abaixo no app ou navegador que você quer conectar ao Dokke.")
+          Text(I18n.text("connect.description", language: languageStore.selected))
             .font(.subheadline)
             .foregroundStyle(.secondary)
         }
 
         VStack(spacing: 16) {
-          Text("Código de acesso")
+          Text(I18n.text("connect.accessCode", language: languageStore.selected))
             .font(.headline)
           AccessCodeView(code: store.pinCode) {
             showingResetPinConfirmation = true
@@ -353,7 +371,7 @@ struct AboutView: View {
         )
 
         VStack(alignment: .leading, spacing: 16) {
-          Text("Abrir em outro dispositivo")
+          Text(I18n.text("connect.openOther", language: languageStore.selected))
             .font(.headline)
           if let ip = ServerManager.lanIPv4() {
             let localURL = "http://\(ip):3000"
@@ -362,7 +380,7 @@ struct AboutView: View {
                 .frame(width: 112, height: 112)
 
               VStack(alignment: .leading, spacing: 10) {
-                Text("Escaneie ou abra este endereço")
+                Text(I18n.text("connect.scan", language: languageStore.selected))
                   .font(.caption.weight(.semibold))
                 Text(localURL)
                   .font(.system(size: 14, weight: .semibold, design: .monospaced))
@@ -374,7 +392,7 @@ struct AboutView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(localURL, forType: .string)
                   } label: {
-                    Label("Copiar URL", systemImage: "doc.on.doc")
+                    Label(I18n.text("connect.copyURL", language: languageStore.selected), systemImage: "doc.on.doc")
                   }
                   .buttonStyle(.bordered)
                   Button {
@@ -382,17 +400,17 @@ struct AboutView: View {
                       NSWorkspace.shared.open(url)
                     }
                   } label: {
-                    Label("Abrir", systemImage: "arrow.up.right.square")
+                    Label(I18n.text("connect.open", language: languageStore.selected), systemImage: "arrow.up.right.square")
                   }
                   .buttonStyle(.bordered)
                 }
               }
             }
-            Text("O Mac e o dispositivo precisam estar na mesma rede. Para iPhone/iPad, use uma URL HTTPS do túnel antes de adicionar à Tela de Início.")
+            Text(I18n.text("connect.network", language: languageStore.selected))
               .font(.caption)
               .foregroundStyle(.secondary)
           } else {
-            Text("Sem IP de rede detectado (offline?)")
+            Text(I18n.text("connect.noIP", language: languageStore.selected))
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -409,11 +427,11 @@ struct AboutView: View {
             Circle()
               .fill(store.online ? Color.green : Color.red.opacity(0.85))
               .frame(width: 9, height: 9)
-            Text(store.online ? "Servidor online" : "Servidor offline")
+            Text(I18n.text(store.online ? "connect.online" : "connect.offline", language: languageStore.selected))
               .font(.subheadline.weight(.semibold))
           }
-          Text("\(store.devices) dispositivos")
-          Text("\(store.pinned.count) fixados")
+          Text(I18n.text("connect.devices", language: languageStore.selected, ["count": "\(store.devices)"]))
+          Text(I18n.text("connect.pinned", language: languageStore.selected, ["count": "\(store.pinned.count)"]))
           Spacer()
         }
         .font(.caption)
@@ -427,7 +445,7 @@ struct AboutView: View {
 
         VStack(alignment: .leading, spacing: 8) {
           HStack {
-            Text("Atualizações")
+            Text(I18n.text("updates.title", language: languageStore.selected))
               .font(.subheadline.weight(.semibold))
             Spacer()
             if updater.state == .checking {
@@ -436,16 +454,16 @@ struct AboutView: View {
           }
           if let release = updater.release {
             HStack(spacing: 8) {
-              Label("Nova versão \(release.tag)", systemImage: "arrow.down.circle.fill")
+              Label(I18n.text("updates.new", language: languageStore.selected, ["version": release.tag]), systemImage: "arrow.down.circle.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.orange)
               Spacer()
-              Button("Mudanças") {
+              Button(I18n.text("updates.changes", language: languageStore.selected)) {
                 showingReleaseNotes = true
               }
               .buttonStyle(.bordered)
               .controlSize(.small)
-              Button("Baixar e instalar") {
+              Button(I18n.text("updates.install", language: languageStore.selected)) {
                 Task { await updater.downloadAndInstall() }
               }
               .buttonStyle(.borderedProminent)
@@ -454,11 +472,11 @@ struct AboutView: View {
             }
           } else {
             HStack {
-              Text("Versão instalada: \(updater.currentVersion)")
+              Text(I18n.text("updates.installed", language: languageStore.selected, ["version": updater.currentVersion]))
                 .font(.caption)
                 .foregroundStyle(.secondary)
               Spacer()
-              Button("Verificar atualizações") {
+              Button(I18n.text("updates.check", language: languageStore.selected)) {
                 Task { await updater.check() }
               }
               .buttonStyle(.bordered)
@@ -466,7 +484,7 @@ struct AboutView: View {
               .disabled(updater.isBusy)
             }
           }
-          if let message = updater.statusMessage {
+          if let message = updater.statusMessage(language: languageStore.selected) {
             if updater.release == nil {
               Text(message)
                 .font(.caption)
@@ -491,13 +509,13 @@ struct AboutView: View {
       // A aba pode ser aberta depois do refresh inicial do store.
       await store.loadPin()
     }
-    .confirmationDialog("Gerar novo código?", isPresented: $showingResetPinConfirmation, titleVisibility: .visible) {
-      Button("Gerar novo código", role: .destructive) {
+    .confirmationDialog(I18n.text("confirm.newCode", language: languageStore.selected), isPresented: $showingResetPinConfirmation, titleVisibility: .visible) {
+      Button(I18n.text("confirm.newCodeAction", language: languageStore.selected), role: .destructive) {
         Task { await store.resetPin() }
       }
-      Button("Cancelar", role: .cancel) {}
+      Button(I18n.text("confirm.cancel", language: languageStore.selected), role: .cancel) {}
     } message: {
-      Text("Os dispositivos conectados precisarão digitar o novo código.")
+      Text(I18n.text("confirm.newCodeMessage", language: languageStore.selected))
     }
     .sheet(isPresented: $showingReleaseNotes) {
       if let release = updater.release {
@@ -508,6 +526,7 @@ struct AboutView: View {
 }
 
 private struct AccessCodeView: View {
+  @EnvironmentObject private var languageStore: LanguageStore
   let code: String?
   let onRegenerate: () -> Void
 
@@ -529,10 +548,10 @@ private struct AccessCodeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
       }
-      Text("Digite este código no dispositivo conectado")
+      Text(I18n.text("accessCode.instruction", language: languageStore.selected))
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
-      Button("Gerar novo código", action: onRegenerate)
+      Button(I18n.text("confirm.newCodeAction", language: languageStore.selected), action: onRegenerate)
         .buttonStyle(.link)
     }
     .frame(maxWidth: .infinity)
@@ -575,6 +594,7 @@ private struct QRCodeView: View {
 
 private struct ReleaseNotesView: View {
   @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var languageStore: LanguageStore
   let release: DokkeRelease
   private let renderedNotes: AttributedString
 
@@ -587,13 +607,13 @@ private struct ReleaseNotesView: View {
     VStack(alignment: .leading, spacing: 16) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
-          Text("O que mudou")
+          Text(I18n.text("release.changed", language: languageStore.selected))
             .font(.title2.bold())
           Text("Dokke \(release.tag)")
             .foregroundStyle(.secondary)
         }
         Spacer()
-        Button("Fechar") {
+        Button(I18n.text("release.close", language: languageStore.selected)) {
           dismiss()
         }
         .buttonStyle(.bordered)
@@ -615,6 +635,7 @@ struct MenuBarView: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var server: ServerManager
   @EnvironmentObject private var updater: DokkeUpdateManager
+  @EnvironmentObject private var languageStore: LanguageStore
 
   private var appVersion: String {
     (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.7"
@@ -623,8 +644,8 @@ struct MenuBarView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 10) {
-        Text("Dispositivo: \(store.devices)")
-        Text("Fixados: \(store.pinned.count)")
+        Text(I18n.text("menu.device", language: languageStore.selected, ["count": "\(store.devices)"]))
+        Text(I18n.text("menu.pinned", language: languageStore.selected, ["count": "\(store.pinned.count)"]))
       }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -637,28 +658,28 @@ struct MenuBarView: View {
       Button {
         openWindow(id: "main")
       } label: {
-        Label("Abrir Dokke", systemImage: "macwindow")
+        Label(I18n.text("menu.open", language: languageStore.selected), systemImage: "macwindow")
       }
       Button {
         Task { await store.refreshAll() }
       } label: {
-        Label("Sincronizar agora", systemImage: "arrow.triangle.2.circlepath")
+        Label(I18n.text("menu.sync", language: languageStore.selected), systemImage: "arrow.triangle.2.circlepath")
       }
       if let release = updater.release {
         Divider()
-        Text("Atualização \(release.tag) disponível")
+        Text(I18n.text("menu.update", language: languageStore.selected, ["version": release.tag]))
           .font(.caption.weight(.semibold))
         Button {
           Task { await updater.downloadAndInstall() }
         } label: {
-          Label("Baixar e instalar", systemImage: "arrow.down.circle")
+          Label(I18n.text("updates.install", language: languageStore.selected), systemImage: "arrow.down.circle")
         }
         .disabled(updater.isBusy)
       } else {
         Button {
           Task { await updater.check() }
         } label: {
-          Label("Verificar atualizações", systemImage: "arrow.down.circle")
+          Label(I18n.text("updates.check", language: languageStore.selected), systemImage: "arrow.down.circle")
         }
         .disabled(updater.isBusy)
       }
@@ -667,12 +688,12 @@ struct MenuBarView: View {
         server.stop()
         NSApplication.shared.terminate(nil)
       } label: {
-        Label("Sair", systemImage: "power")
+        Label(I18n.text("menu.quit", language: languageStore.selected), systemImage: "power")
       }
       Divider()
       Button {} label: {
         HStack(alignment: .center, spacing: 0) {
-          Text("Versão \(appVersion)")
+          Text(I18n.text("menu.version", language: languageStore.selected, ["version": appVersion]))
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: true, vertical: false)

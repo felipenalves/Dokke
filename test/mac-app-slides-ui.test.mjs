@@ -71,11 +71,11 @@ test("sidebar replica a seleção discreta da referência", () => {
 
 test("reordenação fica explícita no modo Reorganizar apps", () => {
   assert.match(dockGrid, /@State private var isReordering = false/);
-  assert.match(dockGrid, /Reorganizar apps/);
-  assert.match(dockGrid, /Concluir/);
+  assert.match(dockGrid, /I18n\.text\(isReordering \? "grid\.reorder\.done" : "grid\.reorder"/);
+  assert.match(dockGrid, /"grid\.reorder\.done"/);
   assert.match(dockGrid, /if isReordering/);
   assert.match(dockGrid, /\.overlay\(alignment: \.bottom/);
-  assert.match(dockGrid, /Arraste para mover um ícone de posição\./);
+  assert.match(dockGrid, /I18n\.text\("grid\.drag"/);
 });
 
 test("carrossel preserva o centro e ganha o respiro superior da referência", () => {
@@ -262,10 +262,10 @@ test("hover do app mostra remoção direta sem alterar o modo de reorder", () =>
   assert.match(dockIcon, /private let hoverBlurRadius: CGFloat = 4/);
   assert.match(dockIcon, /\.blur\(radius: isHovered \? hoverBlurRadius : 0\)/);
   assert.match(iconCard, /RoundedRectangle\(cornerRadius: 28/);
-  assert.match(iconCard, /Text\("Remover"\)/);
+  assert.match(iconCard, /I18n\.text\("icon\.remove"/);
   assert.doesNotMatch(iconCard, /\.opacity\(isHovered \? 1 : 0\)/);
   assert.match(iconCard, /if isReordering && isHovered \{\s*ZStack[\s\S]*?\.allowsHitTesting\(false\)/);
-  assert.match(iconCard, /Text\("Mover"\)/);
+  assert.match(iconCard, /I18n\.text\("icon\.move"/);
   assert.match(iconCard, /arrow\.up\.left\.and\.arrow\.down\.right/);
   assert.match(
     iconCard,
@@ -284,8 +284,8 @@ test("hover do app mostra remoção direta sem alterar o modo de reorder", () =>
   assert.doesNotMatch(dockIconBody, /\.onHover \{/);
   assert.match(iconCard, /\.zIndex\(5\)/);
   assert.doesNotMatch(iconCard, /\.transition\(/);
-  assert.match(iconCard, /Text\("Remover"\)[\s\S]*?\.contentShape\(Rectangle\(\)\)[\s\S]*?\.buttonStyle\(\.plain\)/);
-  assert.match(iconCard, /Remover app fixado/);
+  assert.match(iconCard, /I18n\.text\("icon\.remove"[\s\S]*?\.contentShape\(Rectangle\(\)\)[\s\S]*?\.buttonStyle\(\.plain\)/);
+  assert.match(iconCard, /I18n\.text\(piece\.type == \.website \? "icon\.removeWebsite" : "icon\.removeApp"/);
 });
 
 test("tracker AppKit atualiza o hover sem interceptar o botão", () => {
@@ -330,7 +330,7 @@ test("@spec:AC-342 hover sobrevive a scroll e sweeps sem exit perdido", () => {
 test("label do hover ocupa explicitamente todo o card antes da área clicável", () => {
   assert.match(
     iconCard,
-    /\} label: \{\s*ZStack \{[\s\S]*?Text\("Remover"\)[\s\S]*?\}\s*\.frame\(width: iconCardSize, height: iconCardSize\)\s*\.contentShape\(Rectangle\(\)\)\s*\}/,
+    /\} label: \{\s*ZStack \{[\s\S]*?I18n\.text\("icon\.remove"[\s\S]*?\}\s*\.frame\(width: iconCardSize, height: iconCardSize\)\s*\.contentShape\(Rectangle\(\)\)\s*\}/,
   );
 });
 

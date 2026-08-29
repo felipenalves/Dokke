@@ -78,6 +78,7 @@ struct DokkeApp: App {
   @StateObject private var store = DockStore()
   @StateObject private var server = ServerManager()
   @StateObject private var updater = DokkeUpdateManager()
+  @StateObject private var languageStore = LanguageStore()
 
   var body: some Scene {
     Window("Dokke", id: "main") {
@@ -85,6 +86,7 @@ struct DokkeApp: App {
         .environmentObject(store)
         .environmentObject(server)
         .environmentObject(updater)
+        .environmentObject(languageStore)
         .background(WindowStyleConfigurator())
         .frame(minWidth: 840, idealWidth: 980, minHeight: 540, idealHeight: 628)
     }
@@ -97,6 +99,7 @@ struct DokkeApp: App {
         .environmentObject(store)
         .environmentObject(server)
         .environmentObject(updater)
+        .environmentObject(languageStore)
     } label: {
       MenuBarIcon()
         .accessibilityLabel("Dokke")

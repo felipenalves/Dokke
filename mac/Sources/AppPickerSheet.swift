@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AppPickerSheet: View {
   @EnvironmentObject private var store: DockStore
+  @EnvironmentObject private var languageStore: LanguageStore
   @Environment(\.dismiss) private var dismiss
   let insertAt: Int?
   @State private var search = ""
@@ -44,14 +45,14 @@ struct AppPickerSheet: View {
     ZStack {
       VStack(spacing: 0) {
       HStack(spacing: 10) {
-        Picker("Tipo de peça", selection: $selectedTab) {
-          Text("Apps").tag("Apps")
-          Text("Website Links").tag("Website Links")
+        Picker(I18n.text("picker.type", language: languageStore.selected), selection: $selectedTab) {
+          Text(I18n.text("picker.apps", language: languageStore.selected)).tag("Apps")
+          Text(I18n.text("picker.websites", language: languageStore.selected)).tag("Website Links")
         }
         .labelsHidden()
         .pickerStyle(.segmented)
         .frame(maxWidth: .infinity)
-        .accessibilityLabel("Tipo de peça")
+        .accessibilityLabel(I18n.text("picker.type", language: languageStore.selected))
 
         Button { dismiss() } label: {
           Image(systemName: "xmark")
@@ -61,7 +62,7 @@ struct AppPickerSheet: View {
             .background(Color.white.opacity(0.10), in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Fechar")
+        .accessibilityLabel(I18n.text("picker.close", language: languageStore.selected))
       }
       .padding(.horizontal, 16)
       .padding(.top, 16)
@@ -75,7 +76,7 @@ struct AppPickerSheet: View {
           .foregroundStyle(.white.opacity(0.92))
           .frame(width: 42, height: 42)
           .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        Text(selectedTab == "Apps" ? "Adicionar Apps" : "Adicionar links ao dock")
+        Text(I18n.text(selectedTab == "Apps" ? "picker.addApps" : "picker.addLinks", language: languageStore.selected))
           .font(.system(size: 18, weight: .bold))
           .lineLimit(1)
         Spacer(minLength: 0)
@@ -89,13 +90,13 @@ struct AppPickerSheet: View {
           Image(systemName: "chevron.down")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
-          Text("App Library")
+          Text(I18n.text("picker.library", language: languageStore.selected))
             .font(.system(size: 16, weight: .semibold))
           Spacer(minLength: 12)
           HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
               .foregroundStyle(.secondary)
-            TextField("Buscar apps...", text: $search)
+            TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
               .textFieldStyle(.plain)
             if !search.isEmpty {
               Button { search = "" } label: {
@@ -117,7 +118,7 @@ struct AppPickerSheet: View {
         .padding(.bottom, 10)
 
         if store.isPinnedLimitReached {
-          Text("Limite de 5 páginas atingido. Remova uma peça para adicionar outra.")
+          Text(I18n.text("picker.limit", language: languageStore.selected))
             .font(.caption)
             .foregroundStyle(.orange)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,16 +127,16 @@ struct AppPickerSheet: View {
         }
 
         if store.installedLoading && !store.installedReady {
-          ProgressView("Carregando apps…")
+          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if store.loading && !store.installedReady {
-          ProgressView("Carregando apps…")
+          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if filteredApps.isEmpty {
           ContentUnavailableView(
-            search.isEmpty ? "Nenhum app encontrado" : "Sem resultados",
+            search.isEmpty ? I18n.text("picker.none", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
             systemImage: "app.dashed",
-            description: Text(search.isEmpty ? "O servidor não retornou apps instalados." : "Tente uma busca diferente.")
+            description: Text(search.isEmpty ? I18n.text("picker.serverEmpty", language: languageStore.selected) : I18n.text("picker.searchDifferent", language: languageStore.selected))
           )
         } else {
           ScrollView {
@@ -169,9 +170,9 @@ struct AppPickerSheet: View {
       HStack(spacing: 8) {
         Image(systemName: "globe")
           .foregroundStyle(.secondary)
-        TextField("https://exemplo.com", text: $websiteURL)
+        TextField(I18n.text("picker.url", language: languageStore.selected), text: $websiteURL)
           .textFieldStyle(.plain)
-        Button("Adicionar") {
+        Button(I18n.text("picker.add", language: languageStore.selected)) {
           beginWebsiteAdd(url: websiteURL)
         }
         .buttonStyle(.borderedProminent)
@@ -190,7 +191,7 @@ struct AppPickerSheet: View {
       )
 
       if store.isPinnedLimitReached {
-        Text("Limite de 5 páginas atingido. Remova uma peça para adicionar outra.")
+      Text(I18n.text("picker.limit", language: languageStore.selected))
           .font(.caption)
           .foregroundStyle(.orange)
       }
@@ -200,7 +201,7 @@ struct AppPickerSheet: View {
           .foregroundStyle(.red)
       }
 
-      Text("Sugestões")
+      Text(I18n.text("picker.suggestions", language: languageStore.selected))
         .font(.headline)
         .padding(.top, 4)
 
@@ -234,11 +235,11 @@ struct AppPickerSheet: View {
       Spacer(minLength: 8)
 
       if store.pieces.contains(where: { $0.type == .website && $0.url == suggestion.1 + "/" }) {
-        Label("Adicionado", systemImage: "checkmark.circle.fill")
+        Label(I18n.text("picker.added", language: languageStore.selected), systemImage: "checkmark.circle.fill")
           .font(.caption)
           .foregroundStyle(.green)
       } else {
-        Button("Adicionar") {
+        Button(I18n.text("picker.add", language: languageStore.selected)) {
           beginWebsiteAdd(url: suggestion.1, suggestedTitle: suggestion.0)
         }
         .buttonStyle(.borderedProminent)
@@ -313,12 +314,12 @@ struct AppPickerSheet: View {
       .frame(width: 48, height: 48)
       .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
 
-      Text("Vamos dar um nome curto para o seu weblink.")
+      Text(I18n.text("picker.nameHint", language: languageStore.selected))
         .font(.system(size: 19, weight: .bold))
         .multilineTextAlignment(.center)
         .lineLimit(2)
 
-      TextField("Nome do site", text: $pendingWebsiteTitle)
+      TextField(I18n.text("picker.siteName", language: languageStore.selected), text: $pendingWebsiteTitle)
         .textFieldStyle(.roundedBorder)
         .onSubmit { confirmWebsiteAdd() }
 
@@ -330,10 +331,10 @@ struct AppPickerSheet: View {
       }
 
       HStack(spacing: 12) {
-        Button("Cancelar") { cancelWebsiteAdd() }
+        Button(I18n.text("confirm.cancel", language: languageStore.selected)) { cancelWebsiteAdd() }
           .buttonStyle(.bordered)
           .controlSize(.small)
-        Button("Adicionar") { confirmWebsiteAdd() }
+        Button(I18n.text("picker.add", language: languageStore.selected)) { confirmWebsiteAdd() }
           .buttonStyle(.borderedProminent)
           .controlSize(.small)
           .disabled(pendingWebsiteTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.busyName != nil)
@@ -382,9 +383,9 @@ struct AppPickerSheet: View {
         Image(systemName: "checkmark.circle.fill")
           .font(.system(size: 18, weight: .semibold))
           .foregroundStyle(.green)
-          .accessibilityLabel("Adicionado")
+          .accessibilityLabel(I18n.text("picker.added", language: languageStore.selected))
       } else {
-        Button("Adicionar") {
+        Button(I18n.text("picker.add", language: languageStore.selected)) {
           Task {
             if let insertAt {
               await store.pin(app.name, at: insertAt)

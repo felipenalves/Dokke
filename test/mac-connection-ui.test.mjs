@@ -153,8 +153,8 @@ test("menu bar abre o Dokke, sincroniza dados e expõe atualização somente qua
   assert.doesNotMatch(app, /WindowGroup\("Dokke", id: "main"\)/);
   assert.match(menuBar, /@EnvironmentObject private var updater: DokkeUpdateManager/);
   assert.match(menuBar, /openWindow\(id: "main"\)/);
-  assert.match(menuBar, /Sincronizar agora/);
-  assert.match(menuBar, /Verificar atualizações/);
+  assert.match(menuBar, /I18n\.text\("menu\.sync"/);
+  assert.match(menuBar, /I18n\.text\("updates\.check"/);
 });
 
 test("menu bar mantém o topo neutro e exibe métricas úteis", () => {
@@ -162,24 +162,24 @@ test("menu bar mantém o topo neutro e exibe métricas úteis", () => {
   assert.doesNotMatch(intro, /Image\(systemName: "circle\.fill"\)/);
   assert.doesNotMatch(intro, /Text\("Dokke"\)/);
   assert.doesNotMatch(menuBar, /Dokke online|Dokke offline/);
-  assert.ok(menuBar.includes('Text("Dispositivo: \\(store.devices)")'));
-  assert.ok(menuBar.includes('Text("Fixados: \\(store.pinned.count)")'));
+  assert.match(menuBar, /I18n\.text\("menu\.device"/);
+  assert.match(menuBar, /I18n\.text\("menu\.pinned"/);
   assert.doesNotMatch(menuBar, /Dispositivos conectados|Slots fixados/);
   assert.match(menuBar, /\.font\(\.caption\)/);
   assert.match(menuBar, /\.foregroundStyle\(\.secondary\)/);
 });
 
 test("menu bar usa ícones nos comandos e mostra a versão no rodapé", () => {
-  assert.match(menuBar, /Label\("Abrir Dokke", systemImage: "macwindow"\)/);
-  assert.match(menuBar, /Label\("Sincronizar agora", systemImage: "arrow\.triangle\.2\.circlepath"\)/);
-  assert.match(menuBar, /Label\("Verificar atualizações", systemImage: "arrow\.down\.circle"\)/);
-  assert.match(menuBar, /Label\("Baixar e instalar", systemImage: "arrow\.down\.circle"\)/);
-  assert.match(menuBar, /Label\("Sair", systemImage: "power"\)/);
+  assert.match(menuBar, /I18n\.text\("menu\.open"/);
+  assert.match(menuBar, /I18n\.text\("menu\.sync"/);
+  assert.match(menuBar, /I18n\.text\("updates\.check"/);
+  assert.match(menuBar, /I18n\.text\("updates\.install"/);
+  assert.match(menuBar, /I18n\.text\("menu\.quit"/);
   assert.match(menuBar, /CFBundleShortVersionString/);
   const footer = menuBar.slice(menuBar.lastIndexOf("      Divider()"));
   assert.match(footer, /Button\s*\{\s*\}\s*label: \{/);
   assert.match(footer, /HStack\(alignment: \.center, spacing: 0\)/);
-  assert.ok(footer.includes('Text("Versão \\(appVersion)")'));
+  assert.match(footer, /I18n\.text\("menu\.version"/);
   assert.match(footer, /fixedSize\(horizontal: true, vertical: false\)/);
   assert.match(footer, /Spacer\(minLength: 12\)[\s\S]*Text\("Dokke"\)/);
   assert.match(footer, /\.frame\(width: 250, alignment: \.leading\)/);
