@@ -963,7 +963,7 @@
   }
 
   // ---------- login wall (pin de acesso) ----------
-  let authed = false, loginOpen = false;
+  let authed = false, loginOpen = false, loginSubmitting = false;
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -1013,26 +1013,38 @@
     if (err) err.textContent = msg || t("login.invalidCode");
   }
   async function doLogin(){
+    if (loginSubmitting) return;
     const pin = $("loginPin");
     const val = (pin && pin.value || "").trim();
     if (loginOpen === false) return;
     if (!/^\d{4}$/.test(val)){ loginError(t("login.invalidCode")); return; }
-    const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
-    if (r && r.status === 200 && r.data && r.data.ok === true){
-      authed = true;
-      // tira o foco do input pra o teclado recuar (mobile/WebView)
-      const active = document.activeElement;
-      if (active && active.blur) active.blur();
-      try { if (window.DokkeAndroid) window.DokkeAndroid.hideKeyboard(); } catch (e) {}
-      hideLogin();
-      boot();
-    } else if (r && r.status === 429){
-      loginError(t("login.tooMany"));
-    } else {
-      loginError(t("login.wrongCode"));
+    loginSubmitting = true;
+    try {
+      const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
+      if (r && r.status === 200 && r.data && r.data.ok === true){
+        authed = true;
+        // tira o foco do input pra o teclado recuar (mobile/WebView)
+        const active = document.activeElement;
+        if (active && active.blur) active.blur();
+        try { if (window.DokkeAndroid) window.DokkeAndroid.hideKeyboard(); } catch (e) {}
+        hideLogin();
+        boot();
+      } else if (r && r.status === 429){
+        loginError(t("login.tooMany"));
+      } else {
+        loginError(t("login.wrongCode"));
+      }
+    } finally {
+      loginSubmitting = false;
     }
   }
   $("loginGo").addEventListener("click", doLogin);
+  $("loginPin").addEventListener("input", function(){
+    const input = $("loginPin");
+    const normalized = (input.value || "").replace(/\D/g, "").slice(0, 4);
+    if (input.value !== normalized) input.value = normalized;
+    if (normalized.length === 4) doLogin();
+  });
   $("loginPin").addEventListener("keydown", function(e){
     if (e.key === "Enter") doLogin();
     else if (!/^\d$/.test(e.key) && e.key.length === 1) e.preventDefault();

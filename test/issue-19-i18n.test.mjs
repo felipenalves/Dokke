@@ -201,6 +201,21 @@ test("PWA não expõe seletor manual de idioma", () => {
   assert.doesNotMatch(html, /data-language-control/);
 });
 
+test("login valida o PIN automaticamente no quarto dígito", () => {
+  const doLogin = extractFunction(html, "doLogin");
+  assert.ok(doLogin, "faltou function doLogin()");
+  assert.match(html, /loginSubmitting = false/);
+  assert.match(doLogin, /if \(loginSubmitting\) return/);
+  assert.match(doLogin, /loginSubmitting = true/);
+  assert.match(doLogin, /finally \{[\s\S]*loginSubmitting = false/);
+
+  const inputHandlerStart = html.indexOf('$("loginPin").addEventListener("input"');
+  const inputHandlerEnd = html.indexOf('$("loginGo").addEventListener("click"', inputHandlerStart);
+  const inputHandler = html.slice(inputHandlerStart, inputHandlerEnd);
+  assert.match(inputHandler, /replace\(\/\\D\/g, ""\)/);
+  assert.match(inputHandler, /normalized\.length === 4\) doLogin\(\)/);
+});
+
 test("PWA interpola valores fora do catálogo e não trata conteúdo dinâmico como HTML", () => {
   const literal = extractAssignedObject(html, "I18N");
   assert.ok(literal, "faltou o catálogo I18N para validar seus valores");
