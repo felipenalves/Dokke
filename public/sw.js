@@ -1,5 +1,5 @@
-const CACHE = "dokke-v14";
-const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
+const CACHE = "dokke-v24";
+const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", function(e) {
   e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(PRECACHE); }).then(function() { return self.skipWaiting(); }));

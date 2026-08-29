@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="public/icon-512.png" width="120" alt="Dokke">
+  <img src="docs/public/dokke-icon.png" width="120" alt="Dokke">
 </p>
 
 <h1 align="center">Dokke</h1>
+
+<p align="center"><a href="README.en.md">Read this README in English</a></p>
 
 <p align="center">
   <b>Dock de apps que sincroniza do Mac pra qualquer device na LAN.</b><br>
@@ -23,6 +25,10 @@
 Gerenciador de dock de apps — controle seus apps fixados de qualquer dispositivo.
 
 A ideia nasceu de um Galaxy J5 velho parado em casa. A vontade era fazer algo útil com ele, e nasceu o Dokke: um sistema de dock que sincroniza apps entre um Mac e qualquer dispositivo com navegador (qualquer Android, iPhone, outro Mac).
+
+<p align="center">
+  <img src="docs/assets/dokke-iphone.png" alt="Dokke rodando em um iPhone" width="900">
+</p>
 
 ## Instalação
 

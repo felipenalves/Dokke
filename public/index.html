@@ -9,8 +9,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="icon" media="(prefers-color-scheme: light)" type="image/png" href="/icon-192.png">
+<link rel="icon" media="(prefers-color-scheme: dark)" type="image/png" href="/icon-192-dark.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
-  <title>dokke</title>
+  <title>Dokke</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -25,7 +27,9 @@
     --red: #ff453a;
     --glass: rgba(255,255,255,.07);
     --edge: rgba(255,255,255,.10);
-    --app-tile: 38vmin;
+    --dokke-safe-top: env(safe-area-inset-top, 0px);
+    --dokke-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --app-tile: min(40vmin, max(21vw,21vh), 180px);
     --icon-turn: 0deg;
   }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
@@ -62,9 +66,9 @@
     left: calc(-32px - env(safe-area-inset-left, 0px));
     z-index:0; pointer-events:none;
     background:
-      radial-gradient(130% 65% at 50% -10%, rgba(210, 95, 30, 0.40), transparent 60%),
-      radial-gradient(90% 55% at 85% 45%, rgba(160, 65, 15, 0.24), transparent 55%),
-      linear-gradient(180deg, #1c0d05 0%, #120702 55%, #080301 100%);
+      radial-gradient(130% 65% at 50% -10%, rgba(232, 111, 39, 0.46), transparent 60%),
+      radial-gradient(90% 55% at 85% 45%, rgba(184, 76, 20, 0.28), transparent 55%),
+      linear-gradient(180deg, #241106 0%, #150804 55%, #080301 100%);
   }
 
   main{
@@ -88,6 +92,8 @@
     padding-top: env(safe-area-inset-top, 0px);
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+    will-change: transform;
+    contain: paint;
   }
   /* As duas telas ficam renderizadas durante o slide; só a camada ativa recebe toque. */
   #screenApps{ pointer-events: auto; z-index: 1; }
@@ -146,44 +152,52 @@
     flex: 0 0 100%;
     scroll-snap-align: start;
     scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Cada slide é uma página fechada: o pager não deve revelar slots da
+       página seguinte enquanto a página atual está em foco. */
+    overflow: hidden;
+    box-sizing: border-box;
+    /* A largura do slide permanece integral para não alterar o scrollLeft. */
+    --tile: var(--app-tile);
+    --tile-r: 0.29;
+    --tile-in: 0.84;
+    --tile-in-r: 0.19;
+  }
+  .page-grid{
+    width: 100%; height: 100%;
     display: grid;
     grid-template-columns: repeat(2, var(--tile));
     grid-template-rows: repeat(4, var(--tile));
-    grid-gap: 8px;
+    grid-gap: 12px;
     justify-content: center;
     align-content: center;
     padding: 10px 24px;
     box-sizing: border-box;
-    /* tile orientação-independente (vmin = dimensão menor): rotação não relayouta nada */
-    --tile: var(--app-tile);
-    --tile-r: 0.28;
-    --tile-in: 0.92;
-    --tile-in-r: 0.19;
+    transform-origin: center;
   }
   @supports (width: min(1px, 2px)){
-    .page{
-      grid-gap: min(2.5vmin, 12px);
+    .page-grid{
+      /* Uma régua única evita que o giro aumente demais o vão entre slides
+         ou deixe os slots colados no retrato. */
+      grid-gap: clamp(20px, 3vw, 32px);
+      justify-content: center;
       padding: clamp(8px, 2vw, 24px) clamp(12px, 3vw, 32px);
-      --tile: var(--app-tile);
     }
   }
-  /* Tablets have room for a larger launchpad. The tile still respects both
-     axes so the 2x4/4x2 grid never overflows the viewport. */
+  /* A régua do landscape é compartilhada com o portrait: trocar o sentido
+     não pode aumentar ou reduzir os cards. */
   @media (min-width:700px){
-    :root{ --app-tile: min(42vw, 22vh, 220px); }
-  }
-  @media (orientation: portrait) and (max-width:699px){
-    /* Em celulares, a régua é limitada pela largura e pelas quatro linhas.
-       O 38vmin anterior deixava muito espaço vazio nas laterais. */
-    :root{ --app-tile: min(44vw, 22vh, 190px); }
+    :root{ --app-tile: min(max(22vw,22vh), min(30vw,30vh), 220px); }
   }
   /* WebView antigo (ex.: Android 6 sem grid): fallback flex 2x4 */
   @supports not (display: grid){
-    .page{
+    .page-grid{
       display: flex; flex-wrap: wrap;
       align-content: center; justify-content: space-around;
     }
-    .page .atile{ flex: 0 0 38vmin; }
+    .page-grid .atile{ flex: 0 0 var(--app-tile); }
   }
   .atile{
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -194,42 +208,44 @@
     container-type: inline-size;
     -webkit-touch-callout: none;
   }
-  .atile:active{ background: rgba(255,255,255,.05); }
-  /* Durante o gesto, sombras e highlights não precisam ser repintados a cada
-     frame. Isso reduz o custo do pager em WebViews Android antigos. */
-  body.swiping .atile .aglass,
-  body.swiping .dcard .aglass{
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+  .atile.empty{
+    cursor: default;
+    pointer-events: none;
   }
-  body.swiping .aglass::before,
-  body.swiping .aglass::after{ opacity: 0; }
+  .atile.empty .aglass{
+    background: rgba(255,255,255,.035);
+    border-color: rgba(240,135,55,.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 0 0 1px rgba(0,0,0,.12);
+  }
+  .atile.empty .aglass::before{ display:none; }
+  /* O gesto controla apenas o pager; a superfície dos cards permanece
+     idêntica durante e depois da troca de página. */
+  body.swiping .launchpad{
+    scroll-snap-type: none !important;
+  }
   .android-webview .aglass{
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 3px 8px rgba(0,0,0,.28);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 2px 5px rgba(0,0,0,.24);
   }
+  .android-webview .aglass::before{ display: none; }
   .android-webview .launchpad{
-    touch-action: pan-x;
-    -webkit-overflow-scrolling: touch;
+    touch-action: none;
+    -webkit-overflow-scrolling: auto;
+    scroll-snap-type: none;
+    scroll-behavior: auto;
   }
   @keyframes appPress{
     0%{ transform:scale(1); }
-    18%{ transform:scale(.90); }
-    56%{ transform:scale(.96); }
+    18%{ transform:scale(.95); }
+    48%{ transform:scale(.975); }
     100%{ transform:scale(1); }
   }
-  @keyframes touchRipple{
-    0%{ opacity:.52; transform:translate(-50%, -50%) scale(.2); }
-    55%{ opacity:.24; transform:translate(-50%, -50%) scale(4.2); }
-    100%{ opacity:0; transform:translate(-50%, -50%) scale(5.2); }
-  }
-  .atile.is-activating .aglass, .dcard.is-activating .aglass{
-    animation: appPress .34s cubic-bezier(.22,.61,.36,1);
-  }
-  .atile.is-activating .aglass::after, .dcard.is-activating .aglass::after{
-    animation: touchRipple .38s cubic-bezier(.22,.61,.36,1);
+  .atile.is-activating, .dcard.is-activating{
+    background: transparent !important;
+    animation: appPress .30s cubic-bezier(.22,.61,.36,1);
+    will-change: transform;
   }
   @media (prefers-reduced-motion: reduce){
-    .atile.is-activating .aglass, .dcard.is-activating .aglass,
-    .atile.is-activating .aglass::after, .dcard.is-activating .aglass::after{ animation:none; }
+    .atile.is-activating, .dcard.is-activating{ animation:none; }
   }
   /* glass base (tela 2 .fav sobrescreve com tamanhos próprios) */
   .aglass{
@@ -245,20 +261,29 @@
     background: linear-gradient(160deg, rgba(255,255,255,.28), transparent 45%);
     pointer-events: none;
   }
-  .aglass::after{
-    content: "";
-    position: absolute;
-    left: var(--press-x, 50%);
-    top: var(--press-y, 50%);
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,.72) 0%, rgba(255,184,92,.32) 38%, transparent 72%);
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(.2);
-    pointer-events: none;
-    z-index: 2;
-    will-change: transform, opacity;
+  /* Websites keep the same outer glass as apps, with the white plate used by
+     the native Mac tile so a small or dark favicon remains recognizable. */
+  .website-plate{
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    width: 82%; height: 82%;
+    border: 1px solid rgba(255,255,255,.72);
+    border-radius: 26%;
+    background: rgba(255,255,255,.96);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.52), 0 1px 3px rgba(0,0,0,.18);
+    overflow: hidden;
+  }
+  .atile .aglass .website-plate img.aicon{
+    width: 72%; height: 72%;
+    border-radius: 18%;
+    object-fit: cover;
+  }
+  .atile .aglass .website-plate .gicon{
+    width: 72%; height: 72%;
+    border-radius: 18%;
+    color: rgba(0,0,0,.62);
+    text-shadow: none;
+    font-size: 30cqi;
   }
   .aglass .gicon, .aglass img.aicon{
     object-fit: cover;
@@ -285,11 +310,11 @@
   /* launchpad: tamanho fluido — aglass e ícone preenchem o tile */
   .atile .aglass{
     width: 100%; height: 100%;
-    border-radius: 26%;
+    border-radius: 29%;
   }
-  .atile .aglass::before{ border-radius: 26%; }
+  .atile .aglass::before{ border-radius: 29%; }
   .atile .aglass .gicon, .atile .aglass img.aicon{
-    width: 92%; height: 92%;
+    width: 84%; height: 84%;
     border-radius: 18%;
   }
   .atile .aglass img.aicon:not(.ready){ opacity:0; transition: opacity .16s ease; }
@@ -399,14 +424,14 @@
   .deck::-webkit-scrollbar{ display: none; }
   .deck-inner{
     display: flex; flex-direction: row; align-items: flex-end; justify-content: safe center;
-    gap: min(2.5vmin, 12px);
+    gap: min(3vmin, 14px);
     min-width: 100%; height: 100%;
     padding: 0;
     box-sizing: border-box;
   }
   .deck-group{
     display: flex; flex: 0 0 auto; align-items: flex-end;
-    gap: min(2.5vmin, 12px);
+    gap: min(3vmin, 14px);
     height: 100%;
   }
   .dcard{
@@ -438,10 +463,6 @@
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
   }
   .dcard.front .dname{ opacity: 1; }
-  body.swiping .dcard .aglass{
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
   .rempty{
     margin: auto;
     color: var(--ink-3); font-size: 13px; text-align: center;
@@ -468,30 +489,26 @@
   .robscard .os{ font-size: 11px; font-weight: 600; color: var(--ink-2); }
   .robscard .arr{ font-size: 16px; color: var(--ink-2); }
 
-  /* ---- landscape: grid 4x2, dock escala (GPU) ---- */
+  /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
   @media (orientation: landscape){
     main{ padding: calc(env(safe-area-inset-top, 0px) + 6px) 0 0; }
-    .page{
+    .page-grid{
       grid-template-columns: repeat(4, var(--tile));
       grid-template-rows: repeat(2, var(--tile));
     }
     .launchpad{
-      transform-origin: 50% 50%;
-      transition: transform .25s ease;
+      /* A interface acompanha o viewport real; os ícones permanecem na
+         orientação normal nos dois clientes. */
     }
     .dots{
       padding: 18px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     }
   }
-  @media (orientation: landscape) and (min-width:700px){
-    :root{ --app-tile: min(22vw, 30vh, 220px); }
+  /* Em touch landscape a régua de tamanho continua responsiva; o espaçamento
+     dos slots permanece o mesmo contrato global do retrato. */
+  @media (orientation: landscape) and (pointer: coarse){
+    :root{ --app-tile: min(max(22vw,22vh), min(30vw,40vh), 200px); }
   }
-  /* Em celulares deitados, reserve folga para os dois rows, o gap e o
-     safe-area do Android; sem isso o glass encosta e pode ser cortado. */
-  @media (orientation: landscape) and (max-height:500px){
-    :root{ --app-tile: min(40vmin, 21vw, 180px); }
-  }
-
   /* ---- drawer (OBS) ---- */
   .drawer{
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
@@ -687,7 +704,7 @@
   .login-scrim.show{ opacity:1; pointer-events:auto; }
   .login-card{
     width: min(360px, 100%); border-radius: 32px; padding: 24px 20px 18px;
-    background: linear-gradient(165deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 55%, rgba(255,255,255,.07));
+    background: linear-gradient(165deg, rgba(255,255,255,.18), rgba(255,255,255,.07) 55%, rgba(255,255,255,.12));
     border:1px solid rgba(255,255,255,.16);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28), 0 24px 60px rgba(0,0,0,.5);
     text-align:center; animation: rise .18s ease;
@@ -727,18 +744,6 @@
   .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
   .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
 
-  /* ---- trava da tela de auth em retrato ---- */
-  /* Enquanto o login está aberto (body.is-login), se o device estiver deitado
-     (landscape) mantemos o scrim em proporção retrato, rodando 90° no eixo.
-     O dock continua livre pra girar depois de autenticado. */
-  @media (orientation: landscape){
-    body.is-login .login-scrim{
-      position: fixed; top: 50%; left: 50%;
-      width: 100vh; height: 100vw;
-      transform: translate(-50%, -50%) rotate(90deg);
-      transform-origin: center;
-    }
-  }
 </style>
 </head>
 <body id="dokke">
@@ -767,17 +772,17 @@
       <div class="lkey" aria-hidden="true">
         <img src="/icon-192.png" alt="" aria-hidden="true" width="54" height="54">
       </div>
-      <h3 id="loginTitle">Conectar ao Dokke</h3>
-      <div class="body">Conecte o aparelho ao seu Mac para abrir os apps.</div>
+      <h3 id="loginTitle" data-i18n="login.title">Conectar ao Dokke</h3>
+      <div class="body" data-i18n="login.description">Conecte o aparelho ao seu Mac para abrir os apps.</div>
       <ol class="lsteps">
-        <li><span class="lnum">1</span><div><p>Conecte o Mac e este aparelho à <b>mesma rede Wi-Fi</b>.</p></div></li>
-        <li><span class="lnum">2</span><div><p>No Mac, abra o <b>Dokke</b> e escolha os apps que quer usar.</p></div></li>
-        <li><span class="lnum">3</span><div><p>Toque em <b>Gerar novo código</b> no Mac e digite o código de 4 dígitos aqui.</p></div></li>
+        <li><span class="lnum">1</span><div><p><span data-i18n="login.step1Prefix">Conecte o Mac e este aparelho à</span> <b data-i18n="login.sameNetwork">mesma rede Wi-Fi</b>.</p></div></li>
+        <li><span class="lnum">2</span><div><p><span data-i18n="login.step2Prefix">No Mac, abra o</span> <b>Dokke</b> <span data-i18n="login.step2Suffix">e escolha os apps que quer usar.</span></p></div></li>
+        <li><span class="lnum">3</span><div><p><span data-i18n="login.step3Prefix">Toque em</span> <b data-i18n="login.generateCode">Gerar novo código</b> <span data-i18n="login.step3Suffix">no Mac e digite o código de 4 dígitos aqui.</span></p></div></li>
       </ol>
-      <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso">
+      <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso" data-i18n-aria-label="login.pinLabel">
       <div class="lerr" id="loginErr"></div>
-      <button class="btn connect" id="loginGo">Conectar</button>
-      <p class="lfoot">Dokke by Felipe Natanael</p>
+      <button class="btn connect" id="loginGo" data-i18n="login.connect">Conectar</button>
+      <p class="lfoot" data-i18n="footer.brand">Dokke by Felipe Natanael</p>
     </div>
   </div>
 
@@ -793,14 +798,14 @@
     </div>
     <div class="up-actions">
       <button class="up-download" id="upDownload">Baixar</button>
-      <button class="up-x" id="upX" aria-label="Fechar aviso">✕</button>
+      <button class="up-x" id="upX" aria-label="Fechar aviso" data-i18n-aria-label="aria.close">✕</button>
     </div>
   </div>
 
   <aside class="drawer" id="drawer">
     <div class="drawer-head">
-      <h2>OBS Commander</h2>
-      <button class="drawer-close" id="drawerClose" aria-label="Fechar">✕</button>
+      <h2 data-i18n="obs.title">OBS Commander</h2>
+      <button class="drawer-close" id="drawerClose" aria-label="Fechar" data-i18n-aria-label="aria.close">✕</button>
     </div>
     <div class="drawer-body" id="obspanel"></div>
   </aside>
@@ -822,6 +827,124 @@
   } catch {}
 
   const $ = id => document.getElementById(id);
+
+  const I18N = {
+    "pt-BR": {
+      "aria.language": "Idioma", "aria.selectLanguage": "Selecionar idioma", "aria.close": "Fechar",
+      "login.title": "Conectar ao Dokke", "login.description": "Conecte o aparelho ao seu Mac para abrir os apps.",
+      "login.step1Prefix": "Conecte o Mac e este aparelho à", "login.sameNetwork": "mesma rede Wi-Fi",
+      "login.step2Prefix": "No Mac, abra o", "login.step2Suffix": "e escolha os apps que quer usar.",
+      "login.step3Prefix": "Toque em", "login.generateCode": "Gerar novo código", "login.step3Suffix": "no Mac e digite o código de 4 dígitos aqui.",
+      "login.pinLabel": "Código de acesso", "login.connect": "Conectar", "login.invalidCode": "Código inválido",
+      "login.tooMany": "Muitas tentativas — aguarde um pouco.", "login.wrongCode": "Código errado.",
+      "dock.openApps": "Apps abertos", "dock.apps": "Apps", "dock.pinned": "Favoritos", "dock.tapToOpen": "Toque em um app para abrir",
+      "recents.title": "Apps abertos", "recents.empty": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
+      "modal.pinTitle": "Fixar apps como favoritos",
+      "dock.opened": "aberto", "dock.noOpenApps": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
+      "dock.pinApps": "Fixar apps como favoritos", "dock.pinSubtitle": "Escolha os apps que aparecem no Launchpad.",
+      "dock.pinnedLabel": "fixado", "dock.limit": "limite", "dock.pin": "+ fixar", "dock.close": "Fechar",
+      "modal.removeWebsite": "Remover website dos favoritos?", "modal.removeApp": "Remover dos favoritos?",
+      "modal.removeWebsiteBody": "\"{name}\" sai dos fixos.",
+      "modal.removeAppBody": "\"{name}\" sai dos fixos. O app continua no Launchpad.",
+      "modal.cancel": "Cancelar", "modal.removeConfirm": "Remover", "modal.stopAllTitle": "Encerrar transmissão?",
+      "modal.stopAllBody": "O OBS vai parar a gravação e a live.", "modal.stopAll": "Encerrar tudo",
+      "toast.macDisconnected": "Mac desconectado", "toast.deviceConnected": "Dispositivo conectado",
+      "toast.pinAdded": "\"{name}\" adicionado aos favoritos", "toast.removed": "\"{name}\" removido",
+      "toast.pinFailed": "Falha ao fixar", "toast.openFailed": "Não consegui abrir \"{name}\"",
+      "toast.removeFailed": "Falha ao remover", "toast.dockChanged": "O dock mudou; tente novamente",
+      "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "OBS offline",
+      "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando…",
+      "error.PINNED_LIMIT_REACHED": "Limite de {pages} páginas atingido",
+      "error.REVISION_CONFLICT": "O dock mudou; tente novamente",
+      "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "Essa configuração exige um cliente atualizado",
+      "error.INVALID_PIECE_POSITION": "Posição inválida",
+      "error.PIECE_SLOT_OCCUPIED": "Essa posição do dock já está ocupada",
+      "error.INVALID_WEBSITE": "Website inválido",
+      "error.PIECE_NOT_WEBSITE": "Essa peça não é um website",
+      "error.PIECE_NOT_FOUND": "Peça não encontrada",
+      "error.INVALID_REQUEST": "Solicitação inválida",
+      "obs.title": "OBS Commander", "obs.offline": "OBS offline — abra o OBS para liberar as cenas",
+      "obs.unavailable": "OBS indisponível — verifique o WebSocket", "obs.live": "AO VIVO", "obs.connected": "conectado",
+      "obs.startRecording": "Gravar", "obs.stopRecording": "Parar", "obs.startLive": "Live", "obs.stopLive": "Parar live", "obs.stopAll": "Encerrar",
+      "obs.accessibility": "OBS, {status}",
+      "update.available": "Nova atualização do Dokke", "update.version": "Versão {version} disponível. Escolha quando baixar.",
+      "update.download": "Baixar", "update.reload": "Recarregar", "update.release": "Abrir release", "update.macTitle": "App do Mac desatualizado",
+      "update.macSubtitle": "Nova versão {version} disponível — atualize o Dokke no computador",
+      "update.close": "Fechar aviso", "site": "site", "footer.brand": "Dokke by Felipe Natanael"
+    },
+    en: {
+      "aria.language": "Language", "aria.selectLanguage": "Select language", "aria.close": "Close",
+      "login.title": "Connect to Dokke", "login.description": "Connect this device to your Mac to open apps.",
+      "login.step1Prefix": "Connect your Mac and this device to the", "login.sameNetwork": "same Wi-Fi network",
+      "login.step2Prefix": "On your Mac, open", "login.step2Suffix": "and choose the apps you want to use.",
+      "login.step3Prefix": "Tap", "login.generateCode": "Generate new code", "login.step3Suffix": "on your Mac and enter the 4-digit code here.",
+      "login.pinLabel": "Access code", "login.connect": "Connect", "login.invalidCode": "Invalid code",
+      "login.tooMany": "Too many attempts — please wait a moment.", "login.wrongCode": "Wrong code.",
+      "dock.openApps": "Open apps", "dock.apps": "Apps", "dock.pinned": "Favorites", "dock.tapToOpen": "Tap an app to open it",
+      "recents.title": "Open apps", "recents.empty": "Nothing open yet — open an app on your Mac to see it here",
+      "modal.pinTitle": "Pin apps as favorites",
+      "dock.opened": "open", "dock.noOpenApps": "Nothing open yet — open an app on your Mac to see it here",
+      "dock.pinApps": "Pin apps as favorites", "dock.pinSubtitle": "Choose the apps that appear in Launchpad.",
+      "dock.pinnedLabel": "pinned", "dock.limit": "limit", "dock.pin": "+ pin", "dock.close": "Close",
+      "modal.removeWebsite": "Remove website from favorites?", "modal.removeApp": "Remove from favorites?",
+      "modal.removeWebsiteBody": "\"{name}\" will be unpinned.",
+      "modal.removeAppBody": "\"{name}\" will be unpinned. The app stays in Launchpad.",
+      "modal.cancel": "Cancel", "modal.removeConfirm": "Remove", "modal.stopAllTitle": "Stop broadcast?",
+      "modal.stopAllBody": "OBS will stop recording and the live stream.", "modal.stopAll": "Stop everything",
+      "toast.macDisconnected": "Mac disconnected", "toast.deviceConnected": "Device connected",
+      "toast.pinAdded": "\"{name}\" added to favorites", "toast.removed": "\"{name}\" removed",
+      "toast.pinFailed": "Failed to pin", "toast.openFailed": "Could not open \"{name}\"",
+      "toast.removeFailed": "Failed to remove", "toast.dockChanged": "The dock changed; try again",
+      "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "OBS offline",
+      "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating…",
+      "error.PINNED_LIMIT_REACHED": "Limit of {pages} pages reached",
+      "error.REVISION_CONFLICT": "The dock changed; try again",
+      "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "This configuration requires an updated client",
+      "error.INVALID_PIECE_POSITION": "Invalid position",
+      "error.PIECE_SLOT_OCCUPIED": "That dock position is already occupied",
+      "error.INVALID_WEBSITE": "Invalid website",
+      "error.PIECE_NOT_WEBSITE": "This piece is not a website",
+      "error.PIECE_NOT_FOUND": "Piece not found",
+      "error.INVALID_REQUEST": "Invalid request",
+      "obs.title": "OBS Commander", "obs.offline": "OBS offline — open OBS to enable scenes",
+      "obs.unavailable": "OBS unavailable — check the WebSocket", "obs.live": "LIVE", "obs.connected": "connected",
+      "obs.startRecording": "Record", "obs.stopRecording": "Stop", "obs.startLive": "Live", "obs.stopLive": "Stop live", "obs.stopAll": "Stop",
+      "obs.accessibility": "OBS, {status}",
+      "update.available": "New Dokke update", "update.version": "Version {version} is available. Choose when to download it.",
+      "update.download": "Download", "update.reload": "Reload", "update.release": "Open release", "update.macTitle": "Mac app is out of date",
+      "update.macSubtitle": "Version {version} is available — update Dokke on your computer",
+      "update.close": "Close notice", "site": "site", "footer.brand": "Dokke by Felipe Natanael"
+    }
+  };
+  function detectLanguage(language = navigator.language){
+    if (typeof language !== "string" || !language.trim()) return "pt-BR";
+    return language.toLowerCase().startsWith("pt") ? "pt-BR" : "en";
+  }
+  function getInitialLanguage(){
+    let browserLanguage = null;
+    try { browserLanguage = typeof navigator !== "undefined" ? navigator.language : null; } catch (e) {}
+    return detectLanguage(browserLanguage);
+  }
+  let currentLanguage = getInitialLanguage();
+  function t(key, values = {}){
+    const template = (I18N[currentLanguage] && I18N[currentLanguage][key]) || I18N["pt-BR"][key] || key;
+    return Object.entries(values).reduce(function(text, entry){
+      return text.split("{" + entry[0] + "}").join(String(entry[1]));
+    }, template);
+  }
+  function renderLanguage(){
+    document.documentElement.lang = currentLanguage;
+    document.querySelectorAll("[data-i18n]").forEach(function(element){
+      element.textContent = t(element.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach(function(element){
+      element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(function(element){
+      element.setAttribute("placeholder", t(element.dataset.i18nPlaceholder));
+    });
+  }
+  renderLanguage();
 
   const PALETTE = [
     ["#0a84ff","#5e5ce6"], ["#ff375f","#ff9f0a"], ["#30d158","#0a84ff"],
@@ -858,63 +981,88 @@
   }
 
   // ---------- login wall (pin de acesso) ----------
-  let authed = false, loginOpen = false;
+  let authed = false, loginOpen = false, loginSubmitting = false;
+  function syncLoginViewport(){
+    const scrim = $("loginScrim");
+    const vv = window.visualViewport;
+    if (!scrim || !loginOpen || !vv || vv.height >= window.innerHeight - 80){
+      if (scrim){
+        scrim.style.top = "";
+        scrim.style.bottom = "";
+        scrim.style.height = "";
+      }
+      return;
+    }
+    // Android WebView mantém o layout viewport alto e reduz só o visual viewport
+    // quando o teclado abre. Sem este recuo o card fica centrado atrás do IME.
+    const top = Number.isFinite(vv.offsetTop) ? Math.max(0, vv.offsetTop) : 0;
+    scrim.style.top = top + "px";
+    scrim.style.bottom = "auto";
+    scrim.style.height = Math.max(0, vv.height) + "px";
+  }
+  if (window.visualViewport){
+    window.visualViewport.addEventListener("resize", syncLoginViewport);
+    window.visualViewport.addEventListener("scroll", syncLoginViewport);
+  }
+  function syncLoginOrientation(){
+    const android = window.DokkeAndroid;
+    if (!android || typeof android.setLoginPortrait !== "function") return;
+    try { android.setLoginPortrait(loginOpen); } catch (e) {}
+  }
   function showLogin(){
     if (loginOpen) return;
     loginOpen = true;
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
     $("loginScrim").classList.add("show");
-    // trava a orientação em retrato só enquanto a auth está aberta
     document.body.classList.add("is-login");
-    lockPortrait();
+    syncLoginOrientation();
+    syncLoginViewport();
     if (pin) setTimeout(function(){ pin.focus(); }, 80);
   }
   function hideLogin(){
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
-    unlockOrientation();
-  }
-  // tenta travar a orientação nativa; se o browser/WebView negar, o CSS
-  // (body.is-login + @media landscape) mantém o card em retrato de todo jeito.
-  function lockPortrait(){
-    try {
-      if (screen.orientation && screen.orientation.lock){
-        screen.orientation.lock("portrait").catch(function(){ /* CSS cobre o fallback */ });
-      }
-    } catch (e){}
-  }
-  function unlockOrientation(){
-    try {
-      if (screen.orientation && screen.orientation.unlock){ screen.orientation.unlock(); }
-    } catch (e){}
+    syncLoginOrientation();
   }
   function loginError(msg){
     const err = $("loginErr");
-    if (err) err.textContent = msg || "código inválido";
+    if (err) err.textContent = msg || t("login.invalidCode");
   }
   async function doLogin(){
+    if (loginSubmitting) return;
     const pin = $("loginPin");
     const val = (pin && pin.value || "").trim();
     if (loginOpen === false) return;
-    if (!/^\d{4}$/.test(val)){ loginError("código inválido"); return; }
-    const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
-    if (r && r.status === 200 && r.data && r.data.ok === true){
-      authed = true;
-      // tira o foco do input pra o teclado recuar (mobile/WebView)
-      const active = document.activeElement;
-      if (active && active.blur) active.blur();
-      try { if (window.DokkeAndroid) window.DokkeAndroid.hideKeyboard(); } catch (e) {}
-      hideLogin();
-      boot();
-    } else if (r && r.status === 429){
-      loginError("Muitas tentativas — aguarde um pouco.");
-    } else {
-      loginError("Código errado.");
+    if (!/^\d{4}$/.test(val)){ loginError(t("login.invalidCode")); return; }
+    loginSubmitting = true;
+    try {
+      const r = await post("/api/auth", { pin: val }).catch(function(){ return { status: 0, data: null }; });
+      if (r && r.status === 200 && r.data && r.data.ok === true){
+        authed = true;
+        // tira o foco do input pra o teclado recuar (mobile/WebView)
+        const active = document.activeElement;
+        if (active && active.blur) active.blur();
+        try { if (window.DokkeAndroid) window.DokkeAndroid.hideKeyboard(); } catch (e) {}
+        hideLogin();
+        boot();
+      } else if (r && r.status === 429){
+        loginError(t("login.tooMany"));
+      } else {
+        loginError(t("login.wrongCode"));
+      }
+    } finally {
+      loginSubmitting = false;
     }
   }
   $("loginGo").addEventListener("click", doLogin);
+  $("loginPin").addEventListener("input", function(){
+    const input = $("loginPin");
+    const normalized = (input.value || "").replace(/\D/g, "").slice(0, 4);
+    if (input.value !== normalized) input.value = normalized;
+    if (normalized.length === 4) doLogin();
+  });
   $("loginPin").addEventListener("keydown", function(e){
     if (e.key === "Enter") doLogin();
     else if (!/^\d$/.test(e.key) && e.key.length === 1) e.preventDefault();
@@ -936,7 +1084,33 @@
     }
     return next;
   }
+  const DEFAULT_MAX_PINNED_APPS = 40;
+  const DEFAULT_MAX_PINNED_PAGES = 5;
   function pageSize(){ return 8; }
+
+  function applyPinnedLimits(limits){
+    if (!limits || typeof limits !== "object") return;
+    if (Number.isInteger(limits.maxPinnedPieces) && limits.maxPinnedPieces > 0){
+      state.maxPinnedPieces = limits.maxPinnedPieces;
+    }
+    if (Number.isInteger(limits.maxPinnedApps) && limits.maxPinnedApps > 0){
+      state.maxPinnedApps = limits.maxPinnedApps;
+    }
+    if (Number.isInteger(limits.maxPages) && limits.maxPages > 0){
+      state.maxPinnedPages = limits.maxPages;
+    }
+  }
+
+  function pinnedLimitMessage(){
+    return t("toast.pinnedLimit", { pages: state.maxPinnedPages });
+  }
+
+  function serverErrorMessage(data, fallbackKey, values = {}){
+    const code = data && typeof data.code === "string" ? data.code : "";
+    const codeKey = code ? "error." + code : "";
+    const catalog = I18N[currentLanguage] || I18N["pt-BR"];
+    return codeKey && catalog[codeKey] ? t(codeKey, values) : t(fallbackKey, values);
+  }
 
   async function req(path, opts){
     opts = opts || {};
@@ -967,7 +1141,10 @@
   const state = {
     online: false,
     screen: "apps",
-    pinned: [], running: [], installed: [],
+    pieces: [], revision: 0, pinned: [], running: [], installed: [],
+    maxPinnedApps: DEFAULT_MAX_PINNED_APPS,
+    maxPinnedPieces: DEFAULT_MAX_PINNED_APPS,
+    maxPinnedPages: DEFAULT_MAX_PINNED_PAGES,
     installedReady: false,
     obs: { connected: false, error: false, scenes: [], scene: null, recording: false, streaming: false },
     obsTimer: null,
@@ -983,6 +1160,63 @@
       if (e.target && e.target.closest && e.target.closest("[data-ignore]")) return;
       fn(el, e);
     });
+  }
+  function preventTouchFocusScroll(el){
+    el.addEventListener("pointerdown", function(start){
+      if (!start || start.pointerType === "mouse") return;
+      const scroller = el.closest(".launchpad, .deck");
+      if (!scroller) return;
+      const startLeft = scroller.scrollLeft;
+      const startTop = scroller.scrollTop;
+      const startX = start.clientX;
+      const startY = start.clientY;
+      const pointerId = start.pointerId;
+      let moved = false;
+      let finished = false;
+      let focusCleanupT = null;
+      function restore(){
+        scroller.scrollLeft = startLeft;
+        scroller.scrollTop = startTop;
+      }
+      function move(e){
+        if (!e || e.pointerId !== pointerId) return;
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
+      }
+      function focus(){
+        if (moved) return;
+        restore();
+        if (document.activeElement === el) el.blur();
+        requestAnimationFrame(function(){
+          if (!moved) restore();
+        });
+      }
+      function cleanup(){
+        window.removeEventListener("pointermove", move, true);
+        window.removeEventListener("pointerup", finish, true);
+        window.removeEventListener("pointercancel", finish, true);
+        if (focusCleanupT) clearTimeout(focusCleanupT);
+        focusCleanupT = setTimeout(function(){
+          el.removeEventListener("focus", focus, true);
+          focusCleanupT = null;
+        }, 350);
+      }
+      function finish(e){
+        if (finished || !e || e.pointerId !== pointerId) return;
+        finished = true;
+        cleanup();
+        if (!moved){
+          restore();
+          if (document.activeElement === el) el.blur();
+        }
+      }
+      el.addEventListener("focus", focus, true);
+      window.addEventListener("pointermove", move, true);
+      window.addEventListener("pointerup", finish, true);
+      window.addEventListener("pointercancel", finish, true);
+      requestAnimationFrame(function(){
+        if (!finished && !moved) restore();
+      });
+    }, { passive: true });
   }
   function bindHold(el, fn){
     let timer = null, x = 0, y = 0;
@@ -1008,6 +1242,7 @@
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", label);
     el.tabIndex = 0;
+    preventTouchFocusScroll(el);
     el.addEventListener("contextmenu", function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -1034,25 +1269,65 @@
     const pid = run && Number.isInteger(run.pid) && run.pid > 0 ? run.pid : undefined;
     let r;
     try { r = await post("/api/apps/" + encodeURIComponent(name) + "/activate", { pid: pid }); }
-    catch (e) { toast("Mac desconectado", "err"); return; }
-    if (!r || r.data.ok !== true) toast("Não consegui abrir \"" + name + "\"", "err");
+    catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
+    if (!r || r.data.ok !== true) toast(t("toast.openFailed", { name: name }), "err");
     else loadApps();
   }
 
+  async function activatePiece(piece){
+    if (!piece || !piece.id) return;
+    if (piece.type !== "website") return activateApp(piece.name);
+    let r;
+    try { r = await post("/api/pieces/" + encodeURIComponent(piece.id) + "/open"); }
+    catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
+    if (!r || !r.data || r.data.ok !== true) toast(t("toast.openFailed", { name: piece.title || t("site") }), "err");
+  }
+
   async function pinApp(name){
+    if (state.pinned.indexOf(name) === -1 && state.pieces.length >= state.maxPinnedPieces){
+      toast(pinnedLimitMessage(), "err");
+      return;
+    }
     let r;
     try { r = await post("/api/config/pinned", { app: name }); }
-    catch (e) { toast("Mac desconectado", "err"); return; }
-    if (r && r.data.ok === true){ toast("\"" + name + "\" adicionado aos favoritos"); loadApps(); }
-    else toast("Falha ao fixar", "err");
+    catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
+    if (r && r.data.ok === true){ toast(t("toast.pinAdded", { name: name })); loadApps(); }
+    else if (r && r.data && r.data.code === "PINNED_LIMIT_REACHED") {
+      applyPinnedLimits(r.data.limits);
+      toast(serverErrorMessage(r.data, "toast.pinFailed", { pages: state.maxPinnedPages }), "err");
+    }
+    else toast(t("toast.pinFailed"), "err");
   }
 
   async function unpinApp(name){
     let r;
     try { r = await req("/api/config/pinned/" + encodeURIComponent(name), { method: "DELETE", timeout: 4000 }); }
-    catch (e) { toast("Mac desconectado", "err"); return; }
-    if (r.data && r.data.ok === true){ toast("\"" + name + "\" removido"); loadApps(); }
-    else toast("Falha ao remover", "err");
+    catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
+    if (r.data && r.data.ok === true){ toast(t("toast.removed", { name: name })); loadApps(); }
+    else toast(t("toast.removeFailed"), "err");
+  }
+
+  async function unpinPiece(id){
+    const piece = state.pieces.find(function(item){ return item.id === id; });
+    if (!piece) return;
+    let r;
+    try {
+      r = await req("/api/config/pieces/" + encodeURIComponent(id), {
+        method: "DELETE", timeout: 4000,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: state.revision }),
+      });
+    } catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
+    if (r.data && r.data.ok === true){ toast(t("toast.removed", { name: piece.title || piece.name })); loadApps(); }
+    else if (r.data && r.data.code === "REVISION_CONFLICT"){
+      applyConfigSnapshot(r.data.config);
+      toast(t("toast.dockChanged"), "err");
+    } else toast(t("toast.removeFailed"), "err");
+  }
+
+  function applyConfigSnapshot(config){
+    if (!config || !Array.isArray(config.pieces) || !Array.isArray(config.pinned)) return;
+    applyAppsPayload(config.pieces, config.pinned, state.running, config.limits, config.revision);
   }
 
   let lastFocus = null;
@@ -1086,7 +1361,11 @@
 
   function favLong(el){
     // aceita elemento (hold) ou string (nome) — evita TypeError se alguém passar name direto
-    const name = typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : "");
+    const piece = typeof el === "object" && el && el.type ? el : null;
+    const isWebsite = piece && piece.type === "website";
+    const name = piece
+      ? (piece.title || piece.url || t("site"))
+      : (typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : ""));
     if (!name) return;
     const content = document.createDocumentFragment();
     const icon = document.createElement("div");
@@ -1101,43 +1380,67 @@
       iconImg.dataset.iconLoaded = "1";
       iconImg.classList.add("ready");
     });
-    iconImg.addEventListener("error", function(){ iconFallback(iconImg, icon, name); });
+    iconImg.addEventListener("error", function(){
+      if (isWebsite && iconImg.dataset.faviconFallback !== "1") {
+        iconImg.dataset.faviconFallback = "1";
+        const fallback = websiteFaviconFallbackPath(piece.url);
+        if (fallback) {
+          iconImg.src = fallback;
+          return;
+        }
+      }
+      iconFallback(iconImg, icon, name);
+    });
     icon.appendChild(iconImg);
-    loadIcon(name, iconImg, icon);
+    if (isWebsite) {
+      const favicon = websiteFaviconPath(piece.url);
+      if (favicon) iconImg.src = favicon;
+      else iconFallback(iconImg, icon, name);
+    } else {
+      loadIcon(name, iconImg, icon);
+    }
     content.appendChild(icon);
     const title = document.createElement("h3");
-    title.textContent = "Remover dos favoritos?";
+    title.textContent = isWebsite ? t("modal.removeWebsite") : t("modal.removeApp");
     content.appendChild(title);
     const body = document.createElement("div");
     body.className = "body";
-    body.textContent = "\"" + name + "\" sai dos fixos. O app continua no Launchpad.";
+    body.textContent = isWebsite
+      ? t("modal.removeWebsiteBody", { name: name })
+      : t("modal.removeAppBody", { name: name });
     content.appendChild(body);
     const btns = document.createElement("div");
     btns.className = "btns";
     const cancel = document.createElement("button");
     cancel.className = "btn ghost";
     cancel.dataset.sclose = "";
-    cancel.textContent = "Cancelar";
+    cancel.textContent = t("modal.cancel");
     btns.appendChild(cancel);
     const confirm = document.createElement("button");
     confirm.className = "btn danger";
     confirm.dataset.confirm = "";
-    confirm.textContent = "Remover";
+    confirm.textContent = t("modal.removeConfirm");
     btns.appendChild(confirm);
     content.appendChild(btns);
     modal(
       content,
       function(){
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
-        $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){ closeModal(); unpinApp(name); });
+        $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){
+          closeModal();
+          if (isWebsite) unpinPiece(piece.id);
+          else unpinApp(name);
+        });
       }, "confirm");
   }
 
   function tileLong(el){
-    const name = el && el.dataset ? el.dataset.name : "";
-    if (!name) return;
-    if (state.pinned.indexOf(name) !== -1) favLong(name);
-    else pinApp(name);
+    const id = el && el.dataset ? el.dataset.id : "";
+    const piece = state.pieces.find(function(item){ return item.id === id; });
+    if (!piece) return;
+    if (piece.type === "website") favLong(piece);
+    else if (state.pinned.indexOf(piece.name) !== -1) favLong(piece.name);
+    else pinApp(piece.name);
   }
 
   // ---------- rendering: launchpad ----------
@@ -1145,21 +1448,34 @@
   const launchpadTrack = $("launchpadTrack");
   const dots = $("dots");
   let pages = [];
-  let androidPage = 0;
+  let pageGridScale = 1;
   const iconCache = new Map();
   const iconInflight = new Map();
-  const ICON_REV = "4";
+  const ICON_REV = "5";
   const ua = typeof navigator === "object" && navigator ? navigator.userAgent || "" : "";
   const IS_ANDROID_WEBVIEW = /Android/i.test(ua) && (/\bwv\b/i.test(ua) || /Version\/4\.0/i.test(ua));
-  const ANDROID_NATIVE_PAGER = IS_ANDROID_WEBVIEW;
   if (IS_ANDROID_WEBVIEW) document.documentElement.classList.add("android-webview");
 
   function iconPath(name){
     return "/api/apps/" + encodeURIComponent(name) + "/icon?v=" + ICON_REV;
   }
-  function iconFallback(img, glass, name){
+  function iconFallback(img, target, name){
     if (img && img.isConnected) img.remove();
-    if (glass && !glass.querySelector(".gicon")) glass.appendChild(giconEl(name));
+    if (target && !target.querySelector(".gicon")) target.appendChild(giconEl(name));
+  }
+  function websiteFaviconPath(raw){
+    try {
+      const u = new URL(raw);
+      const host = u.hostname.toLowerCase().replace(/^www\./, "");
+      if (host === "github.com") return "https://github.githubassets.com/favicons/favicon.svg";
+      return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(u.host) + "&sz=128";
+    } catch (e) { return ""; }
+  }
+  function websiteFaviconFallbackPath(raw){
+    try {
+      const u = new URL(raw);
+      return u.protocol + "//" + u.host + "/favicon.ico";
+    } catch (e) { return ""; }
   }
   function loadIcon(name, img, glass){
     const cached = iconCache.get(name);
@@ -1196,16 +1512,21 @@
   function primeIcon(name){
     loadIcon(name, null, null);
   }
+  function triggerHaptic(){
+    const android = window.DokkeAndroid;
+    if (android && typeof android.performHapticFeedback === "function"){
+      try {
+        android.performHapticFeedback();
+        return;
+      } catch (e) {}
+    }
+    try {
+      if (navigator && typeof navigator.vibrate === "function") navigator.vibrate(8);
+    } catch (e) {}
+  }
   function pressFeedback(el, event){
     if (!el) return;
-    const glass = el.querySelector ? el.querySelector(".aglass") : null;
-    if (glass && event && typeof event.clientX === "number" && typeof event.clientY === "number"){
-      const box = glass.getBoundingClientRect();
-      const x = Math.max(0, Math.min(box.width, event.clientX - box.left));
-      const y = Math.max(0, Math.min(box.height, event.clientY - box.top));
-      glass.style.setProperty("--press-x", x + "px");
-      glass.style.setProperty("--press-y", y + "px");
-    }
+    if (event && event.type === "pointerdown") triggerHaptic();
     el.classList.remove("is-activating");
     void el.offsetWidth;
     el.classList.add("is-activating");
@@ -1214,11 +1535,15 @@
   }
 
   function buildTile(a, withIcon){
-    const t = document.createElement("div");
-    t.className = "atile";
-    t.dataset.name = a.name;
+    const tile = document.createElement("div");
+    tile.className = "atile";
+    tile.dataset.id = a.id;
+    tile.dataset.type = a.type;
+    if (a.type === "app") tile.dataset.name = a.name;
     const glass = document.createElement("div");
     glass.className = "aglass";
+    const websitePlate = a.type === "website" ? document.createElement("div") : null;
+    if (websitePlate) websitePlate.className = "website-plate";
     const img = document.createElement("img");
     img.className = "aicon";
     img.alt = "";
@@ -1229,24 +1554,49 @@
     img.addEventListener("load", function(){
       img.dataset.iconLoaded = "1";
       img.classList.add("ready");
-      if (!iconCache.has(a.name) && img.currentSrc) iconCache.set(a.name, img.currentSrc);
+      if (a.type === "app" && !iconCache.has(a.name) && img.currentSrc) iconCache.set(a.name, img.currentSrc);
     });
-    img.addEventListener("error", function(){ iconFallback(img, glass, a.name); });
-    glass.appendChild(img);
-    if (withIcon) loadIcon(a.name, img, glass);
+    img.addEventListener("error", function(){
+      if (a.type === "website" && img.dataset.faviconFallback !== "1") {
+        img.dataset.faviconFallback = "1";
+        const fallback = websiteFaviconFallbackPath(a.url);
+        if (fallback) {
+          img.src = fallback;
+          return;
+        }
+      }
+      iconFallback(img, websitePlate || glass, a.type === "website" ? (a.title || "Site") : a.name);
+    });
+    if (websitePlate) {
+      websitePlate.appendChild(img);
+      glass.appendChild(websitePlate);
+    } else {
+      glass.appendChild(img);
+    }
+    if (a.type === "website") img.src = websiteFaviconPath(a.url);
+    else if (withIcon) loadIcon(a.name, img, glass);
     else img.src = iconPath(a.name);
-    t.appendChild(glass);
+    tile.appendChild(glass);
     const nm = document.createElement("span");
     nm.className = "aname";
-    nm.textContent = a.name;
+    nm.textContent = a.type === "website" ? a.title : a.name;
     const st = document.createElement("span");
     st.className = "astatus";
-    st.textContent = isRunning(a.name) ? "aberto" : "";
-    if (isRunning(a.name)) st.classList.add("on");
-    t.appendChild(nm);
-    t.appendChild(st);
-    makeBtn(t, a.name, function(el){ activateApp(el.dataset.name); });
-    bindHold(t, tileLong);
+    st.textContent = a.type === "app" && isRunning(a.name) ? t("dock.opened") : "";
+    if (a.type === "app" && isRunning(a.name)) st.classList.add("on");
+    tile.appendChild(nm);
+    tile.appendChild(st);
+    makeBtn(tile, a.type === "website" ? a.title : a.name, function(){ activatePiece(a); });
+    bindHold(tile, tileLong);
+    return tile;
+  }
+
+  function buildEmptyTile(){
+    const t = document.createElement("div");
+    t.className = "atile empty";
+    const glass = document.createElement("div");
+    glass.className = "aglass";
+    t.appendChild(glass);
     return t;
   }
 
@@ -1270,26 +1620,33 @@
 
   function renderLaunchpad(keepPage){
     const prev = keepPage ? currentPage() : 0;
-    // Tela 1 = favoritos na MESMA ordem do pinned (arrastada no Mac), não em ordem alfabética.
-    const byName = new Map();
-    for (let i = 0; i < state.installed.length; i++) byName.set(state.installed[i].name, state.installed[i]);
-    const list = [];
-    for (let i = 0; i < state.pinned.length; i++){
-      const a = byName.get(state.pinned[i]);
-      if (a) list.push(a);
-    }
-    if (!state.installedReady){
+    // Tela 1 usa pieces como fonte: sites não dependem do inventário de apps.
+    if (!state.pieces.length && !state.installedReady){
       if (launchpadTrack) launchpadTrack.innerHTML = "";
-      dots.innerHTML = "";
-      return;
-    }
-    if (!list.length){
-      if (launchpadTrack) launchpadTrack.innerHTML = "<div class=\"page\" style=\"display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:13px\">nenhum app encontrado</div>";
       dots.innerHTML = "";
       pages = [];
       return;
     }
+    const byName = new Map();
+    for (let i = 0; i < state.installed.length; i++) byName.set(state.installed[i].name, state.installed[i]);
+    const byPosition = new Map();
+    for (let i = 0; i < state.pieces.length; i++){
+      const piece = state.pieces[i];
+      const position = Number.isInteger(piece.position) ? piece.position : i;
+      if (piece.type === "website") byPosition.set(position, piece);
+      else {
+        const a = byName.get(piece.name);
+        if (a) byPosition.set(position, { id: piece.id, type: "app", name: a.name, icon: a.icon });
+      }
+    }
     const pz = pageSize();
+    // O PWA apenas espelha os slots persistidos; a criação de uma nova peça
+    // acontece no picker do host Mac, onde cada célula vazia tem seu Add.
+    const pageCount = Math.max(1, Number(state.maxPinnedPages) || DEFAULT_MAX_PINNED_PAGES);
+    const slotCount = pageCount * pz;
+    const list = Array.from({ length: slotCount }, function(_, position){
+      return byPosition.get(position) || null;
+    });
     const chunked = [];
     for (let i = 0; i < list.length; i += pz) chunked.push(list.slice(i, i + pz));
     pages = chunked;
@@ -1298,14 +1655,18 @@
       const p = document.createElement("div");
       p.className = "page";
       p.dataset.page = String(idx);
+      const grid = document.createElement("div");
+      grid.className = "page-grid";
       const wantIcon = idx <= 1; // 1ª e 2ª página com ícone já no first paint
-      for (let i = 0; i < chunk.length; i++) p.appendChild(buildTile(chunk[i], wantIcon));
+      for (let i = 0; i < chunk.length; i++){
+        grid.appendChild(chunk[i] ? buildTile(chunk[i], wantIcon) : buildEmptyTile());
+      }
+      p.appendChild(grid);
       if (wantIcon) p.dataset.hydrated = "1";
       return p;
     });
     replaceChildren(launchpadTrack, kids);
     const page = Math.min(prev, pages.length - 1);
-    androidPage = page;
     renderDots();
     launchpad.scrollLeft = page * launchpad.clientWidth;
     if (launchpadTrack){
@@ -1349,27 +1710,41 @@
 
   // ---- paisagem: dock mantém geometria retrato, só escala (GPU); ícones legíveis ----
   function layoutDockScale(){
-    if (!launchpad || !pages.length){
+    if (document.body.classList.contains("swiping")) return;
+    const pageEls = launchpadTrack ? [...launchpadTrack.children] : [];
+    const gridEls = pageEls.map(page => page.firstElementChild).filter(Boolean);
+    if (!launchpad || !pages.length || !pageEls.length || !gridEls.length){
+      pageGridScale = 1;
       if (launchpad && launchpad.style.transform) launchpad.style.transform = "";
+      for (const grid of gridEls) grid.style.transform = "";
       return;
     }
-    let cleared = true;
-    const land = typeof matchMedia === "function" && matchMedia("(orientation: landscape)").matches;
-    if (land){
-      const pg = launchpadTrack && launchpadTrack.firstElementChild;
-      const kids = pg && pg.children.length ? pg.children : null;
-      if (kids){
-        const first = kids[0], last = kids[kids.length - 1];
-        const contentH = (last.offsetTop + last.offsetHeight) - first.offsetTop;
-        const s = (launchpad.clientHeight || 1) / contentH;
-        const cur = parseFloat(launchpad.style.transform) || 0;
-        if (contentH > 0 && s < 1 && Math.abs(s - cur) > 0.01){
-          launchpad.style.transform = "scale(" + s.toFixed(3) + ")";
-          cleared = false;
-        }
-      }
+    // O pager continua sendo a janela fixa de recorte. Escalar o próprio
+    // launchpad também move essa janela e deixa os extremos dos cards fora
+    // dela; a escala deve ficar na página, ao redor do centro da grade.
+    if (launchpad.style.transform) launchpad.style.transform = "";
+    // A escala anterior altera os rects. Limpe-a antes de medir para que a
+    // próxima execução seja idempotente e não fique alternando/pulsando.
+    for (const grid of gridEls){
+      grid.style.transform = "";
     }
-    if (cleared && launchpad.style.transform) launchpad.style.transform = "";
+    pageGridScale = 1;
+    const availableH = launchpad.clientHeight;
+    let scale = 1;
+    const firstGrid = gridEls[0];
+    const firstKids = firstGrid && firstGrid.children.length ? firstGrid.children : null;
+    if (firstKids){
+      const first = firstKids[0], last = firstKids[firstKids.length - 1];
+      const firstRect = first.getBoundingClientRect();
+      const lastRect = last.getBoundingClientRect();
+      const contentH = lastRect.bottom - firstRect.top;
+      if (contentH > 0) scale = Math.min(1, availableH / contentH);
+    }
+    pageGridScale = scale;
+    if (scale < 1){
+      const next = "scale(" + scale.toFixed(3) + ")";
+      for (const grid of gridEls) grid.style.transform = next;
+    }
   }
   function landNeedsSecondary(){
     if (!matchMedia("(orientation: landscape)").matches) return false;
@@ -1393,30 +1768,32 @@
     syncIconOrientation();
   }
   function syncIconOrientation(){
-    // O browser já gira o viewport. A grade muda para 4x2 via CSS; girar
-    // novamente a imagem real do app deixa ícones como Notas e Warp de lado.
     document.documentElement.style.setProperty("--icon-turn", "0deg");
   }
   try {
     window.addEventListener("deviceorientation", function(e){
       if (typeof e.gamma !== "number") return;
       window._lastGamma = e.gamma;
-      if (Math.abs(e.gamma) > 30 && matchMedia("(orientation: landscape)").matches) updateLandDir();
+      if (Math.abs(e.gamma) > 30 || !matchMedia("(orientation: landscape)").matches) updateLandDir();
     });
   } catch (err) {}
   let scaleTimer = null;
   function watchScale(){
     clearInterval(scaleTimer);
     scaleTimer = setInterval(function(){
-      if (matchMedia("(orientation: landscape)").matches) layoutDockScale();
+      layoutDockScale();
     }, 800);
   }
   try {
     matchMedia("(orientation: landscape)").addEventListener("change", function(){ layoutDockScale(); updateLandDir(); });
     window.addEventListener("resize", function(){ layoutDockScale(); updateLandDir(); });
-    window.addEventListener("orientationchange", function(){ layoutDockScale(); updateLandDir(); });
-    document.addEventListener("visibilitychange", function(){ layoutDockScale(); updateLandDir(); });
-    window.addEventListener("pageshow", function(){ layoutDockScale(); updateLandDir(); });
+    window.addEventListener("orientationchange", function(){
+      layoutDockScale();
+      updateLandDir();
+    });
+    document.addEventListener("visibilitychange", function(){ layoutDockScale(); updateLandDir(); syncScreenWakeLock(); });
+    window.addEventListener("pageshow", function(){ layoutDockScale(); updateLandDir(); requestScreenWakeLock(); });
+    window.addEventListener("pagehide", releaseScreenWakeLock);
   } catch (err) {}
   updateLandDir();
   watchScale();
@@ -1498,15 +1875,27 @@
     const deck = $("deck");
     if (!deck || deck.dataset.bound) return;
     deck.dataset.bound = "1";
+    let deckStartX = 0;
+    let deckStartY = 0;
+    let deckSwiping = false;
     deck.addEventListener("pointerdown", function(e){
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      document.body.classList.add("swiping");
+      deckStartX = e.clientX;
+      deckStartY = e.clientY;
+      deckSwiping = false;
       deckPid = e.pointerId;
+    });
+    deck.addEventListener("pointermove", function(e){
+      if (deckPid !== e.pointerId || deckSwiping) return;
+      if (Math.hypot(e.clientX - deckStartX, e.clientY - deckStartY) < 4) return;
+      deckSwiping = true;
+      document.body.classList.add("swiping");
     });
     function endDeck(e){
       if (deckPid !== e.pointerId) return;
       deckPid = null;
-      document.body.classList.remove("swiping");
+      if (deckSwiping) document.body.classList.remove("swiping");
+      deckSwiping = false;
       flushPendingRecents();
     }
     deck.addEventListener("pointerup", endDeck);
@@ -1525,7 +1914,7 @@
     head.className = "thead";
     const title = document.createElement("div");
     title.className = "ttitle";
-    title.textContent = "Apps abertos";
+    title.textContent = t("recents.title");
     head.appendChild(title);
     sc.appendChild(head);
 
@@ -1539,7 +1928,7 @@
     if (!q.length){
       const e = document.createElement("div");
       e.className = "rempty";
-      e.textContent = "Nada aberto ainda — abra um app no Mac para ele aparecer aqui";
+      e.textContent = t("recents.empty");
       stage.appendChild(e);
     }
 
@@ -1559,21 +1948,21 @@
       mid.appendChild(ot);
       const os = document.createElement("div");
       os.className = "os";
-      os.textContent = state.obs.recording ? "gravando" : state.obs.streaming ? "ao vivo" : (state.obs.connected ? "conectado" : "offline");
+      os.textContent = state.obs.recording ? t("obs.stopRecording") : state.obs.streaming ? t("obs.live") : (state.obs.connected ? t("obs.connected") : t("toast.obsOffline"));
       mid.appendChild(os);
       card.appendChild(mid);
       const arr = document.createElement("span");
       arr.className = "arr";
       arr.textContent = "›";
       card.appendChild(arr);
-      makeBtn(card, "OBS, " + os.textContent, openDrawer);
+      makeBtn(card, t("obs.accessibility", { status: os.textContent }), openDrawer);
       sc.appendChild(card);
     }
 
     if (q.length){
       const hint = document.createElement("div");
       hint.className = "thint";
-      hint.textContent = "Toque em um app para abrir";
+      hint.textContent = t("dock.tapToOpen");
       sc.appendChild(hint);
     }
 
@@ -1586,11 +1975,14 @@
   function openPinSheet(){
     const kids = [];
     const head = document.createElement("h3");
-    head.textContent = "Fixar apps como favoritos";
+    head.textContent = t("modal.pinTitle");
     kids.push(head);
     const sub = document.createElement("div");
     sub.style.cssText = "margin-bottom:10px;color:var(--ink-3);font-size:12px";
-    sub.textContent = state.installed.length + " apps instalados";
+    sub.textContent = state.pieces.length >= state.maxPinnedPieces
+      ? pinnedLimitMessage() + ". " + (currentLanguage === "en" ? "Remove a piece to add another." : "Remova uma peça para adicionar outra.")
+      : state.installed.length + (currentLanguage === "en" ? " installed apps" : " apps instalados");
+    if (state.pieces.length >= state.maxPinnedPieces) sub.style.color = "var(--amber)";
     kids.push(sub);
     state.installed.forEach(function(a){
       const pinned = state.pinned.indexOf(a.name) !== -1;
@@ -1599,7 +1991,7 @@
       row.dataset.name = a.name;
       if (a.icon){
         const img = document.createElement("img");
-        img.src = "/api/apps/" + encodeURIComponent(a.name) + "/icon";
+        img.src = iconPath(a.name);
         img.alt = "";
         img.onerror = function(){
           if (img.remove) img.remove();
@@ -1615,10 +2007,13 @@
       row.appendChild(nm);
       const pin = document.createElement("span");
       pin.className = "pin";
-      pin.textContent = pinned ? "✓ fixado" : "+ fixar";
+      const limitReached = !pinned && state.pieces.length >= state.maxPinnedPieces;
+      pin.textContent = pinned ? "✓ " + t("dock.pinnedLabel") : (limitReached ? t("dock.limit") : t("dock.pin"));
+      if (limitReached) pin.style.color = "var(--amber)";
       row.appendChild(pin);
-      makeBtn(row, a.name + (pinned ? ", fixado" : ", fixar"), function(el){
+      makeBtn(row, a.name + (pinned ? ", " + t("dock.pinnedLabel") : ", " + t("dock.pin")), function(el){
         if (state.pinned.indexOf(el.dataset.name) !== -1) unpinApp(el.dataset.name);
+        else if (state.pieces.length >= state.maxPinnedPieces) toast(pinnedLimitMessage(), "err");
         else pinApp(el.dataset.name);
         openPinSheet();
       });
@@ -1628,7 +2023,7 @@
     btns.className = "btns";
     const btn = document.createElement("button");
     btn.className = "btn ghost";
-    btn.textContent = "Fechar";
+    btn.textContent = t("dock.close");
     btn.addEventListener("click", closeModal);
     btns.appendChild(btn);
     kids.push(btns);
@@ -1644,7 +2039,7 @@
     const panel = $("obspanel");
     const o = state.obs;
     if (!o.connected){
-      const msg = o.error ? "OBS indisponível — verifique o WebSocket" : "OBS offline — abra o OBS para liberar as cenas";
+      const msg = o.error ? t("obs.unavailable") : t("obs.offline");
       const placeholder = document.createElement("div");
       placeholder.className = "obsplaceholder";
       const icon = document.createElement("span");
@@ -1660,14 +2055,14 @@
     top.className = "obstop";
     const title = document.createElement("span");
     title.className = "obstitle";
-    title.textContent = "OBS Commander";
+    title.textContent = t("obs.title");
     top.appendChild(title);
     const led = document.createElement("span");
     led.className = "led on";
     const ledDot = document.createElement("span");
     ledDot.className = "d";
     led.appendChild(ledDot);
-    led.appendChild(document.createTextNode(o.streaming ? "AO VIVO" : "conectado"));
+    led.appendChild(document.createTextNode(o.streaming ? t("obs.live") : t("obs.connected")));
     top.appendChild(led);
 
     const scenePanel = document.createElement("div");
@@ -1691,7 +2086,7 @@
     recIcon.textContent = "●";
     rec.appendChild(recIcon);
     const recLabel = document.createElement("span");
-    recLabel.textContent = o.recording ? "Parar" : "Gravar";
+    recLabel.textContent = o.recording ? t("obs.stopRecording") : t("obs.startRecording");
     rec.appendChild(recLabel);
     controls.appendChild(rec);
 
@@ -1703,7 +2098,7 @@
     streamIcon.textContent = "▲";
     stream.appendChild(streamIcon);
     const streamLabel = document.createElement("span");
-    streamLabel.textContent = o.streaming ? "Parar" : "Live";
+    streamLabel.textContent = o.streaming ? t("obs.stopLive") : t("obs.startLive");
     stream.appendChild(streamLabel);
     controls.appendChild(stream);
 
@@ -1715,7 +2110,7 @@
     stopIcon.textContent = "■";
     stop.appendChild(stopIcon);
     const stopLabel = document.createElement("span");
-    stopLabel.textContent = "Encerrar";
+    stopLabel.textContent = t("obs.stopAll");
     stop.appendChild(stopLabel);
     controls.appendChild(stop);
 
@@ -1731,11 +2126,11 @@
 
   function confirmStopAll(){
     modal(
-      "<h3>Encerrar transmissão?</h3>" +
-      "<div class=\"body\">O OBS vai parar a gravação e a live.</div>" +
+      "<h3>" + t("modal.stopAllTitle") + "</h3>" +
+      "<div class=\"body\">" + t("modal.stopAllBody") + "</div>" +
       "<div class=\"btns\">" +
-      "<button class=\"btn ghost\" data-sclose>Cancelar</button>" +
-      "<button class=\"btn danger\" data-confirm>Encerrar tudo</button>" +
+      "<button class=\"btn ghost\" data-sclose>" + t("modal.cancel") + "</button>" +
+      "<button class=\"btn danger\" data-confirm>" + t("modal.stopAll") + "</button>" +
       "</div>",
       function(){
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
@@ -1746,11 +2141,11 @@
   async function doObs(kind, body){
     let r;
     try { r = await post("/api/obs/" + encodeURIComponent(kind), body); }
-    catch (e) { toast("Mac desconectado", "err"); return; }
+    catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
     const d = r.data || {};
     if (d.ok === true) obsSyncSoon();
-    else if (d.connected === false){ toast("OBS offline", "err"); obsSyncSoon(); }
-    else toast("Comando OBS falhou", "err");
+    else if (d.connected === false){ toast(t("toast.obsOffline"), "err"); obsSyncSoon(); }
+    else toast(t("toast.obsCommandFailed"), "err");
   }
 
   let syncT = null;
@@ -1785,7 +2180,7 @@
     if (!v) return;
     if (uiVersionSeen === null){ uiVersionSeen = v; return; }
     if (uiVersionSeen !== v){
-      toast("Atualizando…", "");
+      toast(t("toast.updated"), "");
       setTimeout(function(){ location.reload(); }, 600);
     }
   }
@@ -1793,6 +2188,40 @@
   // ---------- polling (pausa com aba/PWA em background) ----------
   function pageHidden(){
     return typeof document.hidden !== "undefined" && document.hidden;
+  }
+  let screenWakeLock = null;
+  let screenWakeLockRequest = 0;
+  async function requestScreenWakeLock(){
+    if (IS_ANDROID_WEBVIEW || !window.isSecureContext || pageHidden() || !navigator.wakeLock || typeof navigator.wakeLock.request !== "function") return;
+    if (screenWakeLock && !screenWakeLock.released) return;
+    const requestId = ++screenWakeLockRequest;
+    try {
+      const lock = await navigator.wakeLock.request("screen");
+      if (requestId !== screenWakeLockRequest || pageHidden()){
+        try { await lock.release(); } catch (e) {}
+        return;
+      }
+      screenWakeLock = lock;
+      lock.addEventListener("release", function(){
+        if (screenWakeLock === lock) screenWakeLock = null;
+      });
+    } catch (e) {
+      screenWakeLock = null;
+    }
+  }
+  function releaseScreenWakeLock(){
+    screenWakeLockRequest += 1;
+    const lock = screenWakeLock;
+    screenWakeLock = null;
+    if (!lock || typeof lock.release !== "function") return;
+    try {
+      const released = lock.release();
+      if (released && typeof released.catch === "function") released.catch(function(){});
+    } catch (e) {}
+  }
+  function syncScreenWakeLock(){
+    if (pageHidden()) releaseScreenWakeLock();
+    else requestScreenWakeLock();
   }
   let healthT = null, appsT = null;
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
@@ -1822,30 +2251,71 @@
       ok = (r.status === 200) && r.data && r.data.ok === true;
     } catch (e) { ok = false; }
     state.online = ok;
-    if (prev && !ok) toast("Mac desconectado", "err");
-    if (!prev && ok) toast("Mac conectado");
+    if (prev && !ok) toast(t("toast.macDisconnected"), "err");
+    if (!prev && ok) toast(t("toast.deviceConnected"));
     healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
     healthT = setTimeout(loadHealth, healthBackoff);
   }
 
   let pinnedSig = "";
   let recentsRenderPending = false;
-  function flushPendingRecents(){
-    if (!recentsRenderPending || document.body.classList.contains("swiping")) return;
-    requestAnimationFrame(function(){
-      if (!recentsRenderPending || document.body.classList.contains("swiping")) return;
-      recentsRenderPending = false;
-      renderRecents();
-    });
+  let launchpadRenderPending = false;
+  let pendingViewsTimer = null;
+  function cancelPendingViewsTimer(){
+    if (pendingViewsTimer){ clearTimeout(pendingViewsTimer); pendingViewsTimer = null; }
   }
-  function applyAppsPayload(pinned, running){
-    if (!Array.isArray(pinned) || !Array.isArray(running)) return false;
-    const nextSig = pinned.join("\u0000");
+  function flushPendingRecents(){
+    if ((!recentsRenderPending && !launchpadRenderPending) || document.body.classList.contains("swiping")) return;
+    if (pendingViewsTimer) return;
+    // Atualizações recebidas durante o settle não podem disputar o último
+    // frame da animação. As telas já estão estáveis quando este pequeno atraso
+    // vence; na próxima troca o pending é preparado antes do movimento.
+    pendingViewsTimer = setTimeout(function(){
+      pendingViewsTimer = null;
+      if (document.body.classList.contains("swiping")) return;
+      if (launchpadRenderPending){
+        launchpadRenderPending = false;
+        renderLaunchpad(true);
+      }
+      if (recentsRenderPending && deckPid == null){
+        recentsRenderPending = false;
+        renderRecents();
+      }
+    }, IS_ANDROID_WEBVIEW ? 120 : 0);
+  }
+  function renderPendingRecentsBeforeTransition(){
+    if (!recentsRenderPending || deckPid != null) return;
+    // A tela 2 ainda está fora da viewport. Montá-la antes do settle tira a
+    // criação dos cards do frame final da animação vertical.
+    cancelPendingViewsTimer();
+    recentsRenderPending = false;
+    renderRecents();
+  }
+  function renderPendingLaunchpadBeforeTransition(){
+    if (!launchpadRenderPending) return;
+    // A tela 1 ainda está fora da viewport. O rebuild fica antes do settle,
+    // nunca no frame em que ela termina de entrar.
+    cancelPendingViewsTimer();
+    launchpadRenderPending = false;
+    renderLaunchpad(true);
+  }
+  function applyAppsPayload(pieces, pinned, running, limits, revision){
+    if (!Array.isArray(pieces) || !Array.isArray(pinned) || !Array.isArray(running)) return false;
+    const nextPieces = pieces.length && typeof pieces[0] === "object"
+      ? pieces
+      : pinned.map(function(name){ return { id: "app:" + name, type: "app", name: name }; });
+    applyPinnedLimits(limits);
+    const nextSig = nextPieces.map(function(piece){ return piece.id; }).join("\u0000");
     const pinnedChanged = nextSig !== pinnedSig;
     pinnedSig = nextSig;
-    state.pinned = pinned;
+    state.pieces = nextPieces;
+    state.pinned = Array.isArray(pinned) ? pinned : nextPieces.filter(function(piece){ return piece.type === "app"; }).map(function(piece){ return piece.name; });
+    state.revision = Number.isInteger(revision) ? revision : state.revision;
     state.running = running;
-    if (pinnedChanged) renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+    if (pinnedChanged){
+      if (document.body.classList.contains("swiping")) launchpadRenderPending = true;
+      else renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+    }
     const key = recentsKey();
     if (recentsKeyPrev === null || key !== recentsKeyPrev){
       recentsKeyPrev = key;
@@ -1858,7 +2328,9 @@
         warmed.add(a.name);
         primeIcon(a.name);
       });
-      if (document.body.classList.contains("swiping")) recentsRenderPending = true;
+      if (document.body.classList.contains("swiping")){
+        recentsRenderPending = true;
+      }
       else renderRecents();
     }
     updateStatuses();
@@ -1887,7 +2359,7 @@
       } else if (m.type === "apps"){
         state.online = true;
         maybeReloadForUi(m.v);
-        applyAppsPayload(m.pinned, m.running);
+        applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision);
       }
     };
     ws.onclose = function(){
@@ -1920,10 +2392,10 @@
       const r = await req("/api/apps", { timeout: 4200 });
       if (r.status === 200){
         authed = true;
-        if (Array.isArray(r.data && r.data.pinned) && Array.isArray(r.data && r.data.running)){
+        if (Array.isArray(r.data && (r.data.pieces || r.data.pinned)) && Array.isArray(r.data && r.data.running)){
           ok = true;
           maybeReloadForUi(r.data.v);
-          applyAppsPayload(r.data.pinned, r.data.running);
+          applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision);
         }
       }
     } catch (e) { /* offline: keep last view */ }
@@ -1943,8 +2415,9 @@
     const at = document.querySelectorAll(".atile");
     for (let i = 0; i < at.length; i++){
       const st = at[i].querySelector(".astatus");
+      if (!st) continue;
       const on = running.has(at[i].dataset.name);
-      if (on){ st.textContent = "aberto"; st.classList.add("on"); }
+      if (on){ st.textContent = t("dock.opened"); st.classList.add("on"); }
       else { st.textContent = ""; st.classList.remove("on"); }
     }
   }
@@ -2014,6 +2487,7 @@
     let coolUntil = 0;
     let wheelDelta = 0;
     let wheelT = null;
+    let wheelRaf = null;
     let settleT = null;
     let settling = false;
     let lastY = 0, lastT = 0, instVel = 0;
@@ -2055,13 +2529,27 @@
         screenRecents.style.transition = "";
       }
     }
+    let swipeClearRaf = null;
     function setLayer(on, axis){
+      if (swipeClearRaf){
+        cancelAnimationFrame(swipeClearRaf);
+        swipeClearRaf = null;
+      }
       try {
-        const g = on && axis === "vertical" ? "transform" : "";
+        const g = "transform";
         for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
       } catch (err) {}
-      try { document.body.classList.toggle("swiping", !!on); } catch (err) {}
-      if (!on) flushPendingRecents();
+      if (on){
+        try { document.body.classList.add("swiping"); } catch (err) {}
+        return;
+      }
+      // A remoção síncrona restaura sombras e pseudo-elementos de todos os
+      // cards exatamente no frame em que a tela termina de entrar.
+      swipeClearRaf = requestAnimationFrame(function(){
+        swipeClearRaf = null;
+        try { document.body.classList.remove("swiping"); } catch (err) {}
+        flushPendingRecents();
+      });
     }
     let dragRaf = null, dragDy = null;
     function dragTo(dy){
@@ -2077,12 +2565,13 @@
     }
     // ---- pager horizontal do launchpad (flick/25% troca página) ----
     let hGest = false, hOriginInLaunchpad = false, hOriginInDeck = false;
-    let nativeLaunchpadGesture = false, nativeDeckGesture = false;
+    let nativeDeckGesture = false;
     let hStart = 0, hStartPage = 0, hVel = 0, hLastX = 0;
     let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null;
     const HV_FLICK = 0.32;
     const H_FLICK_MIN = 14;
     const HPAGE_RATIO = 0.18;
+    const H_SNAP_DURATION = 250;
     function hTo(dx){
       hDx = dx;
       if (!hRaf) hRaf = requestAnimationFrame(function(){
@@ -2102,6 +2591,22 @@
       if ((flick && dx < 0) || dx <= -pw * HPAGE_RATIO) return "next";
       if ((flick && dx > 0) || dx >= pw * HPAGE_RATIO) return "prev";
       return null;
+    }
+    function smoothSnapProgress(p){
+      const x = Math.min(Math.max(p, 0), 1);
+      if (x <= 0 || x >= 1) return x;
+      let lo = 0, hi = 1, t = x;
+      // Resolve x on cubic-bezier(.22, 1, .36, 1) so the same motion token
+      // is used by the PWA and by the Android WebView assentamento.
+      for (let n = 0; n < 8; n++){
+        const omt = 1 - t;
+        const bx = 3 * omt * omt * t * .22 + 3 * omt * t * t * .36 + t * t * t;
+        if (bx < x) lo = t;
+        else hi = t;
+        t = (lo + hi) / 2;
+      }
+      const omt = 1 - t;
+      return 3 * omt * omt * t + 3 * omt * t * t + t * t * t;
     }
     function stopHorizontalSnap(){
       if (hSnapRaf){ cancelAnimationFrame(hSnapRaf); hSnapRaf = null; }
@@ -2132,7 +2637,7 @@
       const started = performance.now();
       const step = function(now){
         const p = Math.min((now - started) / duration, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
+        const eased = smoothSnapProgress(p);
         launchpad.scrollLeft = from + delta * eased;
         if (p < 1){
           hSnapRaf = requestAnimationFrame(step);
@@ -2152,16 +2657,10 @@
       let t = i;
       if (dir === "prev") t = Math.max(i - 1, 0);
       else if (dir === "next") t = Math.min(i + 1, pages.length - 1);
-      if (IS_ANDROID_WEBVIEW && !ANDROID_NATIVE_PAGER){
-        androidPage = t;
-        // Android usa transform no track e não dispara scroll; atualiza o
-        // indicador explicitamente junto com a página lógica.
-        syncDots(t);
-      }
       launchpad.style.scrollSnapType = "none";
       launchpad.style.scrollBehavior = "auto";
       const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const duration = reduced ? 1 : (IS_ANDROID_WEBVIEW ? (dir ? 140 : 90) : (dir ? 240 : 160));
+      const duration = reduced ? 1 : H_SNAP_DURATION;
       animateHorizontalSnap(t * pw, duration);
       coolUntil = Date.now() + COOLDOWN_MS;
     }
@@ -2175,6 +2674,9 @@
       clearDrag();
       flushPendingRecents();
       coolUntil = Date.now() + COOLDOWN_MS;
+      if (typeof layoutDockScale === "function"){
+        requestAnimationFrame(function(){ try{ layoutDockScale(); }catch(e){} });
+      }
     }
     function onSettleEnd(e){
       if (e.propertyName && e.propertyName !== "transform") return;
@@ -2184,33 +2686,74 @@
     }
     function settleTo(nextName){
       settling = true;
+      setLayer(true, "vertical");
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
-      void screensEl.offsetHeight;
-      // Calcula a posição final usando a tela atual como referência. Antes o
-      // estado era trocado primeiro e applyDrag usava o eixo errado, causando
-      // um salto/travamento na entrada da tela 2.
-      const ease = IS_ANDROID_WEBVIEW
-        ? "transform .20s cubic-bezier(.22,.61,.36,1)"
-        : "transform .28s cubic-bezier(.22,.61,.36,1)";
-      if (nextName === "recents"){
-        if (screenApps) screenApps.style.transition = ease;
-        if (screenRecents) screenRecents.style.transition = ease;
-        applyDrag(-h());
-      } else {
-        if (screenApps) screenApps.style.transition = ease;
-        if (screenRecents) screenRecents.style.transition = ease;
-        applyDrag(h());
+      const hasPendingRecents = nextName === "recents" && recentsRenderPending;
+      const hasPendingLaunchpad = nextName === "apps" && launchpadRenderPending;
+      if (hasPendingRecents || hasPendingLaunchpad){
+        const doPending = hasPendingRecents ? renderPendingRecentsBeforeTransition : renderPendingLaunchpadBeforeTransition;
+        requestAnimationFrame(function(){
+          doPending();
+          requestAnimationFrame(function(){
+            if (!settling) return;
+            void screensEl.offsetHeight;
+            const ease = IS_ANDROID_WEBVIEW
+              ? "transform .20s cubic-bezier(.22,.61,.36,1)"
+              : "transform .22s cubic-bezier(.22,.61,.36,1)";
+            if (nextName === "recents"){
+              if (screenApps) screenApps.style.transition = ease;
+              if (screenRecents) screenRecents.style.transition = ease;
+              applyDrag(-h());
+            } else {
+              if (screenApps) screenApps.style.transition = ease;
+              if (screenRecents) screenRecents.style.transition = ease;
+              applyDrag(h());
+            }
+            screensEl._nextScreen = nextName || null;
+            screensEl.addEventListener("transitionend", onSettleEnd);
+            settleT = setTimeout(function(){
+              const n = screensEl._nextScreen || null;
+              screensEl._nextScreen = null;
+              finishSettle(n);
+            }, 360);
+          });
+        });
+        return;
       }
-      // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
-      // e de pointer-events acontece em finishSettle, depois do último frame.
-      screensEl._nextScreen = nextName || null;
-      screensEl.addEventListener("transitionend", onSettleEnd);
-      settleT = setTimeout(function(){
-        const n = screensEl._nextScreen || null;
-        screensEl._nextScreen = null;
-        finishSettle(n);
-      }, 360);
+      if (nextName === "recents"){
+        renderPendingRecentsBeforeTransition();
+      } else if (nextName === "apps"){
+        renderPendingLaunchpadBeforeTransition();
+      }
+      requestAnimationFrame(function(){
+        if (!settling) return;
+        void screensEl.offsetHeight;
+        // Calcula a posição final usando a tela atual como referência. Antes o
+        // estado era trocado primeiro e applyDrag usava o eixo errado, causando
+        // um salto/travamento na entrada da tela 2.
+        const ease = IS_ANDROID_WEBVIEW
+          ? "transform .20s cubic-bezier(.22,.61,.36,1)"
+          : "transform .22s cubic-bezier(.22,.61,.36,1)";
+        if (nextName === "recents"){
+          if (screenApps) screenApps.style.transition = ease;
+          if (screenRecents) screenRecents.style.transition = ease;
+          applyDrag(-h());
+        } else {
+          if (screenApps) screenApps.style.transition = ease;
+          if (screenRecents) screenRecents.style.transition = ease;
+          applyDrag(h());
+        }
+        // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
+        // e de pointer-events acontece em finishSettle, depois do último frame.
+        screensEl._nextScreen = nextName || null;
+        screensEl.addEventListener("transitionend", onSettleEnd);
+        settleT = setTimeout(function(){
+          const n = screensEl._nextScreen || null;
+          screensEl._nextScreen = null;
+          finishSettle(n);
+        }, 360);
+      });
     }
     function settleAndCommit(dir){
       if (Date.now() < coolUntil && dir){
@@ -2257,14 +2800,13 @@
       lastY = e.clientY; lastT = e.timeStamp; instVel = 0;
       hStartPage = currentPage();
       hStart = launchpad ? launchpad.scrollLeft : 0;
-      hLastX = e.clientX; hVel = 0; hGest = false;
+      hLastX = e.clientX; hVel = 0; hGest = false; hDx = 0;
       hOriginInLaunchpad = !!(e.target && e.target.closest && e.target.closest(".launchpad"));
       hOriginInDeck = !!(e.target && e.target.closest && e.target.closest(".deck"));
-      nativeLaunchpadGesture = ANDROID_NATIVE_PAGER && hOriginInLaunchpad;
       nativeDeckGesture = hOriginInDeck;
       moving = false;
       pid = e.pointerId;
-      if (screensEl.setPointerCapture && !nativeLaunchpadGesture && !nativeDeckGesture){
+      if (screensEl.setPointerCapture && !nativeDeckGesture){
         try { screensEl.setPointerCapture(pid); } catch (err) {}
       }
     });
@@ -2287,17 +2829,16 @@
         if (Math.abs(dy) < DRAG && Math.abs(dx) < DRAG) return;
         if (Date.now() < coolUntil) return;
         if (Math.abs(dx) > Math.abs(dy) * AXIS_RATIO){
-          // No Android WebView, depois do setPointerCapture, o target passa a
-          // ser #screens. Use a origem do toque, não o target capturado.
+          // Depois do setPointerCapture, o target passa a ser #screens. Use a
+          // origem do toque, não o target capturado.
           if (!hOriginInLaunchpad && !hOriginInDeck) return;
-          if (nativeLaunchpadGesture || nativeDeckGesture) return;
+          if (nativeDeckGesture) return;
           setLayer(true, "horizontal");
           if (launchpad) launchpad.style.scrollSnapType = "none";
           if (launchpad) launchpad.style.scrollBehavior = "auto";
           hGest = true; moving = true;
         } else {
-          if (nativeLaunchpadGesture || nativeDeckGesture){
-            nativeLaunchpadGesture = false;
+          if (nativeDeckGesture){
             nativeDeckGesture = false;
             deckPid = null;
             if (screensEl.setPointerCapture){
@@ -2316,8 +2857,7 @@
     function endPointer(e){
       if (pid == null) return;               // nunca viu pointerdown (ex.: gesto do deck)
       if (e && e.pointerId !== pid) return;
-      if (nativeLaunchpadGesture || nativeDeckGesture){
-        nativeLaunchpadGesture = false;
+      if (nativeDeckGesture){
         nativeDeckGesture = false;
         deckPid = null;
         releasePointer();
@@ -2369,8 +2909,7 @@
     screensEl.addEventListener("pointerup", endPointer);
     screensEl.addEventListener("pointercancel", function(e){
       if (pid != null && e.pointerId !== pid) return;
-      if (nativeLaunchpadGesture || nativeDeckGesture){
-        nativeLaunchpadGesture = false;
+      if (nativeDeckGesture){
         nativeDeckGesture = false;
         deckPid = null;
         releasePointer();
@@ -2413,7 +2952,10 @@
       const maxVis = h() * 0.5;
       if (wheelDelta > maxVis) wheelDelta = maxVis;
       if (wheelDelta < -maxVis) wheelDelta = -maxVis;
-      applyDrag(wheelDelta);
+      if (!wheelRaf) wheelRaf = requestAnimationFrame(function(){
+        wheelRaf = null;
+        applyDrag(wheelDelta);
+      });
       clearTimeout(wheelT);
       wheelT = setTimeout(function(){
         wheelT = null;
@@ -2485,7 +3027,7 @@
     $("upSub").textContent = sub;
     const download = $("upDownload");
     const isAndroid = !!(window.DokkeAndroid && window.DokkeAndroid.requestUpdate);
-    download.textContent = isAndroid ? "Baixar" : "Abrir release";
+    download.textContent = isAndroid ? t("update.download") : t("update.release");
     download.onclick = function(e){
       e.stopPropagation();
       if (isAndroid){
@@ -2534,8 +3076,8 @@
           }
           if (!apkNow || !rel || !rel.tag) return;
           if (cmpVer(rel.tag, apkNow) > 0){
-            showUpBanner("Nova atualização do Dokke",
-              "Versão " + rel.tag + " disponível. Escolha quando baixar.",
+            showUpBanner(t("update.available"),
+              t("update.version", { version: rel.tag }),
               rel.apkUrl || "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk",
               rel.tag);
           }
@@ -2543,8 +3085,8 @@
         }
         // Mac (servidor embutido) desatualizado
         if (rel && rel.tag && cmpVer(rel.tag, v.local.tag) > 0){
-          showUpBanner("App do Mac desatualizado",
-            "Nova versão " + rel.tag + " disponível — atualize o Dokke no computador",
+          showUpBanner(t("update.macTitle"),
+            t("update.macSubtitle", { version: rel.tag }),
             rel.htmlUrl || "https://github.com/felipenalves/Dokke/releases/latest");
         }
       })
@@ -2553,6 +3095,7 @@
 
   // boot real depende do login (cookie válido) — 401 reabre a wall
   function boot(){
+    requestScreenWakeLock();
     connectStatusWs();
     loadApps();
     loadInstalled();
@@ -2563,7 +3106,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v14").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v24").catch(function() {});
   }
 })();</script>
 </body>

@@ -17,6 +17,15 @@ test("GET /api/apps retorna fixas + abertas", async () => {
   } finally { await close(); }
 });
 
+test("@spec:AC-336 /health continua público após inicialização do host", async () => {
+  const { port, close } = await startServer({ port: 0, config: { pinned: [] } });
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, service: "Dokke" });
+  } finally { await close(); }
+});
+
 test("GET /api/apps com defaults reais retorna arrays", async () => {
   const { port, close } = await startServer({ port: 0, config: { pinned: [] } });
   try {
@@ -83,5 +92,23 @@ test("GET /api/apps/%ZZ/icon com nome malformado retorna 400 sem crash", async (
     assert.equal(d.ok, false);
     const h = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(h.status, 200);
+  } finally { await close(); }
+});
+
+test("POST /api/apps/:name/activate com JSON malformado responde 400 e não ativa", async () => {
+  const activated = [];
+  const { port, close } = await startServer({
+    port: 0,
+    config: {},
+    actions: { activateApp: async (app) => { activated.push(app.name); } },
+  });
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/api/apps/Notes/activate`, {
+      method: "POST",
+      body: "isso nao e json{",
+    });
+    assert.equal(r.status, 400, "corpo inválido deve dar 400");
+    assert.equal((await r.json()).ok, false);
+    assert.deepEqual(activated, [], "não pode ativar com corpo inválido");
   } finally { await close(); }
 });

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -19,7 +20,9 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
@@ -34,6 +37,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -41,15 +45,21 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.File
 
 class MainActivity : ComponentActivity() {
+
+    private fun message(key: String, values: Map<String, String> = emptyMap()): String =
+        AndroidLanguage.text(this, key, values)
 
     private lateinit var web: WebView
     private lateinit var loader: ProgressBar
     private lateinit var root: FrameLayout
     private lateinit var offlinePanel: View
     private var serverUrl = ""
+    private val connectionPrefs by lazy(LazyThreadSafetyMode.NONE) { getSharedPreferences("prefs", 0) }
     private var mainFrameFailed = false
     private var healed = false
     private var updateDownloadId: Long? = null
@@ -69,21 +79,21 @@ class MainActivity : ComponentActivity() {
             val cursor = manager.query(DownloadManager.Query().setFilterById(id))
             try {
                 if (!cursor.moveToFirst()) {
-                    showUpdateMessage("Não foi possível verificar o download.")
+                    showUpdateMessage(message("update.downloadCheck"))
                     return
                 }
                 val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                 if (status != DownloadManager.STATUS_SUCCESSFUL) {
-                    showUpdateMessage("Não foi possível baixar a atualização.")
+                    showUpdateMessage(message("update.downloadError"))
                     return
                 }
                 val uri = manager.getUriForDownloadedFile(id)
                 if (uri == null) {
-                    showUpdateMessage("O arquivo da atualização não está disponível.")
+                    showUpdateMessage(message("update.fileMissing"))
                     return
                 }
                 if (!validateDownloadedApk(uri)) {
-                    showUpdateMessage("A atualização não corresponde ao Dokke instalado.")
+                    showUpdateMessage(message("update.invalidPackage"))
                     manager.remove(id)
                     return
                 }
@@ -94,8 +104,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val discoverMagic = "dokke:discover".toByteArray(Charsets.UTF_8)
-    private val discoverReply = Regex("^dokke:(\\d{1,3}(\\.\\d{1,3}){3}):(\\d+)$")
     private val netErrors = setOf(
         WebViewClient.ERROR_HOST_LOOKUP, WebViewClient.ERROR_CONNECT,
         WebViewClient.ERROR_TIMEOUT, WebViewClient.ERROR_UNKNOWN,
@@ -105,6 +113,8 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A tela permanece acesa somente enquanto a janela do APK está visível.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -124,13 +134,8 @@ class MainActivity : ComponentActivity() {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
 
-        val prefs = getSharedPreferences("prefs", 0)
         serverUrl = ServerUrl.normalize(getString(R.string.server_url)) ?: ""
-        prefs.getString("server_url", null)?.let { stored ->
-            if (!applyServerUrl(stored, persist = true)) {
-                prefs.edit().remove("server_url").apply()
-            }
-        }
+        DokkeConnectionStore.read(connectionPrefs)?.let { serverUrl = it }
         // Permite override via Intent extra (fácil de testar via am), mas nunca
         // grava ou carrega uma URL fora do contrato HTTP(S) com host.
         intent.getStringExtra("server_url")?.let { applyServerUrl(it, persist = true) }
@@ -174,16 +179,18 @@ class MainActivity : ComponentActivity() {
                 hideOfflineScreen()
             }
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                Log.e("Dokke", "WebView error: ${error?.description} (${error?.errorCode}) url=${request?.url}")
+                val errorCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) error?.errorCode else null
+                val description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) error?.description else null
+                Log.e("Dokke", "WebView error: $description ($errorCode) url=${request?.url}")
                 if (request?.isForMainFrame == true) {
                     mainFrameFailed = true
                     runOnUiThread { showOfflineScreen() }
                 }
                 // self-heal: se o IP gravado morreu (DHCP mudou), procura o servidor na rede
-                if (request?.isForMainFrame == true && error?.errorCode in netErrors && !healed) {
+                if (request?.isForMainFrame == true && errorCode in netErrors && !healed) {
                     healed = true
                     discoverServer { found ->
-                        acceptDiscoveredServer(found)
+                        if (!currentServerHealthy()) acceptDiscoveredServer(found)
                     }
                 }
             }
@@ -208,6 +215,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
             @android.webkit.JavascriptInterface
+            fun performHapticFeedback() {
+                runOnUiThread {
+                    val constant = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        HapticFeedbackConstants.CONTEXT_CLICK
+                    } else {
+                        HapticFeedbackConstants.VIRTUAL_KEY
+                    }
+                    web.performHapticFeedback(constant)
+                }
+            }
+            @android.webkit.JavascriptInterface
+            fun setLoginPortrait(enabled: Boolean) {
+                runOnUiThread {
+                    requestedOrientation = if (enabled) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    }
+                }
+            }
+            @android.webkit.JavascriptInterface
             fun appVersion(): String = BuildConfig.VERSION_NAME
             @android.webkit.JavascriptInterface
             fun requestUpdate(version: String) {
@@ -215,10 +243,16 @@ class MainActivity : ComponentActivity() {
             }
         }, "DokkeAndroid")
         if (serverUrl.isNotEmpty()) web.loadUrl(serverUrl) else showOfflineScreen()
-        // descoberta automática: se o IP do Mac mudou, atualiza sozinho
+        // descoberta automática: só troca quando o servidor salvo está inacessível —
+        // um respondente falso na rede não sequestra um pareamento que funciona
         discoverServer { found ->
-            acceptDiscoveredServer(found)
+            if (!currentServerHealthy()) acceptDiscoveredServer(found)
         }
+    }
+
+    /** O servidor atual responde ao health contract? Bloqueante: chamar fora da UI thread. */
+    private fun currentServerHealthy(): Boolean {
+        return serverUrl.isNotEmpty() && verifyDokkeServer(serverUrl) != null
     }
 
     private fun applyServerUrl(raw: String?, persist: Boolean): Boolean {
@@ -229,7 +263,7 @@ class MainActivity : ComponentActivity() {
         }
         serverUrl = normalized
         if (persist) {
-            getSharedPreferences("prefs", 0).edit().putString("server_url", normalized).apply()
+            DokkeConnectionStore.save(connectionPrefs, normalized)
         }
         return true
     }
@@ -240,7 +274,7 @@ class MainActivity : ComponentActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(raw)).addCategory(Intent.CATEGORY_BROWSABLE))
             } catch (_: Exception) {
-                Toast.makeText(this, "Não foi possível abrir o link externo.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, message("external.openError"), Toast.LENGTH_SHORT).show()
             }
         } else {
             Log.w("Dokke", "navegação rejeitada fora da origem confiável: $raw")
@@ -253,31 +287,33 @@ class MainActivity : ComponentActivity() {
         runOnUiThread {
             if (found == serverUrl) return@runOnUiThread
             serverUrl = found
-            getSharedPreferences("prefs", 0).edit().putString("server_url", found).apply()
+            DokkeConnectionStore.save(connectionPrefs, found)
             Log.i("Dokke", "servidor encontrado na rede: $found")
             hideOfflineScreen()
             web.loadUrl(found)
         }
     }
 
-    /** Pergunta na rede "cadê o servidor dokke?" (UDP broadcast) e devolve a URL
-     *  http://<ip>:<porta> da primeira resposta válida — ou null em poucos segundos. */
+    /** Pergunta na rede e só devolve um endpoint depois do health check Dokke. */
     private fun discoverServer(onResult: (String?) -> Unit) {
         Thread {
             var found: String? = null
+            var sock: DatagramSocket? = null
             try {
-                val sock = DatagramSocket(null)
-                sock.reuseAddress = true
-                sock.broadcast = true
-                sock.soTimeout = 1500
-                sock.bind(InetSocketAddress(0))
+                val socket = DatagramSocket(null)
+                sock = socket
+                socket.reuseAddress = true
+                socket.broadcast = true
+                socket.soTimeout = 1500
+                socket.bind(InetSocketAddress(0))
                 // 255.255.255.255 é o padrão; o direcionado cobre redes que derrubam o global
                 val targets = mutableListOf("255.255.255.255")
-                directedBroadcast()?.let { targets.add(it) }
+                DokkeDiscovery.directedBroadcast()?.let { targets.add(it) }
+                val discoverMagic = DokkeDiscovery.MAGIC.toByteArray(Charsets.UTF_8)
                 loop@ for (target in targets) {
                     for (attempt in 1..2) {
                         try {
-                            sock.send(DatagramPacket(discoverMagic, discoverMagic.size,
+                            socket.send(DatagramPacket(discoverMagic, discoverMagic.size,
                                 InetAddress.getByName(target), 3001))
                         } catch (_: Exception) {}
                         val deadline = System.currentTimeMillis() + 1500
@@ -285,13 +321,12 @@ class MainActivity : ComponentActivity() {
                             try {
                                 val buf = ByteArray(256)
                                 val pkt = DatagramPacket(buf, buf.size)
-                                sock.receive(pkt)
+                                socket.receive(pkt)
                                 val msg = String(buf, 0, pkt.length, Charsets.UTF_8)
-                                val m = discoverReply.find(msg)
-                                if (m != null) {
-                                    val candidate = ServerUrl.normalize("http://${m.groupValues[1]}:${m.groupValues[3]}")
-                                    if (candidate != null) {
-                                        found = candidate
+                                val candidate = DokkeDiscovery.parseReply(msg)
+                                if (candidate != null) {
+                                    found = verifyDokkeServer(candidate)
+                                    if (found != null) {
                                         break@loop
                                     }
                                 }
@@ -299,44 +334,48 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                sock.close()
             } catch (_: Exception) {}
+            sock?.close()
             onResult(found)
         }.start()
     }
 
-    /** Broadcast direcionado da rede atual (ex.: 192.168.1.255) — pula interfaces
-     *  de tunel (Tailscale /32) e loopback. */
-    private fun directedBroadcast(): String? {
-        try {
-            val enums = java.net.NetworkInterface.getNetworkInterfaces() ?: return null
-            for (nif in enums) {
-                if (!nif.isUp || nif.isLoopback) continue
-                for (a in nif.interfaceAddresses) {
-                    val ip = a.address as? java.net.Inet4Address ?: continue
-                    val prefix = a.networkPrefixLength
-                    if (prefix <= 0 || prefix >= 32) continue
-                    val raw = ip.address
-                    val ipInt = (raw[0].toInt() and 0xff shl 24) or (raw[1].toInt() and 0xff shl 16) or
-                        (raw[2].toInt() and 0xff shl 8) or (raw[3].toInt() and 0xff)
-                    val maskInt = (0xffffffff.toInt() shl (32 - prefix))
-                    val bcast = (ipInt and maskInt) or maskInt.inv()
-                    if (bcast == ipInt) continue
-                    return "${(bcast ushr 24) and 0xff}.${(bcast ushr 16) and 0xff}.${(bcast ushr 8) and 0xff}.${bcast and 0xff}"
-                }
-            }
-        } catch (_: Exception) {}
-        return null
+    /** UDP é apenas descoberta; a troca de endpoint exige o health contract. */
+    private fun verifyDokkeServer(candidate: String): String? {
+        val healthUrl = DokkeDiscovery.healthUrl(candidate) ?: return null
+        val connection = try { URL(healthUrl).openConnection() as HttpURLConnection } catch (_: Exception) { return null }
+        return try {
+            connection.connectTimeout = 1200
+            connection.readTimeout = 1200
+            connection.requestMethod = "GET"
+            connection.useCaches = false
+            val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            candidate.takeIf { DokkeDiscovery.isDokkeHealth(connection.responseCode, body) }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 
     override fun onNewIntent(newIntent: Intent) {
         super.onNewIntent(newIntent)
         setIntent(newIntent)
         newIntent.getStringExtra("server_url")?.let { raw ->
-            if (applyServerUrl(raw, persist = true)) {
-                hideOfflineScreen()
-                web.loadUrl(serverUrl)
-            }
+            // origem vinda de fora (outro app) só vale com health check Dokke —
+            // sem isso qualquer activity exportada sequestraria a conexão salva
+            Thread {
+                val normalized = ServerUrl.normalize(raw)
+                val verified = normalized?.let { verifyDokkeServer(it) }
+                runOnUiThread {
+                    if (verified != null && applyServerUrl(verified, persist = true)) {
+                        hideOfflineScreen()
+                        web.loadUrl(serverUrl)
+                    } else if (normalized != null) {
+                        Log.w("Dokke", "server_url de intent rejeitada: sem health Dokke")
+                    }
+                }
+            }.start()
         }
     }
 
@@ -360,33 +399,33 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(updateReceiver, filter)
+            ContextCompat.registerReceiver(this, updateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }
         updateReceiverRegistered = true
     }
 
     private fun beginUpdate(version: String) {
         if (updateDownloadId != null) {
-            showUpdateMessage("A atualização já está sendo baixada.")
+            showUpdateMessage(message("update.alreadyDownloading"))
             return
         }
         val releaseTag = UpdateVersion.releaseTag(version)
         if (releaseTag == null) {
-            showUpdateMessage("Versão de atualização inválida.")
+            showUpdateMessage(message("update.invalidVersion"))
             return
         }
         val versionName = releaseTag.removePrefix("v")
         if (!UpdateVersion.isNewer(versionName, BuildConfig.VERSION_NAME)) {
-            showUpdateMessage("O Dokke já está atualizado.")
+            showUpdateMessage(message("update.current"))
             return
         }
         if (!canInstallPackages()) {
             pendingUpdateVersion = versionName
             AlertDialog.Builder(this)
-                .setTitle("Permitir atualização")
-                .setMessage("Para atualizar o Dokke, permita que este app instale a nova versão.")
-                .setNegativeButton("Agora não") { _, _ -> pendingUpdateVersion = null }
-                .setPositiveButton("Abrir configurações") { _, _ -> openInstallSettings() }
+                .setTitle(message("update.permissionTitle"))
+                .setMessage(message("update.permissionMessage"))
+                .setNegativeButton(message("update.cancel")) { _, _ -> pendingUpdateVersion = null }
+                .setPositiveButton(message("update.settings")) { _, _ -> openInstallSettings() }
                 .show()
             return
         }
@@ -399,7 +438,11 @@ class MainActivity : ComponentActivity() {
 
     private fun openInstallSettings() {
         try {
-            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            } else {
+                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            }
         } catch (_: Exception) {
             startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
         }
@@ -407,15 +450,15 @@ class MainActivity : ComponentActivity() {
 
     private fun enqueueUpdate(version: String) {
         val releaseTag = UpdateVersion.releaseTag(version) ?: run {
-            showUpdateMessage("Versão de atualização inválida.")
+            showUpdateMessage(message("update.invalidVersion"))
             return
         }
         val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val filename = "dokke-update-$version.apk"
         val apkUrl = "$updateApkBaseUrl/$releaseTag/dokke.apk"
         val request = DownloadManager.Request(Uri.parse(apkUrl))
-            .setTitle("Atualização do Dokke")
-            .setDescription("Baixando a versão $version")
+            .setTitle(message("update.downloadTitle"))
+            .setDescription(message("update.downloadDescription", mapOf("version" to version)))
             .setMimeType(updateMime)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
@@ -423,7 +466,7 @@ class MainActivity : ComponentActivity() {
             .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, filename)
         updateExpectedVersion = version
         updateDownloadId = manager.enqueue(request)
-        Toast.makeText(this, "Baixando a atualização…", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, message("update.downloadStarted"), Toast.LENGTH_LONG).show()
     }
 
     private fun validateDownloadedApk(uri: Uri): Boolean {
@@ -485,7 +528,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installDownloadedApk(uri: Uri) {
         if (!canInstallPackages()) {
-            showUpdateMessage("Permissão para instalar a atualização não concedida.")
+            showUpdateMessage(message("update.permissionDenied"))
             return
         }
         val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -496,7 +539,7 @@ class MainActivity : ComponentActivity() {
         try {
             startActivity(intent)
         } catch (_: Exception) {
-            showUpdateMessage("Não foi possível abrir o instalador do Android.")
+            showUpdateMessage(message("update.installerError"))
         }
     }
 
@@ -521,7 +564,7 @@ class MainActivity : ComponentActivity() {
         })
 
         val title = TextView(this).apply {
-            text = "O Dokke está fechado no computador"
+            text = message("offline.title")
             setTextColor(Color.WHITE)
             textSize = 22f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -531,7 +574,7 @@ class MainActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
         val description = TextView(this).apply {
-            text = "Abra o aplicativo Dokke no computador para liberar o dock neste celular."
+            text = message("offline.description")
             setTextColor(Color.rgb(177, 177, 190))
             textSize = 15f
             gravity = Gravity.CENTER
@@ -543,7 +586,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val status = TextView(this).apply {
-            text = "Computador desconectado"
+            text = message("offline.status")
             setTextColor(Color.rgb(255, 174, 132))
             textSize = 14f
             gravity = Gravity.CENTER
@@ -556,7 +599,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val retry = Button(this).apply {
-            text = "Tentar novamente"
+            text = message("offline.retry")
             isAllCaps = false
             textSize = 15f
             setTextColor(Color.WHITE)
@@ -570,7 +613,7 @@ class MainActivity : ComponentActivity() {
             })
 
         val hint = TextView(this).apply {
-            text = "O celular está funcionando. Só falta abrir o Dokke no computador."
+            text = message("offline.hint")
             setTextColor(Color.rgb(125, 125, 140))
             textSize = 12f
             gravity = Gravity.CENTER

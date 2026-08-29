@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startServer } from "../server.js";
+import { MAX_PINNED_APPS, pinnedLimits } from "../config.js";
 
 async function startTemp(extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), "j5api-"));
@@ -23,7 +24,10 @@ test("GET /api/config vazio retorna pinned vazio", async () => {
   try {
     const r = await fetch(`${base(s)}/api/config`);
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true, config: { pinned: [] } });
+    assert.deepEqual(await r.json(), {
+      ok: true,
+      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits() },
+    });
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
@@ -155,4 +159,67 @@ test("POST /api/config/pinned com corpo invalido responde 400", async () => {
     const g = await fetch(`${base(s)}/api/config`);
     assert.deepEqual((await g.json()).config.pinned, []);
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("POSTs concorrentes não perdem updates nem deixam tmp para trás", async () => {
+  const s = await startTemp();
+  try {
+    const apps = Array.from({ length: 24 }, (_, i) => `App-${String(i).padStart(2, "0")}`);
+    const rs = await Promise.all(apps.map(app =>
+      fetch(`${base(s)}/api/config/pinned`, { method: "POST", body: JSON.stringify({ app }) })
+    ));
+    for (const r of rs) assert.equal(r.status, 200);
+    const g = await fetch(`${base(s)}/api/config`);
+    const got = (await g.json()).config.pinned;
+    assert.deepEqual(got.sort(), apps.sort(), "todas as 24 apps devem sobreviver à concorrência");
+    const { readdir } = await import("node:fs/promises");
+    const leftovers = (await readdir(s.dir)).filter(f => f.includes(".tmp"));
+    assert.deepEqual(leftovers, [], "nenhum arquivo .tmp pode sobrar");
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("POST bloqueia o app que passaria do limite de cinco páginas", async () => {
+  const pinned = Array.from({ length: MAX_PINNED_APPS }, (_, i) => `App-${i}`);
+  const s = await startServer({
+    port: 0,
+    config: { pinned },
+    appTools: { listAppProcesses: async () => [] },
+  });
+  try {
+    const r = await fetch(`${base(s)}/api/config/pinned`, {
+      method: "POST",
+      body: JSON.stringify({ app: "App-extra" }),
+    });
+    const body = await r.json();
+    assert.equal(r.status, 409);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "PINNED_LIMIT_REACHED");
+    assert.deepEqual(body.limits, pinnedLimits());
+
+    const current = await fetch(`${base(s)}/api/config`);
+    assert.deepEqual((await current.json()).config.pinned, pinned);
+  } finally { await s.close(); }
+});
+
+test("PUT rejeita uma lista acima do limite sem truncar nem alterar a ordem atual", async () => {
+  const current = ["Figma"];
+  const s = await startServer({
+    port: 0,
+    config: { pinned: current },
+    appTools: { listAppProcesses: async () => [] },
+  });
+  try {
+    const tooMany = Array.from({ length: MAX_PINNED_APPS + 1 }, (_, i) => `App-${i}`);
+    const r = await fetch(`${base(s)}/api/config/pinned`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: tooMany }),
+    });
+    const body = await r.json();
+    assert.equal(r.status, 409);
+    assert.equal(body.code, "PINNED_LIMIT_REACHED");
+
+    const after = await fetch(`${base(s)}/api/config`);
+    assert.deepEqual((await after.json()).config.pinned, current);
+  } finally { await s.close(); }
 });

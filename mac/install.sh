@@ -14,26 +14,94 @@ BIN_NAME="Dokke"
 DEST_DIR="${HOME}/Applications"
 OPEN_AFTER=0
 BUILD_ONLY=0
+MAX_BUNDLE_SIZE_MB=121
+VERIFY_BUNDLE=""
+
+find_actool() {
+  local candidate help_output
+  local -a candidates=()
+
+  if [[ -n "${DOKKE_ACTOOL:-}" ]]; then
+    candidates+=("${DOKKE_ACTOOL}")
+  fi
+  if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    candidates+=("${DEVELOPER_DIR}/usr/bin/actool")
+  fi
+  candidate="$(xcrun --find actool 2>/dev/null || true)"
+  if [[ -n "${candidate}" ]]; then
+    candidates+=("${candidate}")
+  fi
+  candidates+=("/Applications/Xcode.app/Contents/Developer/usr/bin/actool")
+
+  for candidate in "${candidates[@]}"; do
+    [[ -x "${candidate}" ]] || continue
+    help_output="$("${candidate}" --help 2>&1 || true)"
+    if [[ "${help_output}" == *"actool"* && "${help_output}" != *"requires Xcode"* ]]; then
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+validate_bundle_budget() {
+  local bundle_path="$1" node_count bundle_kib max_bundle_kib
+  if [[ ! -d "${bundle_path}" ]]; then
+    echo "error: bundle not found: ${bundle_path}" >&2
+    exit 1
+  fi
+
+  node_count="$(find "${bundle_path}/Contents/Resources" -type f -path '*/node-bin/node' -perm -111 | wc -l | tr -d '[:space:]')"
+  if [[ "${node_count}" -ne 1 ]]; then
+    echo "error: expected exactly one embedded Node runtime, found ${node_count}" >&2
+    exit 1
+  fi
+
+  bundle_kib="$(du -sk "${bundle_path}" | awk '{print $1}')"
+  max_bundle_kib="$((MAX_BUNDLE_SIZE_MB * 1024))"
+  if [[ "${bundle_kib}" -gt "${max_bundle_kib}" ]]; then
+    echo "error: Dokke.app is ${bundle_kib} KiB; budget is ${MAX_BUNDLE_SIZE_MB} MiB" >&2
+    exit 1
+  fi
+  echo "==> bundle budget OK (${bundle_kib} KiB <= ${MAX_BUNDLE_SIZE_MB} MiB; one Node runtime)"
+}
 
 for arg in "$@"; do
   case "$arg" in
     --system) DEST_DIR="/Applications" ;;
     --open) OPEN_AFTER=1 ;;
     --build-only) BUILD_ONLY=1 ;;
+    --verify-bundle=*) VERIFY_BUNDLE="${arg#--verify-bundle=}" ;;
     -h|--help)
-      echo "Usage: ./install.sh [--open] [--system] [--build-only]"
+      echo "Usage: ./install.sh [--open] [--system] [--build-only] [--verify-bundle=PATH]"
       exit 0
       ;;
   esac
 done
 
+if [[ -n "${VERIFY_BUNDLE}" ]]; then
+  validate_bundle_budget "${VERIFY_BUNDLE}"
+  exit 0
+fi
+
 echo "==> release build (${BIN_NAME})"
 cd "${ROOT}"
 swift build -c release --product "${BIN_NAME}"
+swift build -c debug --product "DokkeIconHelper"
 
 BIN_PATH="$(swift build -c release --show-bin-path)/${BIN_NAME}"
 if [[ ! -x "${BIN_PATH}" ]]; then
   echo "error: missing binary: ${BIN_PATH}" >&2
+  exit 1
+fi
+# O binário release não precisa carregar símbolos locais para distribuição.
+# Removê-los reduz o app sem alterar o executável ou o comportamento do host.
+if command -v strip >/dev/null 2>&1; then
+  strip -x "${BIN_PATH}"
+fi
+ICON_HELPER_PATH="$(swift build -c debug --show-bin-path)/DokkeIconHelper"
+if [[ ! -x "${ICON_HELPER_PATH}" ]]; then
+  echo "error: missing icon helper: ${ICON_HELPER_PATH}" >&2
   exit 1
 fi
 
@@ -49,13 +117,49 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 cp "${BIN_PATH}" "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 cp "${ROOT}/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
-cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+# O .icns mantém compatibilidade com sistemas anteriores ao Icon Composer.
+if [[ -f "${ROOT}/AppIcon.icns" ]]; then
+  cp "${ROOT}/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/Dokke.icns"
+else
+  echo "error: legacy icon missing: ${ROOT}/AppIcon.icns" >&2
+  exit 1
+fi
+
+# The raw .icon source is compiled by actool into Assets.car and is not copied into the final bundle;
+# shipping the source package alone can make the system show a generic placeholder.
+ICON_SOURCE="${ROOT}/../assets/branding/dokke-icon/Dokke.icon"
+ACTOOL="$(find_actool || true)"
+if [[ ! -d "${ICON_SOURCE}" ]]; then
+  echo "error: Icon Composer source missing: ${ICON_SOURCE}" >&2
+  exit 1
+elif [[ -n "${ACTOOL}" ]]; then
+  echo "==> compile adaptive icon (${ACTOOL})"
+  "${ACTOOL}" "${ICON_SOURCE}" \
+    --compile "${APP_BUNDLE}/Contents/Resources" \
+    --app-icon Dokke \
+    --enable-on-demand-resources NO \
+    --development-region pt-BR \
+    --target-device mac \
+    --platform macosx \
+    --minimum-deployment-target 14.0 \
+    --enable-icon-stack-fallback-generation=disabled \
+    --include-all-app-icons \
+    --errors --warnings \
+    --output-partial-info-plist /dev/null
+else
+  echo "warn: actool ausente — usando Dokke.icns; o ícone adaptativo exige Xcode 26."
+fi
 
 # pack do server no bundle (Contents/Resources/Dokke/) — sem isso o app instalado
 # não acha o server.js (cwd do Launchpad é /) e o dock morre offline.
 SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
 mkdir -p "${SRV_DIR}"
 cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
+ICON_HELPER_APP="${SRV_DIR}/bin/DokkeIconHelper.app"
+mkdir -p "${ICON_HELPER_APP}/Contents/MacOS" "${ICON_HELPER_APP}/Contents/Resources"
+cp "${ICON_HELPER_PATH}" "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
+cp "${ROOT}/IconHelper/Info.plist" "${ICON_HELPER_APP}/Contents/Info.plist"
+chmod +x "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
 
 # Keep the server bundle explicit. `public/` can contain ignored backups,
 # logs, and local build output that must never become public app content.
@@ -64,6 +168,7 @@ PUBLIC_FILES=(
   "manifest.webmanifest"
   "sw.js"
   "icon-192.png"
+  "icon-192-dark.png"
   "icon-512.png"
   "version.json"
   "dokke.apk"
@@ -134,8 +239,11 @@ if [[ -n "${NODE_SRC}" ]]; then
   fi
   echo "==> node embutido (${NODE_SRC}; $(du -sh "${NODE_BIN}" | cut -f1))"
 else
-  echo "warn: nenhum node relocável encontrado — o app usará o node do Mac (se existir)"
+  echo "error: nenhum node relocável encontrado para o bundle" >&2
+  exit 1
 fi
+
+validate_bundle_budget "${APP_BUNDLE}"
 
 if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "${APP_BUNDLE}"

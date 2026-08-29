@@ -103,6 +103,12 @@ a { color: inherit; }
 .nav-links a { text-decoration: none; transition: color .2s ease; }
 .nav-links a:hover { color: var(--ink); }
 
+.nav-actions { display: inline-flex; align-items: center; gap: 8px; }
+.language-toggle { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid rgba(255,255,255,.38); border-radius: 999px; background: rgba(255,255,255,.28); }
+.language-toggle button { border: 0; border-radius: 999px; background: transparent; color: #716d78; cursor: pointer; font: 700 10px/1 Inter, sans-serif; padding: 7px 8px; }
+.language-toggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.language-toggle button:focus-visible { outline: 2px solid var(--hero-orange); outline-offset: 2px; }
+
 .download-link,
 .github-link {
   display: inline-flex;
@@ -137,7 +143,7 @@ a { color: inherit; }
   min-height: calc(100svh - 78px);
   flex-direction: column;
   align-items: center;
-  padding: clamp(70px, 11vh, 126px) 20px 70px;
+  padding: clamp(60px, 9.5vh, 108px) 20px 70px;
   text-align: center;
 }
 
@@ -145,16 +151,40 @@ a { color: inherit; }
   position: relative;
   display: grid;
   place-items: center;
-  width: 178px;
-  height: 178px;
+  width: 212px;
+  height: 212px;
   margin-bottom: 35px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .hero-icon {
-  width: 170px;
-  height: 170px;
+  width: 204px;
+  height: 204px;
   object-fit: contain;
   filter: drop-shadow(0 20px 17px rgba(222, 105, 33, .22));
+  transform: translate3d(var(--hero-mx, 0px), var(--hero-my, 0px), 0) rotate(var(--hero-rotate, 0deg)) scale(1);
+  transform-origin: center;
+  transition: transform 520ms cubic-bezier(.22, 1, .36, 1), filter 520ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.hero-emblem.is-hero-tracking .hero-icon {
+  transition-duration: 140ms;
+  will-change: transform;
+}
+
+.hero-emblem.is-hero-pressed .hero-icon {
+  transform: translate3d(var(--hero-mx, 0px), calc(var(--hero-my, 0px) + 3px), 0) rotate(var(--hero-rotate, 0deg)) scale(.95);
+  filter: drop-shadow(0 8px 9px rgba(222, 105, 33, .32));
+  transition-duration: 90ms;
+}
+
+.hero-emblem:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 8px;
 }
 
 .eyebrow {
@@ -758,16 +788,26 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+
+  .hero-icon {
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+  }
 }
 
 @media (max-width: 760px) {
   .site-header { width: min(calc(100% - 28px), 676px); margin-top: 14px; }
   .nav-shell { grid-template-columns: auto auto; justify-content: space-between; gap: 10px; padding-left: 16px; }
   .nav-links { display: none; }
-  .hero { min-height: calc(100svh - 66px); padding-top: 66px; }
-  .hero-emblem { width: 156px; height: 156px; margin-bottom: 29px; }
-  .hero-icon { width: 150px; height: 150px; }
-  h1 { font-size: clamp(45px, 13vw, 69px); }
+  .nav-actions { min-width: 0; gap: 6px; }
+  .nav-actions .github-link { min-height: 34px; padding: 0 12px; }
+  .language-toggle { padding: 2px; }
+  .language-toggle button { padding: 7px 6px; }
+  .hero { min-height: calc(100svh - 66px); padding-top: 56px; }
+  .hero-emblem { width: 132px; height: 132px; margin-bottom: 29px; }
+  .hero-icon { width: 124px; height: 124px; }
+  h1 { font-size: clamp(38px, 11.5vw, 58px); }
   .hero-copy { max-width: 420px; font-size: 15px; line-height: 1.6; }
   .features-section,
   .roadmap-section,
@@ -787,7 +827,7 @@ a:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
   .hero { padding-right: 14px; padding-left: 14px; }
   .hero-emblem { margin-bottom: 22px; }
   .eyebrow { font-size: 9px; letter-spacing: .11em; }
-  h1 { font-size: clamp(43px, 13.8vw, 59px); }
+  h1 { font-size: clamp(36px, 11.5vw, 50px); }
   .hero-copy { margin-top: 21px; font-size: 14px; }
   .hero-actions { flex-direction: column; align-items: center; margin-top: 28px; }
   .primary-button { min-width: 218px; min-height: 54px; font-size: 15px; }

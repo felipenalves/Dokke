@@ -70,6 +70,41 @@ test("convertToPng chama sips com args corretos e resolve", async () => {
   assert.deepEqual(calls, [["sips", ["-s", "format", "png", "-Z", "512", "/x/App.icns", "--out", "/out/app.png"]]]);
 });
 
+test("convertToPng usa o helper nativo quando ele está empacotado", async () => {
+  const calls = [];
+  const exec = async (cmd, args) => { calls.push([cmd, args]); };
+  await convertToPng(
+    "/Applications/Google Chrome.app",
+    "/tmp/chrome.png",
+    exec,
+    256,
+    "/bundle/DokkeIconHelper",
+  );
+  assert.deepEqual(calls, [[
+    "/bundle/DokkeIconHelper",
+    ["/Applications/Google Chrome.app", "/tmp/chrome.png", "256"],
+  ]]);
+});
+
+test("convertToPng lança o helper app pelo LaunchServices", async () => {
+  const calls = [];
+  const exec = async (cmd, args) => { calls.push([cmd, args]); };
+  await convertToPng(
+    "/Applications/Google Chrome.app",
+    "/tmp/chrome.png",
+    exec,
+    512,
+    "/bundle/DokkeIconHelper.app",
+  );
+  assert.deepEqual(calls, [[
+    "/usr/bin/open",
+    ["-W", "-n", "/bundle/DokkeIconHelper.app"],
+  ], [
+    "/usr/bin/open",
+    ["-W", "-n", "/bundle/DokkeIconHelper.app", "--args", "/Applications/Google Chrome.app", "/tmp/chrome.png", "512"],
+  ]]);
+});
+
 test("convertToPng propaga erro do exec", async () => {
   const exec = async () => { throw new Error("sips falhou"); };
   await assert.rejects(convertToPng("/x.icns", "/o.png", exec), /sips falhou/);
@@ -100,12 +135,90 @@ test("realIconService converte icns via exec e cacheia no segundo chamado", asyn
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("realIconService prioriza NSWorkspace pelo path do bundle e cacheia o resultado", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-icon-native-"));
+  const appPath = join(dir, "Native.app");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const helperPath = join(dir, "DokkeIconHelper");
+  try {
+    await mkdir(appPath, { recursive: true });
+    let execCalls = 0;
+    const exec = async (cmd, args) => {
+      execCalls++;
+      assert.equal(cmd, helperPath);
+      assert.equal(args[0], appPath);
+      assert.match(args[1], new RegExp(`${join(dir, ".icon-cache")}/[a-f0-9]{40}-z512\\.png$`));
+      assert.equal(args[2], "512");
+      await writeFile(args[1], png);
+    };
+    const svc = realIconService({
+      scan: async () => [{ name: "Native", path: appPath, icon: true }],
+      exec,
+      iconHelper: helperPath,
+      appearanceToken: "RegularDark",
+      cacheDir: join(dir, ".icon-cache"),
+    });
+    assert.deepEqual([...await svc.getIconPng("Native")], [...png]);
+    assert.deepEqual([...await svc.getIconPng("Native")], [...png]);
+    assert.equal(execCalls, 1);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("realIconService separa o cache quando a aparência dos ícones muda", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-icon-appearance-"));
+  const appPath = join(dir, "Native.app");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  const helperPath = join(dir, "DokkeIconHelper");
+  let appearance = "RegularDark";
+  try {
+    await mkdir(appPath, { recursive: true });
+    let execCalls = 0;
+    const exec = async (cmd, args) => {
+      execCalls++;
+      assert.equal(cmd, helperPath);
+      await writeFile(args[1], png);
+    };
+    const svc = realIconService({
+      scan: async () => [{ name: "Native", path: appPath, icon: true }],
+      exec,
+      iconHelper: helperPath,
+      appearanceToken: () => appearance,
+      cacheDir: join(dir, ".icon-cache"),
+    });
+    await svc.getIconPng("Native");
+    await svc.getIconPng("Native");
+    appearance = "Mono";
+    await svc.getIconPng("Native");
+    assert.equal(execCalls, 2);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("realIconService gera monograma para app desconhecido", async () => {
   const svc = realIconService({ scan: async () => [], cacheDir: join(tmpdir(), "j5-cache-xyz") });
   const buf = await svc.getIconPng("Fantasma");
   assert.ok(Buffer.isBuffer(buf), "deve retornar um buffer PNG");
   assert.ok(buf.length > 0, "buffer não deve estar vazio");
   assert.equal(buf[0], 0x89, "deve começar com magic number PNG");
+});
+
+test("cache de monogramas em disco respeita o cap (poda os mais antigos)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5-icon-prune-"));
+  try {
+    const cacheDir = join(dir, ".icon-cache");
+    const exec = async (cmd, args) => {
+      const out = args[args.indexOf("--out") + 1] ?? args[args.length - 1];
+      await writeFile(out, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    };
+    const diskMax = 10;
+    const svc = realIconService({ scan: async () => [], exec, cacheDir, diskMax });
+    for (let i = 0; i < 25; i++) {
+      const buf = await svc.getIconPng(`Fantasma-${i}`);
+      assert.ok(Buffer.isBuffer(buf));
+    }
+    const { readdir } = await import("node:fs/promises");
+    const files = (await readdir(cacheDir)).filter(f => f.endsWith(".png"));
+    assert.ok(files.length <= diskMax, `esperava <= ${diskMax} pngs em disco, tem ${files.length}`);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test("normalizePngIcon equaliza margens transparentes no canvas", () => {

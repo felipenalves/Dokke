@@ -45,13 +45,17 @@ final class DokkeUpdateManager: ObservableObject {
   }
 
   var statusMessage: String? {
+    statusMessage(language: DokkeLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageStore.defaultsKey) ?? "") ?? .portuguese)
+  }
+
+  func statusMessage(language: DokkeLanguage) -> String? {
     switch state {
     case .idle: return nil
-    case .checking: return "Verificando atualizações..."
-    case .available: return "Nova versão disponível."
-    case .downloading: return "Baixando a atualização..."
-    case .installing: return "Instalando a atualização..."
-    case .upToDate: return "Você está na versão mais recente."
+    case .checking: return I18n.text("update.checking", language: language)
+    case .available: return I18n.text("update.available", language: language)
+    case .downloading: return I18n.text("update.downloading", language: language)
+    case .installing: return I18n.text("update.installing", language: language)
+    case .upToDate: return I18n.text("update.current", language: language)
     case .failed(let message): return message
     }
   }
@@ -67,7 +71,7 @@ final class DokkeUpdateManager: ObservableObject {
       request.setValue("Dokke/\(currentVersion)", forHTTPHeaderField: "User-Agent")
       let (data, response) = try await URLSession.shared.data(for: request)
       guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-        throw UpdateError.network("O GitHub não respondeu corretamente.")
+        throw UpdateError.network
       }
 
       let dto = try JSONDecoder().decode(GitHubReleaseDTO.self, from: data)
@@ -80,7 +84,7 @@ final class DokkeUpdateManager: ObservableObject {
       guard let asset = dto.assets.first(where: { $0.name == "Dokke-macOS.dmg" }),
             let digest = asset.digest?.replacingOccurrences(of: "sha256:", with: "")
       else {
-        throw UpdateError.invalidRelease("A release não contém um instalador macOS válido.")
+        throw UpdateError.invalidRelease
       }
 
       release = DokkeRelease(
@@ -109,7 +113,7 @@ final class DokkeUpdateManager: ObservableObject {
       let request = URLRequest(url: release.dmgURL)
       let (downloadedURL, response) = try await URLSession.shared.download(for: request)
       guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-        throw UpdateError.network("Não foi possível baixar a atualização.")
+        throw UpdateError.download
       }
 
       let dmgURL = workspace.appendingPathComponent("Dokke-macOS.dmg")
@@ -124,7 +128,7 @@ final class DokkeUpdateManager: ObservableObject {
 
       let sourceApp = mountPoint.appendingPathComponent("Dokke.app", isDirectory: true)
       guard fileManager.fileExists(atPath: sourceApp.path) else {
-        throw UpdateError.invalidRelease("O instalador não contém o Dokke.app.")
+        throw UpdateError.missingApp
       }
 
       let stagedApp = workspace.appendingPathComponent("Dokke.app", isDirectory: true)
@@ -134,10 +138,10 @@ final class DokkeUpdateManager: ObservableObject {
 
       let targetApp = Bundle.main.bundleURL.standardizedFileURL
       guard targetApp.lastPathComponent == "Dokke.app" else {
-        throw UpdateError.install("O Dokke precisa estar instalado como um aplicativo para ser atualizado.")
+        throw UpdateError.notInstalled
       }
       guard fileManager.isWritableFile(atPath: targetApp.deletingLastPathComponent().path) else {
-        throw UpdateError.install("Sem permissão para atualizar a pasta do Dokke. Mova o app para Aplicativos e tente novamente.")
+        throw UpdateError.permission
       }
 
       try scheduleReplacement(stagedApp: stagedApp, targetApp: targetApp, workspace: workspace)
@@ -168,7 +172,7 @@ final class DokkeUpdateManager: ObservableObject {
       .map { String(format: "%02x", $0) }
       .joined()
     guard digest.caseInsensitiveCompare(expected) == .orderedSame else {
-      throw UpdateError.invalidRelease("A assinatura do download não confere com a release.")
+      throw UpdateError.checksum
     }
   }
 
@@ -178,7 +182,7 @@ final class DokkeUpdateManager: ObservableObject {
           let entities = plist["system-entities"] as? [[String: Any]],
           let mountPath = entities.compactMap({ $0["mount-point"] as? String }).first
     else {
-      throw UpdateError.install("Não foi possível montar o instalador.")
+      throw UpdateError.mount
     }
     return URL(fileURLWithPath: mountPath, isDirectory: true)
   }
@@ -199,7 +203,7 @@ final class DokkeUpdateManager: ObservableObject {
     let output = pipe.fileHandleForReading.readDataToEndOfFile()
     guard process.terminationStatus == 0 else {
       let message = String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-      throw UpdateError.process(message?.isEmpty == false ? message! : "Falha ao executar o instalador.")
+      throw UpdateError.process(message?.isEmpty == false ? message! : nil)
     }
     return output
   }
@@ -261,14 +265,30 @@ private struct GitHubAssetDTO: Decodable {
 }
 
 private enum UpdateError: LocalizedError {
-  case network(String)
-  case invalidRelease(String)
-  case install(String)
-  case process(String)
+  case network
+  case invalidRelease
+  case download
+  case missingApp
+  case notInstalled
+  case permission
+  case checksum
+  case mount
+  case process(String?)
 
   var errorDescription: String? {
+    let language = DokkeLanguage(rawValue: UserDefaults.standard.string(forKey: LanguageStore.defaultsKey) ?? "") ?? .portuguese
     switch self {
-    case .network(let message), .invalidRelease(let message), .install(let message), .process(let message): return message
+    case .network: return I18n.text("update.errorNetwork", language: language)
+    case .invalidRelease: return I18n.text("update.errorInvalidRelease", language: language)
+    case .download: return I18n.text("update.errorDownload", language: language)
+    case .missingApp: return I18n.text("update.errorMissingApp", language: language)
+    case .notInstalled: return I18n.text("update.errorNotInstalled", language: language)
+    case .permission: return I18n.text("update.errorPermission", language: language)
+    case .checksum: return I18n.text("update.errorChecksum", language: language)
+    case .mount: return I18n.text("update.errorMount", language: language)
+    case .process(let message):
+      let fallback = I18n.text("update.errorProcess", language: language)
+      return message.map { "\(fallback): \($0)" } ?? fallback
     }
   }
 }

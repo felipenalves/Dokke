@@ -1,6 +1,6 @@
 {
-  "name": "dokke",
-  "short_name": "dokke",
+  "name": "Dokke",
+  "short_name": "Dokke",
   "description": "Dock do Mac — apps e OBS Commander",
   "start_url": "/",
   "display": "standalone",

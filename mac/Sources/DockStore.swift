@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -21,18 +22,29 @@ final class DockStore: ObservableObject {
   @Published var online = false
   @Published var lastError: String?
   @Published var lastSyncNote: String?
+  /// Fonte de verdade tipada do dock. `pinned` permanece como projeção legada.
+  @Published private(set) var pieces: [DockPiece] = []
+  @Published private(set) var revision = 0
   @Published var pinned: [String] = []
   @Published var installed: [InstalledApp] = []
+  @Published private(set) var installedReady = false
+  @Published private(set) var installedLoading = false
   @Published var filter = ""
   @Published var loading = false
   @Published var devices = 0
   @Published var busyName: String?
   @Published var pinCode: String?
   @Published var pinError: String?
+  @Published var maxPinnedApps: Int = 40
+  @Published var maxPinnedPieces: Int = 40
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
   private var iconCache: [String: Image] = [:]
+  private var nativeIconCache: [String: NSImage] = [:]
+  private var iconAppearanceObservers: [NSObjectProtocol] = []
+  private var appAppearanceObservation: NSKeyValueObservation?
+  @Published private(set) var iconAppearanceRevision = 0
 
   /// Evita disparar refreshAll a cada tecla digitada no campo Base URL (aba Sobre).
   private func debounceRefresh() {
@@ -53,6 +65,7 @@ final class DockStore: ObservableObject {
 
   init() {
     baseURL = Self.normalizeBase(baseURL)
+    observeIconAppearanceChanges()
     Task { [weak self] in
       try? await Task.sleep(nanoseconds: 300_000_000)
       guard !Task.isCancelled else { return }
@@ -64,13 +77,63 @@ final class DockStore: ObservableObject {
     }
   }
 
-  deinit { timer?.invalidate() }
+  deinit {
+    timer?.invalidate()
+    for observer in iconAppearanceObservers {
+      NSWorkspace.shared.notificationCenter.removeObserver(observer)
+    }
+    appAppearanceObservation?.invalidate()
+  }
+
+  private func observeIconAppearanceChanges() {
+    let names = [
+      Notification.Name("NSWorkspaceIconAppearanceConfigurationDidChangeNotification"),
+      Notification.Name("_NSWorkspaceIconAppearanceConfigurationDidChangeNotification")
+    ]
+    iconAppearanceObservers = names.map { name in
+      NSWorkspace.shared.notificationCenter.addObserver(
+        forName: name,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.invalidateNativeIcons()
+        }
+      }
+    }
+
+    appAppearanceObservation = NSApplication.shared.observe(
+      \NSApplication.effectiveAppearance,
+      options: [.new]
+    ) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        self?.invalidateNativeIcons()
+      }
+    }
+  }
+
+  private func invalidateNativeIcons() {
+    nativeIconCache.removeAll(keepingCapacity: true)
+    iconAppearanceRevision &+= 1
+    preloadIcons()
+  }
 
   static func normalizeBase(_ raw: String) -> String {
     var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     while s.hasSuffix("/") { s.removeLast() }
     if s.isEmpty { return "http://127.0.0.1:3000" }
     return s
+  }
+
+  private var language: DokkeLanguage { I18n.currentLanguage() }
+
+  private func localizedServerError(_ object: [String: Any]?, fallbackKey: String) -> String {
+    if let code = object?["code"] as? String {
+      let key = "error.\(code)"
+      let translated = I18n.text(key, language: language)
+      if translated != key { return translated }
+    }
+    return I18n.text(fallbackKey, language: language)
   }
 
   var filteredInstalled: [InstalledApp] {
@@ -87,7 +150,52 @@ final class DockStore: ObservableObject {
   }
 
   func isPinned(_ name: String) -> Bool {
-    pinned.contains(name)
+    pieces.contains { $0.type == .app && $0.name == name }
+  }
+
+  var isPinnedLimitReached: Bool {
+    pieces.count >= maxPinnedPieces
+  }
+
+  func isPiecePinned(_ id: String) -> Bool {
+    pieces.contains { $0.id == id }
+  }
+
+  private var firstAvailablePosition: Int {
+    let occupied = Set(pieces.map(\.position))
+    return (0..<40).first { !occupied.contains($0) } ?? 0
+  }
+
+  private func applyPinnedLimits(_ object: [String: Any]?) {
+    guard let limits = object?["limits"] as? [String: Any],
+          let max = (limits["maxPinnedPieces"] as? Int) ?? (limits["maxPinnedApps"] as? Int),
+          max > 0 else { return }
+    if maxPinnedApps != max { maxPinnedApps = max }
+    if maxPinnedPieces != max { maxPinnedPieces = max }
+  }
+
+  private func decodePieces(_ raw: Any?, fallback: [String] = []) -> [DockPiece] {
+    if let rawPieces = raw as? [[String: Any]] {
+      return rawPieces.enumerated().compactMap { index, object in
+        DockPiece(json: object, fallbackPosition: index)
+      }.sorted { $0.position < $1.position }
+    }
+    return fallback.enumerated().map { DockPiece.app($0.element, position: $0.offset) }
+  }
+
+  private func applyConfig(_ cfg: [String: Any]) {
+    let p = cfg["pinned"] as? [String] ?? []
+    let pinnedChanged = pinned != p
+    let nextPieces = decodePieces(cfg["pieces"], fallback: p)
+    if pieces != nextPieces { pieces = nextPieces }
+    let nextRevision = (cfg["revision"] as? Int) ?? (cfg["revision"] as? Double).map(Int.init) ?? 0
+    if revision != nextRevision { revision = nextRevision }
+    // Mantém a projeção antiga para clientes/trechos que ainda a consomem.
+    if pinnedChanged {
+      pinned = p
+      preloadIcons()
+    }
+    applyPinnedLimits(cfg)
   }
 
   func refreshAll() async {
@@ -98,7 +206,6 @@ final class DockStore: ObservableObject {
     await loadConfig()
     await loadInstalled()
     await loadPin()
-    preloadIcons()
   }
 
   /// Código de acesso de 4 dígitos exibido na aba Sobre — só acessível de loopback.
@@ -117,7 +224,7 @@ final class DockStore: ObservableObject {
   func resetPin() async {
     pinError = nil
     guard let url = URL(string: baseURL + "/api/pin") else {
-      pinError = "URL inválida"
+      pinError = I18n.text("error.invalidURL", language: language)
       return
     }
     var req = URLRequest(url: url)
@@ -128,12 +235,12 @@ final class DockStore: ObservableObject {
       guard (resp as? HTTPURLResponse)?.statusCode == 200,
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let p = obj["pin"] as? String else {
-        pinError = "Não foi possível gerar o código. O servidor está no ar?"
+        pinError = I18n.text("error.generateCode", language: language)
         return
       }
       pinCode = p
     } catch {
-      pinError = error.localizedDescription
+      pinError = I18n.text("error.network", language: language)
     }
   }
 
@@ -153,17 +260,34 @@ final class DockStore: ObservableObject {
       }
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
-        online = false
-        lastError = "status inválido"
+        if online { online = false }
+        let message = I18n.text("error.health", language: language)
+        if lastError != message { lastError = message }
         return
       }
-      online = true
-      lastError = nil
-      if let d = obj["devices"] as? Int { devices = d }
-      else if let d = obj["devices"] as? Double { devices = Int(d) }
+      if online != true { online = true }
+      if lastError != nil { lastError = nil }
+      // O primeiro refresh pode acontecer antes de o servidor terminar de subir.
+      // O timer continua chamando este método; aproveite a primeira resposta
+      // válida para preencher o código sem exigir sincronização manual.
+      if pinCode == nil {
+        await loadPin()
+      }
+      if !installedReady {
+        await loadInstalled()
+      }
+      let nextDevices: Int?
+      if let d = obj["devices"] as? Int { nextDevices = d }
+      else if let d = obj["devices"] as? Double { nextDevices = Int(d) }
+      else { nextDevices = nil }
+      if let nextDevices, devices != nextDevices { devices = nextDevices }
       if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-        preloadIcons()
+        let pinnedChanged = pinned != p
+        if pinnedChanged {
+          pinned = p
+          preloadIcons()
+        }
+        applyConfig(cfg)
       }
     } catch {
       await pingHealthOnly()
@@ -172,28 +296,32 @@ final class DockStore: ObservableObject {
 
   private func pingHealthOnly() async {
     guard let url = URL(string: baseURL + "/health") else {
-      online = false
-      lastError = "URL inválida"
+      if online { online = false }
+      let message = I18n.text("error.invalidURL", language: language)
+      if lastError != message { lastError = message }
       return
     }
     do {
       let (data, resp) = try await session.data(from: url)
       guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
-        online = false
-        lastError = "offline"
+        if online { online = false }
+        let message = I18n.text("error.network", language: language)
+        if lastError != message { lastError = message }
         return
       }
       if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
          (obj["ok"] as? Bool) == true {
-        online = true
-        lastError = nil
+        if online != true { online = true }
+        if lastError != nil { lastError = nil }
       } else {
-        online = false
-        lastError = "health inválido"
+        if online { online = false }
+        let message = I18n.text("error.health", language: language)
+        if lastError != message { lastError = message }
       }
     } catch {
-      online = false
-      lastError = error.localizedDescription
+      if online { online = false }
+      let message = I18n.text("error.network", language: language)
+      if lastError != message { lastError = message }
     }
   }
 
@@ -202,21 +330,25 @@ final class DockStore: ObservableObject {
     do {
       let (data, _) = try await session.data(from: url)
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let cfg = obj["config"] as? [String: Any],
-            let p = cfg["pinned"] as? [String] else { return }
-      pinned = p
+            let cfg = obj["config"] as? [String: Any] else { return }
+      let p = cfg["pinned"] as? [String] ?? []
+      if pinned != p { pinned = p }
+      applyConfig(cfg)
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
     }
   }
 
   func loadInstalled() async {
+    guard !installedLoading else { return }
     guard let url = URL(string: baseURL + "/api/apps/installed") else { return }
+    installedLoading = true
+    defer { installedLoading = false }
     do {
       let (data, _) = try await session.data(from: url)
       guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let apps = obj["apps"] as? [[String: Any]] else { return }
-      installed = apps.compactMap { a in
+      let nextInstalled: [InstalledApp] = apps.compactMap { a in
         guard let name = a["name"] as? String else { return nil }
         return InstalledApp(
           name: name,
@@ -224,8 +356,14 @@ final class DockStore: ObservableObject {
           icon: (a["icon"] as? Bool) ?? true
         )
       }
+      installedReady = true
+      if installed != nextInstalled {
+        installed = nextInstalled
+        nativeIconCache.removeAll(keepingCapacity: true)
+        preloadIcons()
+      }
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
     }
   }
 
@@ -238,42 +376,76 @@ final class DockStore: ObservableObject {
   }
 
   func pin(_ name: String) async {
+    await pin(name, at: firstAvailablePosition)
+  }
+
+  /// Fixa um app no slot exato escolhido pelo usuário; os demais slots não mudam.
+  func pin(_ name: String, at index: Int) async {
+    guard !isPinned(name) else { return }
+    if isPinnedLimitReached {
+      lastError = I18n.text("error.PINNED_LIMIT_REACHED", language: language)
+      lastSyncNote = lastError
+      return
+    }
+    await pin(name, position: min(max(index, 0), 39))
+  }
+
+  private func pin(_ name: String, position: Int) async {
     // otimista: UI reage na hora; server empurra pros devices via WS
-    let prev = pinned
-    if !pinned.contains(name) { pinned.append(name) }
+    let prev = pieces
+    pieces.append(.app(name, position: position))
+    pieces.sort { $0.position < $1.position }
+    pinned = pieces.compactMap(\.appName)
+    lastError = nil
     busyName = name
     defer { busyName = nil }
     guard let url = URL(string: baseURL + "/api/config/pinned") else { return }
     var req = URLRequest(url: url)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": name])
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": name, "position": position])
     req.timeoutInterval = 4
     do {
       let (data, resp) = try await session.data(for: req)
       let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      if code == 409, let body = obj, body["code"] as? String == "PINNED_LIMIT_REACHED" {
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
+        applyPinnedLimits(body)
+        let message = localizedServerError(body, fallbackKey: "error.pin")
+        lastError = message
+        lastSyncNote = message
+        return
+      }
       guard code == 200,
-            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            (obj["ok"] as? Bool) == true else {
-        pinned = prev
-        lastError = "falha ao fixar"
+            let body = obj,
+            (body["ok"] as? Bool) == true else {
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
+        lastError = localizedServerError(obj, fallbackKey: "error.pin")
         lastSyncNote = nil
         return
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-      }
+      lastError = nil
+      if let cfg = body["config"] as? [String: Any] { applyConfig(cfg) }
       await afterPinPush()
     } catch {
-      pinned = prev
-      lastError = error.localizedDescription
+      pieces = prev
+      pinned = pieces.compactMap(\.appName)
+      lastError = I18n.text("error.network", language: language)
       lastSyncNote = nil
     }
   }
 
   func unpin(_ name: String) async {
-    let prev = pinned
-    pinned = pinned.filter { $0 != name }
+    if name.hasPrefix("website:") {
+      await removePiece(name)
+      return
+    }
+    let prev = pieces
+    pieces.removeAll { $0.type == .app && $0.name == name }
+    pinned = pieces.compactMap(\.appName)
     busyName = name
     defer { busyName = nil }
     let enc = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
@@ -287,49 +459,56 @@ final class DockStore: ObservableObject {
       guard code == 200,
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (obj["ok"] as? Bool) == true else {
-        pinned = prev
-        lastError = "falha ao remover"
+        pieces = prev
+        pinned = pieces.compactMap(\.appName)
+        lastError = localizedServerError(nil, fallbackKey: "error.remove")
         lastSyncNote = nil
         return
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-      }
+      if let cfg = obj["config"] as? [String: Any] { applyConfig(cfg) }
       await afterPinPush()
     } catch {
-      pinned = prev
-      lastError = error.localizedDescription
+      pieces = prev
+      pinned = pieces.compactMap(\.appName)
+      lastError = I18n.text("error.network", language: language)
       lastSyncNote = nil
     }
   }
 
   func reorderPinned(from source: IndexSet, to destination: Int) {
-    pinned.move(fromOffsets: source, toOffset: destination)
+    var next = pieces
+    next.move(fromOffsets: source, toOffset: destination)
+    pieces = next
+    pinned = pieces.compactMap(\.appName)
     Task { await savePinnedOrder() }
   }
 
-  private func savePinnedOrder() async {
-    guard let url = URL(string: baseURL + "/api/config/pinned") else { return }
+  @discardableResult
+  private func savePinnedOrder() async -> Bool {
+    guard let url = URL(string: baseURL + "/api/config/pieces/order") else { return false }
     var req = URLRequest(url: url)
     req.httpMethod = "PUT"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    // envia a lista NA ORDEM do drag (arrastada) — o servidor persiste e empurra pros devices via WS
-    req.httpBody = try? JSONSerialization.data(withJSONObject: ["pinned": pinned])
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["revision": revision, "ids": pieces.map(\.id)])
     req.timeoutInterval = 4
     do {
       let (data, resp) = try await session.data(for: req)
       let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
       guard code == 200,
-            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            (obj["ok"] as? Bool) == true else {
-        lastError = "failed to save order"
-        return
+            let object,
+            (object["ok"] as? Bool) == true else {
+        lastError = code == 409
+          ? localizedServerError(object, fallbackKey: "error.REVISION_CONFLICT")
+          : localizedServerError(object, fallbackKey: "error.saveOrder")
+        if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
+        return false
       }
-      if let cfg = obj["config"] as? [String: Any], let p = cfg["pinned"] as? [String] {
-        pinned = p
-      }
+      if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
+      return true
     } catch {
-      lastError = error.localizedDescription
+      lastError = I18n.text("error.network", language: language)
+      return false
     }
   }
 
@@ -338,13 +517,101 @@ final class DockStore: ObservableObject {
     await savePinnedOrder()
   }
 
+  func addWebsite(title: String?, url: String, at index: Int? = nil) async {
+    lastError = nil
+    busyName = url
+    defer { busyName = nil }
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces") else { return }
+    let targetPosition = index ?? firstAvailablePosition
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "type": "website", "title": title ?? "", "url": url,
+      "position": min(max(targetPosition, 0), 39),
+    ])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+      guard code == 200, let cfg = object["config"] as? [String: Any], let pieceObject = object["piece"] as? [String: Any], DockPiece(json: pieceObject) != nil else {
+        lastError = localizedServerError(object, fallbackKey: "error.addWebsite")
+        return
+      }
+      applyConfig(cfg)
+      await afterPinPush()
+    } catch { lastError = I18n.text("error.network", language: language) }
+  }
+
+  func removePiece(_ id: String) async {
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)) else { return }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "DELETE"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["revision": revision])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+      if let cfg = object["config"] as? [String: Any] { applyConfig(cfg) }
+      if code != 200 { lastError = localizedServerError(object, fallbackKey: "error.remove"); return }
+      await afterPinPush()
+    } catch { lastError = I18n.text("error.network", language: language) }
+  }
+
+  func openWebsite(_ id: String) async {
+    guard let endpoint = URL(string: baseURL + "/api/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id) + "/open") else { return }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        lastError = localizedServerError(object, fallbackKey: "error.openWebsite")
+        return
+      }
+      lastError = nil
+    } catch { lastError = I18n.text("error.network", language: language) }
+  }
+
+  @discardableResult
+  func reorderPieces(_ positions: [String: Int]) async -> Bool {
+    await savePiecesOrder(positions)
+  }
+
+  private func savePiecesOrder(_ positions: [String: Int]) async -> Bool {
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces/order") else { return false }
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "PUT"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "revision": revision,
+      "ids": pieces.map(\.id),
+      "positions": positions,
+    ])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
+      if code != 200 { lastError = localizedServerError(object, fallbackKey: "error.saveOrder"); return false }
+      return true
+    } catch { lastError = I18n.text("error.network", language: language); return false }
+  }
+
   /// Confirma devices escutando (WS) logo após pin — feedback rápido no Mac.
   private func afterPinPush() async {
     await pingStatus()
     if devices > 0 {
-      lastSyncNote = "Enviado a \(devices) dispositivo\(devices == 1 ? "" : "s")"
+      lastSyncNote = I18n.text("sync.sent", language: language, [
+        "count": "\(devices)", "suffix": devices == 1 ? "" : "s"
+      ])
     } else {
-      lastSyncNote = "Salvo — nenhum device no WS ainda (abra o Dokke no seu celular)"
+      lastSyncNote = I18n.text("sync.savedNoDevice", language: language)
     }
   }
 
@@ -357,10 +624,45 @@ final class DockStore: ObservableObject {
     iconCache[name]
   }
 
+  /// Mantém o NSImage nativo vivo. O AppKit pode atualizar suas representações
+  /// quando o usuário troca Default, Dark, Clear ou Tinted no macOS 26.
+  func nativeIcon(for name: String) -> NSImage? {
+    guard let path = installed.first(where: { $0.name == name })?.path,
+          FileManager.default.fileExists(atPath: path) else { return nil }
+    if let cached = nativeIconCache[name] { return cached }
+
+    // Alguns apps do macOS, como Safari, aparecem em /Applications como
+    // symlink para um Cryptex. Pedir o ícone pelo link faz o AppKit adicionar
+    // o badge de atalho; o caminho real preserva o ícone limpo do bundle.
+    let iconPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    let icon: NSImage
+    if #available(macOS 26, *) {
+      // Tahoe: NSWorkspace.icon(forFile:) respeita o appearance atual e
+      // retorna a variante Dark quando o app está em .dark (Dokke força dark).
+      // Dark icons são quase pretos e somem no fundo escuro da página
+      // (bug da imagem 1). Força o estilo Default/claro para manter contraste.
+      if let lightAppearance = NSAppearance(named: .aqua) {
+        var fetched: NSImage?
+        lightAppearance.performAsCurrentDrawingAppearance {
+          fetched = NSWorkspace.shared.icon(forFile: iconPath)
+        }
+        icon = fetched ?? NSWorkspace.shared.icon(forFile: iconPath)
+      } else {
+        icon = NSWorkspace.shared.icon(forFile: iconPath)
+      }
+    } else {
+      icon = NSWorkspace.shared.icon(forFile: iconPath)
+    }
+    guard icon.isValid else { return nil }
+    nativeIconCache[name] = icon
+    return icon
+  }
+
   func preloadIcons() {
     let names = pinned
     guard !names.isEmpty else { return }
     for name in names {
+      if nativeIcon(for: name) != nil { continue }
       guard iconCache[name] == nil, let url = iconURL(for: name) else { continue }
       Task {
         guard let (data, _) = try? await session.data(from: url),

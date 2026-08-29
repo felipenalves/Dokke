@@ -2,224 +2,407 @@ import SwiftUI
 
 struct DockGridView: View {
   @EnvironmentObject private var store: DockStore
+  @EnvironmentObject private var languageStore: LanguageStore
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showPicker = false
   @State private var draggedItem: String?
-  @State private var currentPage: Int?
-  @State private var draftPinned: [String]?
+  @State private var currentPage: Int? = 0
+  @State private var draftPositions: [String: Int]?
+  @State private var isReordering = false
+  @State private var pickerInsertIndex: Int?
 
-  private let tileSize: CGFloat = 104
-  private let spacing: CGFloat = 24
+  private let pageSize = 8
+  private let maxPageCount = 5
+  private let tileSize: CGFloat = 80
+  private let tileSpacing: CGFloat = 22
+  private let pageHeight: CGFloat = 288
+  private let carouselGap: CGFloat = 24
+  private let carouselVerticalOffset: CGFloat = 22
+  private let carouselPeekRatio: CGFloat = 0.55
+  private let carouselMaxPageWidth: CGFloat = 458
+  private let carouselMinPageWidth: CGFloat = 450
 
-  private var displayedPinned: [String] {
-    draftPinned ?? store.pinned
+  private enum TileItem: Hashable, Identifiable {
+    case piece(DockPiece)
+    case add(Int)
+
+    var id: String {
+      switch self {
+      case .piece(let piece): return piece.id
+      case .add(let index): return "add:\(index)"
+      }
+    }
   }
 
-  private func pagedPinned(width: CGFloat, height: CGFloat) -> [[String]] {
-    let pageSize = 8
-    return stride(from: 0, to: displayedPinned.count, by: pageSize).map {
-      Array(displayedPinned[$0..<min($0 + pageSize, displayedPinned.count)])
+  private var displayedPieces: [DockPiece] {
+    guard let draftPositions else { return store.pieces }
+    return store.pieces.compactMap { piece in
+      guard let position = draftPositions[piece.id] else { return nil }
+      return piece.atPosition(position)
+    }.sorted { $0.position < $1.position }
+  }
+
+  private var slotCount: Int {
+    pageSize * maxPageCount
+  }
+
+  private var pages: [[TileItem]] {
+    let pageCount = max(1, (slotCount + pageSize - 1) / pageSize)
+    let byPosition = Dictionary(displayedPieces.map { ($0.position, $0) }, uniquingKeysWith: { first, _ in first })
+
+    return (0..<pageCount).map { page in
+      let start = page * pageSize
+      return (0..<pageSize).map { offset in
+        let index = start + offset
+        guard let piece = byPosition[index] else { return .add(index) }
+        return .piece(piece)
+      }
     }
+  }
+
+  private var pageCount: Int {
+    max(1, pages.count)
+  }
+
+  private var currentPageIndex: Int {
+    min(max(currentPage ?? 0, 0), pageCount - 1)
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack {
-        Text("Apps fixados")
-          .font(.title2.bold())
-        Spacer()
-        if store.loading {
-          ProgressView().controlSize(.small)
-        }
-        Button {
-          Task { await store.refreshAll() }
-        } label: {
-          Image(systemName: "arrow.clockwise")
-        }
-        .buttonStyle(.borderless)
-        .help("Refresh")
-      }
-
+    VStack(spacing: 0) {
       if !store.online {
         offlineView
-      } else if store.pinned.isEmpty {
-        emptyDock
       } else {
         dockPages
       }
-
-      if let note = store.lastSyncNote {
-        Text(note)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+    }
+    .padding(.leading, 20)
+    .padding(.top, 8)
+    .padding(.bottom, 18)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(DokkeTheme.canvas.ignoresSafeArea())
+    .overlay(alignment: .bottom) {
+      if store.online {
+        HStack(spacing: 0) {
+          if isReordering {
+            HStack(spacing: 6) {
+              Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 11, weight: .medium))
+              Text(I18n.text("grid.drag", language: languageStore.selected))
+                .font(.system(size: 12))
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(.leading, 24)
+            Spacer()
+          } else {
+            Spacer()
+          }
+          reorderButton
+            .padding(.trailing, isReordering ? 24 : 12)
+            .padding(.bottom, isReordering ? 12 : 8)
+        }
+        .frame(maxWidth: .infinity)
       }
     }
-    .padding(24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .onChange(of: displayedPieces.count) { _, _ in
+      currentPage = min(currentPageIndex, pageCount - 1)
+    }
+    .onChange(of: isReordering) { _, active in
+      guard !active else { return }
+      draggedItem = nil
+      draftPositions = nil
+    }
+    .sheet(isPresented: $showPicker, onDismiss: { pickerInsertIndex = nil }) {
+      AppPickerSheet(insertAt: pickerInsertIndex)
+    }
   }
 
   private var dockPages: some View {
-    VStack(spacing: 0) {
-      GeometryReader { geo in
-        let pages = pagedPinned(width: geo.size.width, height: geo.size.height)
+    GeometryReader { geo in
+      let cardHeight = pageHeight
+      let pageWidth = carouselPageWidth(for: geo.size.width)
+      let trailingFadeStart = max(0, 1 - 16 / max(geo.size.width, 1))
+
+      VStack(spacing: 18) {
         ScrollView(.horizontal) {
-          LazyHStack(spacing: 0) {
-            ForEach(Array(pages.enumerated()), id: \.offset) { idx, names in
-              pageContent(names: names, isLast: idx == pages.count - 1, width: geo.size.width)
-                .containerRelativeFrame(.horizontal)
+          LazyHStack(alignment: .center, spacing: carouselGap) {
+            ForEach(Array(pages.enumerated()), id: \.offset) { index, items in
+              pageContent(items: items)
+                .frame(width: pageWidth, height: cardHeight)
+                .id(index)
             }
           }
           .scrollTargetLayout()
+          .padding(.leading, 12)
         }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $currentPage)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $currentPage, anchor: .leading)
         .scrollIndicators(.hidden)
-        .frame(height: geo.size.height)
-      }
-      .padding(.horizontal, 20)
-      .padding(.vertical, 24)
-      .background(
-        RoundedRectangle(cornerRadius: 24)
-          .fill(Color(nsColor: .controlBackgroundColor))
-          .overlay(
-            RoundedRectangle(cornerRadius: 24)
-              .stroke(.quaternary, lineWidth: 1)
+        .frame(height: cardHeight)
+        .mask(
+          LinearGradient(
+            stops: [
+              .init(color: .black, location: 0),
+              .init(color: .black, location: trailingFadeStart),
+              .init(color: .clear, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
           )
-          .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
-      )
+        )
 
-      if let pages = Optional(pagedPinned(width: 0, height: 0)), pages.count > 1 {
-        dots(count: pages.count)
-          .padding(.top, 12)
+        pageDots(count: pageCount)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+      .offset(y: carouselVerticalOffset)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private func carouselPageWidth(for availableWidth: CGFloat) -> CGFloat {
+    let dominant = (availableWidth - carouselGap) / (1 + carouselPeekRatio)
+    return min(carouselMaxPageWidth, max(carouselMinPageWidth, dominant))
+  }
+
+  private func pageDots(count: Int) -> some View {
+    HStack(spacing: 7) {
+      ForEach(0..<count, id: \.self) { index in
+        Button {
+          selectPage(index)
+        } label: {
+          Circle()
+            .fill(index == currentPageIndex ? Color.white.opacity(0.92) : Color.white.opacity(0.22))
+            .frame(width: 7, height: 7)
+        }
+        .buttonStyle(.plain)
+        .help(I18n.text("grid.page", language: languageStore.selected, ["page": "\(index + 1)"]))
+        .accessibilityLabel(I18n.text("grid.page", language: languageStore.selected, ["page": "\(index + 1)"]))
       }
     }
     .frame(maxWidth: .infinity)
-    .sheet(isPresented: $showPicker) {
-      AppPickerSheet()
-    }
   }
 
-  private func dots(count: Int) -> some View {
-    HStack(spacing: 6) {
-      ForEach(0..<count, id: \.self) { i in
-        Circle()
-          .fill(i == currentPage ? Color.white : Color.secondary.opacity(0.35))
-          .frame(width: 7, height: 7)
-          .scaleEffect(i == currentPage ? 1.2 : 1.0)
-          .animation(.spring(response: 0.25), value: currentPage)
-      }
+  private func selectPage(_ index: Int) {
+    let nextPage = min(max(index, 0), pageCount - 1)
+    withAnimation(.easeOut(duration: 0.25)) {
+      currentPage = nextPage
     }
   }
 
   @ViewBuilder
-  private func pageContent(names: [String], isLast: Bool, width: CGFloat) -> some View {
-    if #available(macOS 26, *) {
-      GlassEffectContainer(spacing: spacing) {
-        appGrid(names: names, isLast: isLast)
-      }
+  private func pageContent(items: [TileItem]) -> some View {
+    appGrid(items: items)
+      .padding(.horizontal, 32)
+      .padding(.vertical, 29)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-    } else {
-      appGrid(names: names, isLast: isLast)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-  }
-
-  private func appGrid(names: [String], isLast: Bool) -> some View {
-    let columns = Array(repeating: GridItem(.fixed(tileSize), spacing: spacing), count: 4)
-    return LazyVGrid(columns: columns, spacing: spacing) {
-      ForEach(names, id: \.self) { name in
-        DockIcon(name: name)
-          .onDrag {
-            startDrag(name)
-            return NSItemProvider(object: name as NSString)
-          }
-          .onDrop(of: [.text], delegate: DropDelegate(item: name, store: store, draggedItem: $draggedItem, draft: $draftPinned))
+      .background {
+        if #available(macOS 26, *) {
+          RoundedRectangle(cornerRadius: 40, style: .continuous)
+            .fill(DokkeTheme.page)
+            .glassEffect(.regular, in: .rect(cornerRadius: 40))
+        } else {
+          RoundedRectangle(cornerRadius: 40, style: .continuous)
+            .fill(DokkeTheme.page)
+        }
       }
-      if isLast { addButtonModule() }
-    }
   }
 
-  private func startDrag(_ name: String) {
-    draggedItem = name
-    draftPinned = nil
+  private func appGrid(items: [TileItem]) -> some View {
+    let columns = Array(repeating: GridItem(.flexible(minimum: tileSize), spacing: tileSpacing), count: 4)
+    return Group {
+      if #available(macOS 26, *) {
+        GlassEffectContainer(spacing: tileSpacing) {
+          LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
+            ForEach(items) { item in
+              switch item {
+              case .piece(let piece):
+                pieceTile(piece: piece)
+              case .add(let index):
+                addButtonModule(at: index)
+              }
+            }
+          }
+        }
+      } else {
+        LazyVGrid(columns: columns, alignment: .center, spacing: tileSpacing) {
+          ForEach(items) { item in
+            switch item {
+            case .piece(let piece):
+              pieceTile(piece: piece)
+            case .add(let index):
+              addButtonModule(at: index)
+            }
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity)
+  }
+
+  private func startDrag(_ id: String) {
+    guard isReordering else { return }
+    draggedItem = id
+    draftPositions = nil
   }
 
   @ViewBuilder
-  private func addButtonModule() -> some View {
-    Button { showPicker = true } label: {
-      VStack(spacing: 6) {
-        ZStack {
-          RoundedRectangle(cornerRadius: 18)
-            .fill(.quaternary)
-            .frame(width: 96, height: 96)
-          Image(systemName: "plus")
-            .font(.title)
-            .foregroundStyle(.secondary)
+  private func pieceTile(piece: DockPiece) -> some View {
+    if piece.type == .app {
+      appTile(name: piece.name ?? piece.displayTitle, id: piece.id, position: piece.position)
+    } else if isReordering {
+      DockIcon(piece: piece, allowsRemoval: false, isReordering: true)
+        .onDrag {
+          startDrag(piece.id)
+          return NSItemProvider(object: piece.id as NSString)
         }
-        Text("Adicionar")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
+        .onDrop(of: [.text], delegate: DropDelegate(position: piece.position, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
+    } else {
+      DockIcon(piece: piece, allowsRemoval: true, isReordering: false)
+    }
+  }
+
+  @ViewBuilder
+  private func appTile(name: String, id: String, position: Int) -> some View {
+    if isReordering {
+      DockIcon(name: name, allowsRemoval: false, isReordering: true)
+        .onDrag {
+          startDrag(id)
+          return NSItemProvider(object: id as NSString)
+        }
+        .onDrop(of: [.text], delegate: DropDelegate(position: position, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
+    } else {
+      DockIcon(name: name, allowsRemoval: true, isReordering: false)
+    }
+  }
+
+  private var reorderButton: some View {
+    Button {
+      withAnimation(.easeOut(duration: 0.2)) {
+        isReordering.toggle()
       }
+    } label: {
+        Text(I18n.text(isReordering ? "grid.reorder.done" : "grid.reorder", language: languageStore.selected))
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(isReordering ? Color.white : Color.white.opacity(0.9))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 11)
+        .background(isReordering ? DokkeTheme.selection : Color.white.opacity(0.14))
+        .clipShape(Capsule())
     }
     .buttonStyle(.plain)
-    .help("Adicionar apps ao dock")
+    .help(I18n.text(isReordering ? "grid.reorderHelp" : "grid.reorder", language: languageStore.selected))
   }
 
-  private var emptyDock: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "app.dashed")
-        .font(.system(size: 40))
-        .foregroundStyle(.secondary)
-      Text("Nenhum app fixado")
-        .font(.headline)
-      Text("Clique em + para adicionar apps ao dock")
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-      Button("Adicionar Apps") { showPicker = true }
-        .buttonStyle(.bordered)
+  @ViewBuilder
+  private func addButtonModule(at index: Int) -> some View {
+    let addSlot = AddSlotButton(index: index, size: tileSize) {
+      pickerInsertIndex = index
+      showPicker = true
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .sheet(isPresented: $showPicker) {
-      AppPickerSheet()
+    if isReordering {
+      addSlot
+        .onDrop(of: [.text], delegate: DropDelegate(position: index, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
+        .help(I18n.text("grid.move", language: languageStore.selected, ["position": "\(index + 1)"]))
+    } else {
+      addSlot
+        .disabled(store.isPinnedLimitReached)
+        .help(store.isPinnedLimitReached ? I18n.text("grid.limit", language: languageStore.selected) : I18n.text("grid.addHere", language: languageStore.selected))
     }
   }
 
   private var offlineView: some View {
     ContentUnavailableView(
-      "Servidor Offline",
+      I18n.text("grid.offline", language: languageStore.selected),
       systemImage: "wifi.slash",
-      description: Text("Inicie o servidor Dokke e verifique o URL em About.")
+      description: Text(I18n.text("grid.offlineDescription", language: languageStore.selected))
     )
+    .foregroundStyle(.white.opacity(0.85))
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+private struct AddSlotButton: View {
+  @EnvironmentObject private var languageStore: LanguageStore
+  let index: Int
+  let size: CGFloat
+  let action: () -> Void
+  @State private var isHovered = false
+
+  var body: some View {
+    Button(action: action) {
+      VStack(spacing: 8) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .fill(Color.white.opacity(isHovered ? 0.12 : 0.05))
+            .overlay(
+              RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(isHovered ? 0.18 : 0.08), lineWidth: 1)
+            )
+            .frame(width: size, height: size)
+
+          if isHovered {
+            Image(systemName: "plus")
+              .font(.system(size: 18, weight: .semibold))
+              .foregroundStyle(.white.opacity(0.88))
+          }
+        }
+
+        Text(isHovered ? I18n.text("picker.add", language: languageStore.selected) : " ")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.white.opacity(0.78))
+          .frame(height: 13)
+      }
+      .frame(width: size, height: size + 24)
+    }
+    .buttonStyle(.plain)
+    .onHover { isHovered = $0 }
+    .help(I18n.text("grid.add", language: languageStore.selected, ["position": "\(index + 1)"]))
+    .accessibilityLabel(I18n.text("grid.add", language: languageStore.selected, ["position": "\(index + 1)"]))
   }
 }
 
 struct DropDelegate: SwiftUI.DropDelegate {
-  let item: String
+  let position: Int
   let store: DockStore
+  let reduceMotion: Bool
   @Binding var draggedItem: String?
-  @Binding var draft: [String]?
+  @Binding var draftPositions: [String: Int]?
 
   func performDrop(info: DropInfo) -> Bool {
-    guard let d = draft else { return false }
-    store.pinned = d
+    guard let positions = draftPositions else { return false }
     draggedItem = nil
-    draft = nil
-    Task { await store.persistPinnedOrder() }
+    Task { @MainActor in
+      let didSave = await store.reorderPieces(positions)
+      guard draftPositions == positions else { return }
+      if didSave {
+        draftPositions = nil
+      } else {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) {
+          draftPositions = nil
+        }
+      }
+    }
     return true
   }
 
   func dropEntered(info: DropInfo) {
     guard let dragged = draggedItem,
-          dragged != item else { return }
+          let sourcePosition = (draftPositions ?? Dictionary(uniqueKeysWithValues: store.pieces.map { ($0.id, $0.position) }))[dragged],
+          sourcePosition != position else { return }
 
-    let base = draft ?? store.pinned
-    guard let fromIndex = base.firstIndex(of: dragged),
-          let toIndex = base.firstIndex(of: item) else { return }
-
-    var next = base
-    withAnimation(.spring(response: 0.3)) {
-      next.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+    var next = draftPositions ?? Dictionary(uniqueKeysWithValues: store.pieces.map { ($0.id, $0.position) })
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.24, extraBounce: 0.02)) {
+      moveDragged(to: position, dragged: dragged, in: &next)
+      draftPositions = next
     }
-    draft = next
+  }
+
+  private func moveDragged(to targetPosition: Int, dragged: String, in positions: inout [String: Int]) {
+    guard let sourcePosition = positions[dragged] else { return }
+    if let displacedID = positions.first(where: { $0.key != dragged && $0.value == targetPosition })?.key {
+      positions[displacedID] = sourcePosition
+    }
+    positions[dragged] = targetPosition
   }
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
