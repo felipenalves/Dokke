@@ -17,6 +17,6 @@ test("inventário de apps repete o carregamento até o servidor responder", () =
 });
 
 test("picker não confunde carregamento inicial com inventário vazio", () => {
-  assert.match(picker, /ProgressView\("Carregando apps…"\)/);
+  assert.match(picker, /ProgressView\(I18n\.text\("picker\.loading", language: languageStore\.selected\)\)/);
   assert.match(picker, /store\.installedLoading && !store\.installedReady/);
 });

@@ -448,6 +448,7 @@ struct WebsiteFaviconView: View {
 
 struct DockIcon: View {
   @EnvironmentObject private var store: DockStore
+  @EnvironmentObject private var languageStore: LanguageStore
   let piece: DockPiece
   let allowsRemoval: Bool
   var isReordering: Bool = false
@@ -517,7 +518,7 @@ struct DockIcon: View {
                 .frame(width: 22, height: 22)
                 .modifier(HoverControlGlassModifier(isInteractive: true))
 
-                Text("Remover")
+                Text(I18n.text("icon.remove", language: languageStore.selected))
                   .font(.system(size: 9, weight: .semibold))
                   .foregroundStyle(.white)
               }
@@ -526,8 +527,8 @@ struct DockIcon: View {
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          .help(piece.type == .website ? "Remover site fixado" : "Remover app fixado")
-          .accessibilityLabel(piece.type == .website ? "Remover site fixado" : "Remover app fixado")
+          .help(I18n.text(piece.type == .website ? "icon.removeWebsite" : "icon.removeApp", language: languageStore.selected))
+          .accessibilityLabel(I18n.text(piece.type == .website ? "icon.removeWebsite" : "icon.removeApp", language: languageStore.selected))
           .frame(width: iconCardSize, height: iconCardSize)
           .zIndex(5)
         }
@@ -556,7 +557,7 @@ struct DockIcon: View {
               }
                 .frame(width: 22, height: 22)
                 .modifier(HoverControlGlassModifier(isInteractive: false))
-              Text("Mover")
+              Text(I18n.text("icon.move", language: languageStore.selected))
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.white)
             }
@@ -583,7 +584,7 @@ struct DockIcon: View {
       Task { await store.openWebsite(piece.id) }
     }
     .contextMenu {
-      Button("Remover do Dock") {
+      Button(I18n.text("icon.removeDock", language: languageStore.selected)) {
         Task { await store.unpin(name) }
       }
     }

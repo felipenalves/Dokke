@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DockGridView: View {
   @EnvironmentObject private var store: DockStore
+  @EnvironmentObject private var languageStore: LanguageStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showPicker = false
   @State private var draggedItem: String?
@@ -87,7 +88,7 @@ struct DockGridView: View {
             HStack(spacing: 6) {
               Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 11, weight: .medium))
-              Text("Arraste para mover um ícone de posição.")
+              Text(I18n.text("grid.drag", language: languageStore.selected))
                 .font(.system(size: 12))
             }
             .foregroundStyle(.white.opacity(0.85))
@@ -174,8 +175,8 @@ struct DockGridView: View {
             .frame(width: 7, height: 7)
         }
         .buttonStyle(.plain)
-        .help("Página \(index + 1)")
-        .accessibilityLabel("Página \(index + 1)")
+        .help(I18n.text("grid.page", language: languageStore.selected, ["page": "\(index + 1)"]))
+        .accessibilityLabel(I18n.text("grid.page", language: languageStore.selected, ["page": "\(index + 1)"]))
       }
     }
     .frame(maxWidth: .infinity)
@@ -280,7 +281,7 @@ struct DockGridView: View {
         isReordering.toggle()
       }
     } label: {
-        Text(isReordering ? "Concluir" : "Reorganizar apps")
+        Text(I18n.text(isReordering ? "grid.reorder.done" : "grid.reorder", language: languageStore.selected))
         .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(isReordering ? Color.white : Color.white.opacity(0.9))
         .padding(.horizontal, 20)
@@ -289,7 +290,7 @@ struct DockGridView: View {
         .clipShape(Capsule())
     }
     .buttonStyle(.plain)
-    .help(isReordering ? "Concluir reorganização" : "Reorganizar apps")
+    .help(I18n.text(isReordering ? "grid.reorderHelp" : "grid.reorder", language: languageStore.selected))
   }
 
   @ViewBuilder
@@ -301,19 +302,19 @@ struct DockGridView: View {
     if isReordering {
       addSlot
         .onDrop(of: [.text], delegate: DropDelegate(position: index, store: store, reduceMotion: reduceMotion, draggedItem: $draggedItem, draftPositions: $draftPositions))
-        .help("Mover app para a posição \(index + 1)")
+        .help(I18n.text("grid.move", language: languageStore.selected, ["position": "\(index + 1)"]))
     } else {
       addSlot
         .disabled(store.isPinnedLimitReached)
-        .help(store.isPinnedLimitReached ? "Limite de 5 páginas atingido" : "Adicionar app nesta posição")
+        .help(store.isPinnedLimitReached ? I18n.text("grid.limit", language: languageStore.selected) : I18n.text("grid.addHere", language: languageStore.selected))
     }
   }
 
   private var offlineView: some View {
     ContentUnavailableView(
-      "Servidor Offline",
+      I18n.text("grid.offline", language: languageStore.selected),
       systemImage: "wifi.slash",
-      description: Text("Inicie o servidor Dokke e verifique a conexão na aba Conectar.")
+      description: Text(I18n.text("grid.offlineDescription", language: languageStore.selected))
     )
     .foregroundStyle(.white.opacity(0.85))
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -321,6 +322,7 @@ struct DockGridView: View {
 }
 
 private struct AddSlotButton: View {
+  @EnvironmentObject private var languageStore: LanguageStore
   let index: Int
   let size: CGFloat
   let action: () -> Void
@@ -345,7 +347,7 @@ private struct AddSlotButton: View {
           }
         }
 
-        Text(isHovered ? "Add" : " ")
+        Text(isHovered ? I18n.text("picker.add", language: languageStore.selected) : " ")
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(.white.opacity(0.78))
           .frame(height: 13)
@@ -354,8 +356,8 @@ private struct AddSlotButton: View {
     }
     .buttonStyle(.plain)
     .onHover { isHovered = $0 }
-    .help("Adicionar app na posição \(index + 1)")
-    .accessibilityLabel("Adicionar app na posição \(index + 1)")
+    .help(I18n.text("grid.add", language: languageStore.selected, ["position": "\(index + 1)"]))
+    .accessibilityLabel(I18n.text("grid.add", language: languageStore.selected, ["position": "\(index + 1)"]))
   }
 }
 

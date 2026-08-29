@@ -21,14 +21,14 @@ test("@spec:AC-311 companion abre site somente por ID remoto e permanece no Dokk
   assert.match(action, /\/api\/pieces\/" \+ encodeURIComponent\(piece\.id\) \+ "\/open/);
   assert.doesNotMatch(action, /window\.open|location\.(assign|replace)|href/);
   const tile = pwa.slice(pwa.indexOf("function buildTile"), pwa.indexOf("function replaceChildren"));
-  assert.match(tile, /t\.dataset\.id = a\.id/);
-  assert.match(tile, /t\.dataset\.type = a\.type/);
+  assert.match(tile, /tile\.dataset\.id = a\.id/);
+  assert.match(tile, /tile\.dataset\.type = a\.type/);
   assert.doesNotMatch(tile, /<a|href/);
 });
 
 test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () => {
-  assert.match(picker, /Text\("Apps"\)\.tag\("Apps"\)/);
-  assert.match(picker, /Text\("Website Links"\)\.tag\("Website Links"\)/);
+  assert.match(picker, /I18n\.text\("picker\.apps"/);
+  assert.match(picker, /I18n\.text\("picker\.websites"/);
   assert.match(picker, /pickerStyle\(\.segmented\)/);
   assert.match(picker, /labelsHidden\(\)/);
   assert.match(picker, /frame\(maxWidth: \.infinity\)/);
@@ -45,19 +45,19 @@ test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () 
   assert.match(picker, /websiteIconPlate\(rawURL: suggestion\.1\)/);
   assert.match(picker, /WebsiteFaviconView\(rawURL: rawURL/);
   assert.match(picker, /LazyVStack\(spacing: 0\)/);
-  assert.match(picker, /Button\("Adicionar"\)/);
+  assert.match(picker, /Button\(I18n\.text\("picker\.add"/);
   assert.doesNotMatch(picker, /Apple Shortcuts/);
 });
 
 test("picker Apps usa a mesma linguagem de cards e ações azuis", () => {
-  assert.match(picker, /Text\("App Library"\)/);
+  assert.match(picker, /I18n\.text\("picker\.library"/);
   assert.match(picker, /private func appRow\(_ app: InstalledApp\)/);
   assert.match(picker, /frame\(maxWidth: \.infinity, minHeight: 50\)/);
   assert.match(picker, /DokkeTheme\.page\.opacity\(0\.68\)/);
   assert.match(picker, /\.buttonStyle\(\.borderedProminent\)/);
   const appRow = picker.slice(picker.indexOf("private func appRow"));
   assert.match(appRow, /Image\(systemName: "checkmark\.circle\.fill"\)/);
-  assert.match(appRow, /accessibilityLabel\("Adicionado"\)/);
+  assert.match(appRow, /accessibilityLabel\(I18n\.text\("picker\.added"/);
   assert.doesNotMatch(appRow, /Label\("Adicionado", systemImage:/);
   assert.match(appRow, /\.frame\(width: 34, height: 34\)/);
   assert.match(appRow, /\.buttonStyle\(\.borderedProminent\)/);
@@ -77,7 +77,7 @@ test("Website Links pede o nome somente depois de iniciar a adição", () => {
   assert.match(picker, /@State private var showWebsiteNamePrompt = false/);
   assert.match(picker, /beginWebsiteAdd\(url: websiteURL\)/);
   assert.match(picker, /beginWebsiteAdd\(url: suggestion\.1, suggestedTitle: suggestion\.0\)/);
-  assert.match(picker, /Text\("Vamos dar um nome curto para o seu weblink\."\)/);
+  assert.match(picker, /I18n\.text\("picker\.nameHint"/);
   assert.doesNotMatch(picker, /Let's give it a catchy and short name/);
   assert.match(picker, /confirmWebsiteAdd\(\)/);
   assert.doesNotMatch(picker, /TextField\("Título \(opcional\)"/);

@@ -20,7 +20,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
       /\.login-card\{[\s\S]*background: linear-gradient\(165deg, rgba\(255,255,255,\.18\), rgba\(255,255,255,\.07\) 55%, rgba\(255,255,255,\.12\)\);/,
       "painel de conexão deve ter opacidade suficiente para preservar a leitura"
     );
-    assert.match(html, /toast\("Dispositivo conectado"\)/, "o status deve identificar o dispositivo conectado");
+    assert.match(html, /toast\(t\("toast\.deviceConnected"\)\)/, "o status deve identificar o dispositivo conectado");
     assert.doesNotMatch(html, /toast\("Mac conectado"\)/, "o status não deve atribuir a conexão ao Mac");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
     assert.match(html, /\.vdots\{[\s\S]*safe-area-inset-right/, "V-Dots devem respeitar a safe area lateral");

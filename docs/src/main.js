@@ -13,29 +13,70 @@ const pattern = Array.from({ length: 15 }, (_, index) => {
   return `<span style="--offset: ${offset}ch">${patternLine} ${patternLine}</span>`;
 }).join("");
 
+const LANDING_LANGUAGE_KEY = "dokke_landing_lang";
+const LANDING_COPY = {
+  "pt-BR": {
+    "aria.language": "Idioma", "nav.aria": "Navegação principal", "nav.features": "Recursos", "nav.community": "Comunidade", "nav.docs": "Docs", "nav.github": "GitHub",
+    "hero.aria": "Pressionar o ícone do Dokke", "hero.eyebrow": "DOKKE · SEU MAC, EM QUALQUER TELA", "hero.title": "Os apps do seu Mac.<br /><em>Em qualquer tela.</em>", "hero.copy": "Fixe no Mac. Abra no Android, iPhone ou navegador — na mesma rede, sem conta.", "hero.mac": "Baixar para macOS", "hero.android": "Baixar para Android", "hero.meta": "macOS 14+ · Android · iPhone via PWA · grátis", "hero.windows": "Em breve|Dokke para Windows",
+    "features.kicker": "02 / o que tem no dokke", "features.title": "O dock do seu Mac,<br /><em>sem ficar preso ao Mac.</em>", "feature.1.title": "Acesse o que já está no seu Mac.", "feature.1.copy": "Fixe os apps uma vez. Abra pelo Android, iPhone ou navegador na mesma rede.", "feature.2.title": "Sem conta. Sem nuvem.", "feature.2.copy": "O Dokke conecta seus dispositivos diretamente. Menos cadastro, menos coisa para configurar.", "feature.3.title": "Do download ao primeiro toque.", "feature.3.copy": "Baixe o DMG, arraste para Aplicativos e escolha seus apps. O celular encontra o Mac sozinho.", "feature.3.points": "PIN de acesso|Tempo real|APK + PWA|MIT",
+    "roadmap.kicker": "03 / próximos capítulos", "roadmap.title": "O que vem<br /><em>depois.</em>", "roadmap.intro": "O que já existe está marcado. O resto são os próximos atalhos para deixar o Mac ainda mais acessível.", "roadmap.available": "disponível agora", "roadmap.exists": "já existe", "roadmap.1.title": "Alternar entre os aplicativos abertos", "roadmap.1.copy": "Veja o que está rodando no Mac e troque de app direto pelo dock.", "roadmap.2.title": "Controlar o OBS Studio", "roadmap.2.copy": "Mude a cena, inicie ou pare a gravação e acompanhe a live sem sair do celular.", "roadmap.3.title": "Volume e mídia", "roadmap.3.copy": "Aumente, reduza, pause e continue o que está tocando no Mac.", "roadmap.4.title": "Um teclado só de emoji", "roadmap.4.copy": "Puxe a mesma ideia da tecla de emoji do Mac para responder, criar e compartilhar sem trocar de tela.", "roadmap.5.title": "Crie todos os seus fluxos de trabalho ✨", "roadmap.5.copy": "Conecte o Dokke ao Apple Shortcuts e transforme ações repetidas em um toque.",
+    "community.kicker": "04 / construção em comunidade", "community.title": "O próximo atalho<br /><em>pode vir de você.</em>", "community.intro": "O Dokke é construído em comunidade. Encontrou um bug, teve uma ideia ou quer ajudar? Comente no GitHub — é lá que o projeto é analisado e evolui.", "community.cta": "Comentar no GitHub", "community.aria": "Como contribuir com o Dokke", "community.1.title": "Encontrou um problema?", "community.1.copy": "Abra uma Issue e conte a versão, o dispositivo e os passos para reproduzir.", "community.2.title": "Imaginou uma feature?", "community.2.copy": "Abra uma Discussion em Ideas. O que a comunidade pedir pode virar o próximo lançamento.", "community.3.title": "Quer construir junto?", "community.3.copy": "Leia como contribuir, testar e manter cada mudança pequena e útil.", "club.kicker": "Outro produto · Documente Club", "club.title": "IA aplicada para quem está construindo.", "club.copy": "Uma comunidade paga para builders, entusiastas de IA e solo founders que querem implementar IA de verdade em projetos e negócios.", "club.cta": "Conhecer o Documente Club",
+    "faq.kicker": "05 / perguntas frequentes", "faq.title": "Antes de instalar,<br /><em>sem surpresa.</em>", "faq.1.q": "Preciso instalar Node.js?", "faq.1.a": "Não para usar o DMG. O Node já vem embutido no Dokke para Mac. Ele só é necessário para quem quer rodar ou desenvolver pelo código.", "faq.2.q": "O Mac e o celular precisam estar na mesma rede?", "faq.2.a": "Sim. O Dokke é local-first: o Mac e o dispositivo precisam conseguir conversar pela mesma rede Wi-Fi ou LAN.", "faq.3.q": "Como acesso pelo iPhone?", "faq.3.a": "Abra no Safari o endereço mostrado pelo Dokke e, se quiser, use Adicionar à Tela de Início. O iPhone funciona como PWA.", "faq.4.q": "O Dokke envia meus dados para a nuvem?", "faq.4.a": "Não. O Mac conversa diretamente com os dispositivos na sua rede local. O Dokke não precisa de conta ou servidor externo.", "faq.5.q": "O que faço se o macOS bloquear o app?", "faq.5.a": "Clique com o botão direito no Dokke.app, escolha Abrir e confirme. Se essa opção não aparecer, abra Ajustes do Sistema → Privacidade e Segurança → Segurança → Abrir Mesmo Assim → Abrir. Esse aviso pode aparecer porque o Dokke é distribuído fora da App Store.", "faq.6.q": "Já existe uma versão para Windows?", "faq.6.a": "Ainda não. A primeira release pública é para macOS, com Android e PWA como clientes. Windows está planejado para uma próxima etapa.", "footer.aria": "Links sociais", "footer.back": "Voltar ao início", "footer.note": "© 2026 Dokke · um produto de Felipe Natanael"
+  },
+  en: {
+    "aria.language": "Language", "nav.aria": "Main navigation", "nav.features": "Features", "nav.community": "Community", "nav.docs": "Docs", "nav.github": "GitHub",
+    "hero.aria": "Press the Dokke icon", "hero.eyebrow": "DOKKE · YOUR MAC, ON ANY SCREEN", "hero.title": "Your Mac apps.<br /><em>On any screen.</em>", "hero.copy": "Pin on your Mac. Open on Android, iPhone, or browser — on the same network, no account.", "hero.mac": "Download for macOS", "hero.android": "Download for Android", "hero.meta": "macOS 14+ · Android · iPhone via PWA · free", "hero.windows": "Coming soon|Dokke for Windows",
+    "features.kicker": "02 / what dokke has", "features.title": "Your Mac dock,<br /><em>without being stuck to your Mac.</em>", "feature.1.title": "Access what's already on your Mac.", "feature.1.copy": "Pin your apps once. Open them from Android, iPhone, or a browser on the same network.", "feature.2.title": "No account. No cloud.", "feature.2.copy": "Dokke connects your devices directly. Less signup, less to configure.", "feature.3.title": "From download to first tap.", "feature.3.copy": "Download the DMG, drag it to Applications, and choose your apps. Your phone finds the Mac automatically.", "feature.3.points": "Access PIN|Real time|APK + PWA|MIT",
+    "roadmap.kicker": "03 / what's next", "roadmap.title": "What comes<br /><em>next.</em>", "roadmap.intro": "What already exists is marked. The rest are the next shortcuts to make your Mac even more accessible.", "roadmap.available": "available now", "roadmap.exists": "available", "roadmap.1.title": "Switch between open apps", "roadmap.1.copy": "See what's running on your Mac and switch apps directly from the dock.", "roadmap.2.title": "Control OBS Studio", "roadmap.2.copy": "Change the scene, start or stop recording, and follow the live stream from your phone.", "roadmap.3.title": "Volume and media", "roadmap.3.copy": "Turn up, turn down, pause, and resume what's playing on your Mac.", "roadmap.4.title": "An emoji-only keyboard", "roadmap.4.copy": "Bring the Mac emoji key idea to replies, creation, and sharing without changing screens.", "roadmap.5.title": "Create all your workflows ✨", "roadmap.5.copy": "Connect Dokke to Apple Shortcuts and turn repeated actions into one tap.",
+    "community.kicker": "04 / built in community", "community.title": "The next shortcut<br /><em>could come from you.</em>", "community.intro": "Dokke is built in community. Found a bug, have an idea, or want to help? Comment on GitHub — that's where the project is reviewed and evolves.", "community.cta": "Comment on GitHub", "community.aria": "How to contribute to Dokke", "community.1.title": "Found a problem?", "community.1.copy": "Open an Issue and share the version, device, and steps to reproduce it.", "community.2.title": "Imagined a feature?", "community.2.copy": "Open a Discussion in Ideas. What the community asks for could become the next release.", "community.3.title": "Want to build together?", "community.3.copy": "Read how to contribute, test, and keep every change small and useful.", "club.kicker": "Another product · Documente Club", "club.title": "Applied AI for people building.", "club.copy": "A paid community for builders, AI enthusiasts, and solo founders who want to implement AI for real in projects and businesses.", "club.cta": "Explore Documente Club",
+    "faq.kicker": "05 / frequently asked questions", "faq.title": "Before you install,<br /><em>no surprises.</em>", "faq.1.q": "Do I need to install Node.js?", "faq.1.a": "Not to use the DMG. Node is bundled with Dokke for Mac. It is only needed if you want to run or develop from source.", "faq.2.q": "Do the Mac and phone need to be on the same network?", "faq.2.a": "Yes. Dokke is local-first: the Mac and device must be able to communicate over the same Wi-Fi or LAN.", "faq.3.q": "How do I access it from iPhone?", "faq.3.a": "Open the address shown by Dokke in Safari and, if you want, choose Add to Home Screen. iPhone works as a PWA.", "faq.4.q": "Does Dokke send my data to the cloud?", "faq.4.a": "No. Your Mac talks directly to devices on your local network. Dokke does not need an account or external server.", "faq.5.q": "What if macOS blocks the app?", "faq.5.a": "Right-click Dokke.app, choose Open, and confirm. If that option does not appear, open System Settings → Privacy & Security → Security → Open Anyway → Open. This may appear because Dokke is distributed outside the App Store.", "faq.6.q": "Is there a Windows version yet?", "faq.6.a": "Not yet. The first public release is for macOS, with Android and PWA as clients. Windows is planned for a later stage.", "footer.aria": "Social links", "footer.back": "Back to top", "footer.note": "© 2026 Dokke · a Felipe Natanael product"
+  }
+};
+
+function detectLandingLanguage(language = navigator.language) {
+  if (typeof language !== "string" || !language.trim()) return "pt-BR";
+  return language.toLowerCase().startsWith("pt") ? "pt-BR" : "en";
+}
+
+function getLandingLanguage() {
+  try {
+    const saved = localStorage.getItem(LANDING_LANGUAGE_KEY);
+    if (saved === "pt-BR" || saved === "en") return saved;
+  } catch {}
+  return detectLandingLanguage();
+}
+
+let landingLanguage = getLandingLanguage();
+
 document.querySelector("#app").innerHTML = `
   <div class="hero-page" id="section-01">
     <div class="code-pattern" aria-hidden="true">${pattern}</div>
 
     <header class="site-header">
-      <nav class="nav-shell" aria-label="Navegação principal">
-        <a class="wordmark" href="#section-01" aria-label="Dokke início">Dokke</a>
+      <nav class="nav-shell" aria-label="Navegação principal" data-i18n-aria="nav.aria">
+        <a class="wordmark" href="#section-01" aria-label="Dokke início" data-i18n-aria="footer.back">Dokke</a>
         <div class="nav-links">
           <a href="#features">Recursos</a>
           <a href="#community">Comunidade</a>
           <a href="https://github.com/felipenalves/Dokke#leia-me-primeiro">Docs</a>
           <a href="https://github.com/felipenalves/Dokke">GitHub</a>
         </div>
+        <div class="nav-actions">
+        <div class="language-toggle" data-language-toggle aria-label="Idioma" data-i18n-aria="aria.language">
+          <button type="button" data-language="pt-BR" aria-pressed="true">PT</button>
+          <button type="button" data-language="en" aria-pressed="false">EN</button>
+        </div>
         <a class="github-link" href="https://github.com/felipenalves/Dokke" target="_blank" rel="noreferrer">
           <svg class="github-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/></svg>
           <span>GitHub</span>
         </a>
+        </div>
       </nav>
     </header>
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
-        <button type="button" class="hero-emblem" aria-label="Pressionar o ícone do Dokke">
+        <button type="button" class="hero-emblem" aria-label="Pressionar o ícone do Dokke" data-i18n-aria="hero.aria">
           <img class="hero-icon" src="${dokkeHeroIcon}" alt="" />
         </button>
 
@@ -210,6 +251,81 @@ document.querySelector("#app").innerHTML = `
     </nav>
   </footer>
 `;
+
+const LANDING_SELECTORS = {
+  ".nav-shell": ["nav.aria", "aria"],
+  ".nav-links a:nth-child(1)": ["nav.features"],
+  ".nav-links a:nth-child(2)": ["nav.community"],
+  ".nav-links a:nth-child(3)": ["nav.docs"],
+  ".nav-actions .github-link span": ["nav.github"],
+  ".eyebrow": ["hero.eyebrow"],
+  "#hero-title": ["hero.title", "html"],
+  ".hero-copy": ["hero.copy"],
+  ".hero-actions .primary-button:nth-of-type(1) span": ["hero.mac"],
+  ".hero-actions .primary-button--android span": ["hero.android"],
+  ".hero-meta": ["hero.meta"],
+  ".features-section .section-kicker": ["features.kicker"],
+  "#features-title": ["features.title", "html"],
+  ".feature-card:nth-child(1) h3": ["feature.1.title"],
+  ".feature-card:nth-child(1) p": ["feature.1.copy"],
+  ".feature-card:nth-child(2) h3": ["feature.2.title"],
+  ".feature-card:nth-child(2) p": ["feature.2.copy"],
+  ".feature-card:nth-child(3) h3": ["feature.3.title"],
+  ".feature-card:nth-child(3) p": ["feature.3.copy"],
+  ".roadmap-heading .section-kicker": ["roadmap.kicker"],
+  "#roadmap-title": ["roadmap.title", "html"],
+  ".roadmap-intro": ["roadmap.intro"],
+  ".roadmap-item:nth-child(1) .roadmap-status": ["roadmap.exists"],
+  ".roadmap-item:nth-child(1) h3": ["roadmap.1.title"], ".roadmap-item:nth-child(1) p": ["roadmap.1.copy"],
+  ".roadmap-item:nth-child(2) h3": ["roadmap.2.title"], ".roadmap-item:nth-child(2) p": ["roadmap.2.copy"],
+  ".roadmap-item:nth-child(3) h3": ["roadmap.3.title"], ".roadmap-item:nth-child(3) p": ["roadmap.3.copy"],
+  ".roadmap-item:nth-child(4) h3": ["roadmap.4.title"], ".roadmap-item:nth-child(4) p": ["roadmap.4.copy"],
+  ".roadmap-item:nth-child(5) h3": ["roadmap.5.title"], ".roadmap-item:nth-child(5) p": ["roadmap.5.copy"],
+  ".community-heading .section-kicker": ["community.kicker"], "#community-title": ["community.title", "html"], ".community-intro": ["community.intro"], ".community-cta": ["community.cta"], ".community-actions": ["community.aria", "aria"],
+  ".community-action:nth-child(1) h3": ["community.1.title"], ".community-action:nth-child(1) p": ["community.1.copy"],
+  ".community-action:nth-child(2) h3": ["community.2.title"], ".community-action:nth-child(2) p": ["community.2.copy"],
+  ".community-action:nth-child(3) h3": ["community.3.title"], ".community-action:nth-child(3) p": ["community.3.copy"],
+  ".community-club-kicker": ["club.kicker"], ".community-club h3": ["club.title"], ".community-club p:not(.community-club-kicker)": ["club.copy"], ".community-club-cta": ["club.cta"],
+  ".faq-heading .section-kicker": ["faq.kicker"], "#faq-title": ["faq.title", "html"],
+  ".faq-list details:nth-child(1) summary": ["faq.1.q"], ".faq-list details:nth-child(1) p": ["faq.1.a"],
+  ".faq-list details:nth-child(2) summary": ["faq.2.q"], ".faq-list details:nth-child(2) p": ["faq.2.a"],
+  ".faq-list details:nth-child(3) summary": ["faq.3.q"], ".faq-list details:nth-child(3) p": ["faq.3.a"],
+  ".faq-list details:nth-child(4) summary": ["faq.4.q"], ".faq-list details:nth-child(4) p": ["faq.4.a"],
+  ".faq-list details:nth-child(5) summary": ["faq.5.q"], ".faq-list details:nth-child(5) p": ["faq.5.a"],
+  ".faq-list details:nth-child(6) summary": ["faq.6.q"], ".faq-list details:nth-child(6) p": ["faq.6.a"],
+  ".footer-brand": ["footer.back", "aria"], ".footer-note": ["footer.note"], ".footer-links": ["footer.aria", "aria"]
+};
+
+function applyLandingLanguage() {
+  const copy = LANDING_COPY[landingLanguage];
+  Object.entries(LANDING_SELECTORS).forEach(([selector, [key, mode]]) => {
+    const element = document.querySelector(selector);
+    if (!element || !copy[key]) return;
+    if (mode === "html") element.innerHTML = copy[key];
+    else if (mode === "aria") element.setAttribute("aria-label", copy[key]);
+    else element.textContent = copy[key];
+  });
+  const windows = copy["hero.windows"].split("|");
+  const windowsNote = document.querySelector(".windows-note");
+  if (windowsNote) windowsNote.innerHTML = `<span>${windows[0]}</span> ${windows[1]}`;
+  const points = copy["feature.3.points"].split("|");
+  document.querySelectorAll(".feature-card:nth-child(3) .feature-points span").forEach((element, index) => {
+    if (points[index]) element.textContent = points[index];
+  });
+  document.querySelectorAll(".language-toggle [data-language]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.language === landingLanguage));
+  });
+  document.documentElement.lang = landingLanguage;
+}
+
+document.querySelectorAll(".language-toggle [data-language]").forEach((button) => {
+  button.addEventListener("click", () => {
+    landingLanguage = button.dataset.language === "en" ? "en" : "pt-BR";
+    try { localStorage.setItem(LANDING_LANGUAGE_KEY, landingLanguage); } catch {}
+    applyLandingLanguage();
+  });
+});
+applyLandingLanguage();
 
 const heroEmblem = document.querySelector(".hero-emblem");
 const heroSection = document.querySelector(".hero");
