@@ -757,8 +757,8 @@ test("Usage usa a régua da página sem cartão externo e a fonte padrão do app
       };
     });
     assert.equal(metrics.frameWidth, 350, `o frame da Usage deve seguir a régua ampliada do esboço: ${JSON.stringify(metrics)}`);
-    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 18, `o card deve respeitar a margem interna reduzida: ${JSON.stringify(metrics)}`);
-    assert.equal(Math.round(metrics.cardWidth), 314, `o card deve manter a largura ampliada do frame: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 0, `o card deve alinhar na borda do frame: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardWidth), 342, `o card deve ocupar o frame com a folga mínima dos dots: ${JSON.stringify(metrics)}`);
     assert.ok(metrics.cardRight < metrics.dotsLeft - 8, `o card não pode encostar nos dots laterais: ${JSON.stringify(metrics)}`);
     assert.equal(metrics.frameBackground, "none", "a Usage não deve criar um cartão de fundo externo");
     assert.equal(metrics.frameBorder, "none", "a Usage não deve criar uma borda externa nova");
