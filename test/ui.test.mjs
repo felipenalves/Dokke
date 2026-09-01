@@ -730,6 +730,8 @@ test("Usage usa a régua da página sem cartão externo e a fonte padrão do app
     const page = await openOverflowingUsagePage(port, browser);
     const metrics = await page.evaluate(() => {
       const frame = document.querySelector(".usage-content");
+      const openCard = document.querySelector(".usage-card.is-open");
+      const sideDots = document.querySelector("#vdots");
       const bodyFont = getComputedStyle(document.body).fontFamily;
       const textSelectors = [
         ".usage-title",
@@ -742,6 +744,11 @@ test("Usage usa a régua da página sem cartão externo e a fonte padrão do app
       ];
       return {
         frameWidth: frame?.getBoundingClientRect().width || 0,
+        frameLeft: frame?.getBoundingClientRect().left || 0,
+        cardLeft: openCard?.getBoundingClientRect().left || 0,
+        cardWidth: openCard?.getBoundingClientRect().width || 0,
+        cardRight: openCard?.getBoundingClientRect().right || 0,
+        dotsLeft: sideDots?.getBoundingClientRect().left || 0,
         frameBackground: getComputedStyle(frame).backgroundImage,
         frameBorder: getComputedStyle(frame).borderStyle,
         bodyFont,
@@ -749,7 +756,10 @@ test("Usage usa a régua da página sem cartão externo e a fonte padrão do app
         textFonts: textSelectors.map(selector => getComputedStyle(document.querySelector(selector)).fontFamily),
       };
     });
-    assert.equal(metrics.frameWidth, 340, `a régua da Usage deve seguir a largura da página do esboço: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.frameWidth, 350, `o frame da Usage deve seguir a régua ampliada do esboço: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 18, `o card deve respeitar a margem interna reduzida: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardWidth), 314, `o card deve manter a largura ampliada do frame: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.cardRight < metrics.dotsLeft - 8, `o card não pode encostar nos dots laterais: ${JSON.stringify(metrics)}`);
     assert.equal(metrics.frameBackground, "none", "a Usage não deve criar um cartão de fundo externo");
     assert.equal(metrics.frameBorder, "none", "a Usage não deve criar uma borda externa nova");
     assert.equal(metrics.interLoaded, true, "a fonte padrão do app deve estar disponível sem rede");

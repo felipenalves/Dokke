@@ -211,9 +211,9 @@ test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem
   assert.match(html, /\.usage-card\.is-open \.usage-gauge-caption\{[^}]*display:\s*none;/, "o gauge não deve repetir a legenda usado no esboço");
   assert.match(html, /usage-week-caption/, "o semanal deve carregar a mesma semântica");
   assert.match(html, /\.usage-card\.is-open \.usage-week-value \.usage-limit-value\{[^}]*font-size:\s*18px;/, "o percentual semanal não deve herdar o tamanho do limite principal");
-  assert.match(html, /\.usage-content\{[^}]*width:\s*min\(100%,\s*340px\);/, "o painel deve preservar a largura do telefone do esboço");
+  assert.match(html, /\.usage-content\{[^}]*width:\s*min\(100%,\s*350px\);/, "o painel deve preservar a largura ampliada do frame do esboço");
   assert.match(html, /\.usage-provider-slide\{[^}]*padding:\s*0;/, "o slide não deve criar recuo lateral extra");
-  assert.match(html, /\.usage-stack\{[^}]*margin:\s*22px 18px 0;/, "os cards devem respeitar o respiro lateral e vertical do esboço");
+  assert.match(html, /\.usage-stack\{[^}]*margin:\s*22px 18px 0;/, "os cards devem respeitar o espaçamento lateral reduzido do esboço");
   assert.match(html, /\.usage-scroll\{[^}]*padding-top:\s*28px;/, "o cabeçalho deve preservar o respiro superior do esboço");
   assert.match(html, /\.usage-head\{[^}]*margin-bottom:\s*0;/, "o card deve respeitar o espaçamento definido pela régua do esboço");
   assert.match(html, /\.usage-card\.is-open\{[^}]*padding:\s*16px 16px 14px;/, "o card aberto deve usar o padding do esboço");
