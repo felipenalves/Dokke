@@ -2,7 +2,8 @@ import { readFile, writeFile, rename } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 
-const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
+const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact" };
+const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [], usage: DEFAULT_USAGE };
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
 export const MAX_DOCK_SLOTS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES;
@@ -173,6 +174,16 @@ function safeRevision(value) {
   return Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
+/** Normaliza preferências compartilhadas entre o app Mac e o PWA/Android. */
+export function normalizeUsageSettings(raw) {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  return {
+    enabled: typeof source.enabled === "boolean" ? source.enabled : DEFAULT_USAGE.enabled,
+    display: source.display === "remaining" ? "remaining" : DEFAULT_USAGE.display,
+    reset: source.reset === "exact" ? "exact" : DEFAULT_USAGE.reset,
+  };
+}
+
 /** Converte legado e formato v2 para uma representação canônica em memória. */
 export function normalizeConfig(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
@@ -183,6 +194,7 @@ export function normalizeConfig(raw) {
     revision: safeRevision(source.revision),
     pieces,
     pinned: piecesToPinned(pieces),
+    usage: normalizeUsageSettings(source.usage),
   };
 }
 

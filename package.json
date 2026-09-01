@@ -8,7 +8,8 @@
     "start": "node server.js",
     "test": "node --test",
     "mac:install": "cd mac && ./install.sh",
-    "mac:open": "cd mac && ./install.sh --open"
+    "mac:open": "cd mac && ./install.sh --open",
+    "mac:dev": "bash mac/dev.sh"
   },
   "engines": {
     "node": ">=20"

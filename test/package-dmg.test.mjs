@@ -14,12 +14,14 @@ const backgroundSvgPath = path.join(projectRoot, 'mac', 'dmg-background.svg');
 const backgroundFileName = 'dmg-background.png';
 const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
 const expectedPublicFiles = [
+  'anthropic.svg',
   'dokke.apk',
   'icon-192-dark.png',
   'icon-192.png',
   'icon-512.png',
   'index.html',
   'manifest.webmanifest',
+  'openai.svg',
   'sw.js',
   'version.json'
 ];
@@ -199,6 +201,12 @@ test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Rel
   assert.match(script, /find .*node-bin\/node/);
   assert.match(script, /node_count.*-ne 1/);
   assert.match(script, /bundle_kib.*MAX_BUNDLE_SIZE_MB/);
+});
+
+test('install.sh leva o bundle de recursos SwiftUI para o app empacotado', () => {
+  const script = fs.readFileSync(installScriptPath, 'utf8');
+  assert.match(script, /Dokke_Dokke\.bundle/);
+  assert.match(script, /cp -R .*RESOURCE_BUNDLE/);
 });
 
 test('builder do DMG não usa appdmg nem image-size vulneráveis', () => {

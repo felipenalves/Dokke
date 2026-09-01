@@ -41,12 +41,14 @@ import {
   PINNED_LIMIT_CODE,
   PINNED_LIMIT_MESSAGE,
   pinnedLimits,
+  normalizeUsageSettings,
 } from "./config.js";
 import { connectOBS } from "./obs-ws.js";
+import { createUsageSource } from "./usage.js";
 import { ensurePin, newPin, isLoopback, sessionCookie, tokenFromCookie, clearLegacyPinCookie, createSessionStore, createPinLocks, safeEqual, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
-const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".apk": "application/vnd.android.package-archive" };
+const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml", ".otf": "font/otf", ".apk": "application/vnd.android.package-archive" };
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
 /** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */
@@ -256,6 +258,7 @@ function createStatusFeed({ readConfig, listProcesses, version = null }) {
       devices: clients.size,
       ...(version ? { v: version() } : {}),
       limits: pinnedLimits(),
+      usage: cfg.usage,
     };
     const encoded = JSON.stringify(payload);
     if (!force && encoded === last) return;
@@ -295,6 +298,7 @@ export function makeApp(deps = {}) {
     appTools = { listAppProcesses, listInstalledApps },
     actions = { activateApp, openWebsite },
     obs = null,
+    usage = null,
     iconService = realIconService(),
     onStatusChange = null,
     getDeviceCount = null,
@@ -305,6 +309,7 @@ export function makeApp(deps = {}) {
     return normalizeConfig(deps.config || {});
   };
   const appVersion = deps.version || (() => uiVersion(root));
+  const usageSource = usage || createUsageSource();
   const persistConfig = async cfg => {
     const safe = normalizeConfig(cfg);
     if (configFile) await saveConfig(configFile, safe);
@@ -336,6 +341,7 @@ export function makeApp(deps = {}) {
         pieces: safe.pieces,
         pinned: safe.pinned,
         limits: pinnedLimits(),
+        usage: safe.usage,
       };
     };
     const respondError = (status, body) => {
@@ -464,12 +470,19 @@ export function makeApp(deps = {}) {
       res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
       return;
     }
+    if (url.pathname === "/api/usage" && req.method === "GET") {
+      Promise.resolve()
+        .then(() => usageSource.getUsage())
+        .then(data => ok(data))
+        .catch(err => fail(res, err));
+      return;
+    }
     if (url.pathname === "/api/apps") {
       Promise.resolve()
         .then(() => readConfig())
         .then(cfg => appTools.listAppProcesses()
-          .then(running => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits() }))
-          .catch(() => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits() })))
+          .then(running => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits(), usage: cfg.usage }))
+          .catch(() => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits(), usage: cfg.usage })))
         .catch(err => fail(res, err));
       return;
     }
@@ -478,6 +491,41 @@ export function makeApp(deps = {}) {
         .then(() => readConfig())
         .then(cfg => ok({ ok: true, config: publicCfg(cfg) }))
         .catch(err => fail(res, err));
+      return;
+    }
+    if (url.pathname === "/api/config/usage" && req.method === "PUT") {
+      readBody(req, res).then(body => {
+        if (body === BODY_TOO_BIG) return;
+        if (body === BODY_INVALID) {
+          respondError(400, { error: "corpo inválido" });
+          return;
+        }
+        const usage = body?.usage;
+        const valid = usage && typeof usage === "object" && !Array.isArray(usage)
+          && typeof usage.enabled === "boolean"
+          && (usage.display === "used" || usage.display === "remaining")
+          && (usage.reset === "countdown" || usage.reset === "exact");
+        if (!valid) {
+          respondError(400, { error: "preferências de uso inválidas" });
+          return;
+        }
+        const nextUsage = normalizeUsageSettings(usage);
+        withConfigLock(() => Promise.resolve()
+          .then(() => readConfig())
+          .then(cfg => {
+            const changed = JSON.stringify(cfg.usage) !== JSON.stringify(nextUsage);
+            if (changed) {
+              cfg.usage = nextUsage;
+              cfg.revision += 1;
+            }
+            return persistConfig(cfg).then(next => ({ cfg: next, changed }));
+          })
+          .then(result => {
+            ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
+            if (result.changed && onStatusChange) onStatusChange();
+          })
+          .catch(err => fail(res, err)));
+      });
       return;
     }
     // POST = adiciona um; PUT = substitui a lista inteira (app Mac / bulk)

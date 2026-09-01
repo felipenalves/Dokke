@@ -37,6 +37,11 @@ final class DockStore: ObservableObject {
   @Published var pinError: String?
   @Published var maxPinnedApps: Int = 40
   @Published var maxPinnedPieces: Int = 40
+  @Published private(set) var usage: UsageSnapshot?
+  @Published private(set) var usageLoading = false
+  @Published private(set) var usageError: String?
+  @Published private(set) var usageSettings: DokkeUsageSettings = DokkeUsageSettings()
+  @Published private(set) var usageSettingsError: String?
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
@@ -196,6 +201,8 @@ final class DockStore: ObservableObject {
       preloadIcons()
     }
     applyPinnedLimits(cfg)
+    let nextUsageSettings = DokkeUsageSettings(json: cfg["usage"] as? [String: Any])
+    if usageSettings != nextUsageSettings { usageSettings = nextUsageSettings }
   }
 
   func refreshAll() async {
@@ -206,6 +213,7 @@ final class DockStore: ObservableObject {
     await loadConfig()
     await loadInstalled()
     await loadPin()
+    await loadUsage(force: true)
   }
 
   /// Código de acesso de 4 dígitos exibido na aba Sobre — só acessível de loopback.
@@ -218,6 +226,63 @@ final class DockStore: ObservableObject {
             let p = obj["pin"] as? String else { pinCode = nil; return }
       pinCode = p
     } catch { pinCode = nil }
+  }
+
+  func loadUsage(force: Bool = false) async {
+    guard !usageLoading else { return }
+    guard force || usage == nil else { return }
+    guard let url = URL(string: baseURL + "/api/usage") else {
+      usageError = I18n.text("error.invalidURL", language: language)
+      return
+    }
+    usageLoading = true
+    usageError = nil
+    defer { usageLoading = false }
+    do {
+      let (data, response) = try await session.data(from: url)
+      guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        usageError = I18n.text("error.network", language: language)
+        return
+      }
+      let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: data)
+      guard decoded.ok else {
+        usageError = I18n.text("usage.unavailable", language: language)
+        return
+      }
+      usage = decoded
+    } catch {
+      usageError = I18n.text("error.network", language: language)
+    }
+  }
+
+  /// Salva preferências que controlam como o painel de uso aparece nos dispositivos.
+  /// `usageSettings` só muda quando o servidor confirma a resposta 200.
+  @discardableResult
+  func updateUsageSettings(_ settings: DokkeUsageSettings) async -> Bool {
+    usageSettingsError = nil
+    guard let url = URL(string: baseURL + "/api/config/usage") else {
+      usageSettingsError = I18n.text("error.invalidURL", language: language)
+      return false
+    }
+    var req = URLRequest(url: url)
+    req.httpMethod = "PUT"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["usage": settings.json])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      guard (response as? HTTPURLResponse)?.statusCode == 200,
+            object?["ok"] as? Bool == true else {
+        usageSettingsError = localizedServerError(object, fallbackKey: "usage.settingsSaveError")
+        return false
+      }
+      if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
+      return true
+    } catch {
+      usageSettingsError = I18n.text("usage.settingsSaveError", language: language)
+      return false
+    }
   }
 
   /// Regenera o código — o device precisará digitar o novo (cookie antigo vira 401 → wall).

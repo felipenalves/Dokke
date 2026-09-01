@@ -5,6 +5,7 @@ import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
   case apps = "Slots"
+  case usage = "Usage"
   case about = "Conectar"
 
   var id: String { rawValue }
@@ -12,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
   var icon: String {
     switch self {
     case .apps: return "square.grid.2x2.fill"
+    case .usage: return "gearshape"
     case .about: return "info.circle"
     }
   }
@@ -138,7 +140,7 @@ struct ContentView: View {
             Image(systemName: item.icon)
               .font(.system(size: 12, weight: .medium))
               .frame(width: 14, height: 14)
-            Text(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
+            Text(sidebarLabel(for: item))
               .font(.system(size: 13, weight: .medium))
             Spacer(minLength: 0)
           }
@@ -159,7 +161,7 @@ struct ContentView: View {
             hoveredSidebarItem = nil
           }
         }
-        .accessibilityLabel(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
+        .accessibilityLabel(sidebarLabel(for: item))
         .accessibilityValue(selection == item ? I18n.text("sidebar.selected", language: languageStore.selected) : "")
       }
       Spacer()
@@ -191,11 +193,21 @@ struct ContentView: View {
     return .clear
   }
 
+  private func sidebarLabel(for item: SidebarItem) -> String {
+    switch item {
+    case .apps: return I18n.text("sidebar.slots", language: languageStore.selected)
+    case .usage: return I18n.text("sidebar.usageSettings", language: languageStore.selected)
+    case .about: return I18n.text("sidebar.connect", language: languageStore.selected)
+    }
+  }
+
   @ViewBuilder
   private var detail: some View {
     switch selection {
     case .apps:
       DockGridView()
+    case .usage:
+      UsageSettingsView(store: store)
     case .about:
       AboutView()
     case .none:
