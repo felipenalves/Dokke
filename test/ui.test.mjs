@@ -407,13 +407,14 @@ function overflowingUsagePayload() {
   };
 }
 
-async function openOverflowingUsagePage(port, browser) {
+async function openOverflowingUsagePage(port, browser, beforeNavigate) {
   const page = await browser.newPage({ viewport: { width: 390, height: 480 }, hasTouch: true });
   await page.route("**/api/usage", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify(overflowingUsagePayload()),
   }));
+  if (beforeNavigate) await beforeNavigate(page);
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
   const swipeUp = async () => {
@@ -520,6 +521,204 @@ test("Usage mostra outros provedores abaixo e promove o card clicado", async () 
     await page.waitForFunction(() => document.querySelector(".usage-card.is-open")?.dataset.provider === "antigravity");
     const promotedIds = await page.locator(".usage-card").evaluateAll(cards => cards.map(card => card.dataset.provider));
     assert.deepEqual(promotedIds, ["antigravity", "claude", "codex", "grok"], "o provedor clicado deve subir para o topo");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage não promove a IA preferida quando ela está sem dados utilizáveis", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usageProvider: "claude" },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "dokke",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: {
+          claude: { id: "claude", name: "Claude", resources: {} },
+          codex: {
+            id: "codex",
+            name: "Codex",
+            resources: {
+              session: { kind: "consumption", unit: "percent", used: 55, limit: 100, remaining: 45, utilization: 0.55 },
+            },
+          },
+        },
+        errors: [],
+      }),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    await page.waitForSelector('.usage-card.is-open[data-provider="codex"]');
+    assert.equal(await page.locator('.usage-card[data-provider="claude"]').getAttribute("role"), null, "provider sem dados não deve ser promovível");
+    assert.equal(await page.locator(".usage-card").count(), 2, "provider sem dados ainda deve aparecer abaixo");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    await page.evaluate(() => {
+      const root = document.querySelector("#screenUsage");
+      const added = [];
+      const observer = new MutationObserver(records => {
+        records.forEach(record => record.addedNodes.forEach(node => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          node.querySelectorAll?.(".usage-mood-bubble").forEach(bubble => added.push(bubble.textContent));
+          if (node.matches?.(".usage-mood-bubble")) added.push(node.textContent);
+        }));
+      });
+      observer.observe(root, { childList: true, subtree: true });
+      window.__usageMascotTrace = { added, observer };
+      document.querySelector(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
+    const trace = await page.evaluate(() => {
+      window.__usageMascotTrace.observer.disconnect();
+      return window.__usageMascotTrace.added;
+    });
+    assert.equal(trace.filter(text => text === "Atualizando...").length, 0, "o gráfico não deve disparar refresh da cota");
+    assert.equal(trace.filter(text => text === "Atualizado").length, 0, "o gráfico não deve criar confirmação duplicada");
+
+    await page.locator(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent("click");
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
+
+    await page.locator('article[data-provider="antigravity"]').dispatchEvent("click");
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="provider"]', { timeout: 1000 });
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage deixa o mascote em modo de escrita enquanto o modelo atualiza", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          source: "dokke",
+          sourceState: "available",
+          updatedAt: new Date().toISOString(),
+          providers: { codex: { state: "working", since: new Date().toISOString(), detail: "processando", sessions: 1 } },
+          errors: [],
+        }),
+      });
+      });
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-activity="working"]', { timeout: 5000 });
+    const writingState = await page.locator('.usage-mascot-wrap[data-activity="working"]').evaluate(wrap => ({
+      eyes: [...wrap.querySelectorAll(".usage-token-eyes i")].map(eye => {
+      const style = getComputedStyle(eye);
+      return { animation: style.animationName, transform: style.transform, opacity: style.opacity };
+      }),
+      hand: wrap.querySelector(".usage-writing-tool") ? getComputedStyle(wrap.querySelector(".usage-writing-tool")).animationName : null,
+      line: wrap.querySelector(".usage-writing-line") ? getComputedStyle(wrap.querySelector(".usage-writing-line")).animationName : null,
+    }));
+    assert.deepEqual(writingState.eyes.map(eye => eye.animation), ["none", "none"]);
+    assert.equal(writingState.eyes[0].transform, "none");
+    assert.equal(writingState.eyes[1].transform, "none");
+    assert.equal(writingState.eyes[0].opacity, "1");
+    assert.equal(writingState.eyes[1].opacity, "1");
+    assert.equal(writingState.hand, "usageWritingTool");
+    assert.equal(writingState.line, "usageWritingLine");
+    assert.equal(await page.locator('.usage-mascot-wrap[data-activity="working"]').count(), 1);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage reage ao estado real de atividade retornado pelo backend", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 480 }, hasTouch: true });
+    await page.route("**/api/usage/activity", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "dokke",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: { codex: { state: "working", since: new Date().toISOString(), detail: "processando", sessions: 1 } },
+        errors: [],
+      }),
+    }));
+    const pagePayload = overflowingUsagePayload();
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(pagePayload),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]', { timeout: 4000 });
+    const writingState = await page.locator('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]').evaluate(wrap => ({
+      eyes: [...wrap.querySelectorAll(".usage-token-eyes i")].map(node => {
+        const style = getComputedStyle(node);
+        return { animation: style.animationName, transform: style.transform, opacity: style.opacity };
+      }),
+      hand: wrap.querySelector(".usage-writing-tool") ? getComputedStyle(wrap.querySelector(".usage-writing-tool")).animationName : null,
+      line: wrap.querySelector(".usage-writing-line") ? getComputedStyle(wrap.querySelector(".usage-writing-line")).animationName : null,
+    }));
+    assert.deepEqual(writingState.eyes.map(eye => eye.animation), ["none", "none"]);
+    assert.equal(writingState.eyes[0].transform, "none");
+    assert.equal(writingState.eyes[1].transform, "none");
+    assert.equal(writingState.eyes[0].opacity, "1");
+    assert.equal(writingState.eyes[1].opacity, "1");
+    assert.equal(writingState.hand, "usageWritingTool");
+    assert.equal(writingState.line, "usageWritingLine");
   } finally {
     await browser.close();
     await close();
@@ -859,7 +1058,7 @@ test("Painel de Uso empilha limites no retrato e não repete um card externo", a
     const portraitCss = html.slice(portraitStart, portraitEnd > portraitStart ? portraitEnd + 1 : portraitStart + 500);
 
     assert.match(portraitCss, /\.usage-limits\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/, "os limites devem ocupar a largura inteira no celular");
-    assert.match(html, /\.usage-card\.is-open\{[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.92\), rgba\(12,14,16,\.96\)\)/, "o provedor aberto deve usar a moldura grafite do esboço");
+    assert.match(html, /\.usage-card\.is-open\{[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.84\), rgba\(12,14,16,\.89\)\)/, "o provedor aberto deve usar a moldura grafite translúcida do esboço");
   } finally {
     await close();
   }

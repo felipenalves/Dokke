@@ -38,10 +38,12 @@ final class DockStore: ObservableObject {
   @Published var maxPinnedApps: Int = 40
   @Published var maxPinnedPieces: Int = 40
   @Published private(set) var usage: UsageSnapshot?
+  @Published private(set) var usageActivity: UsageActivitySnapshot?
   @Published private(set) var usageLoading = false
   @Published private(set) var usageError: String?
   @Published private(set) var usageSettings: DokkeUsageSettings = DokkeUsageSettings()
   @Published private(set) var usageSettingsError: String?
+  @Published private(set) var usageProviderId: String?
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
@@ -201,8 +203,16 @@ final class DockStore: ObservableObject {
       preloadIcons()
     }
     applyPinnedLimits(cfg)
-    let nextUsageSettings = DokkeUsageSettings(json: cfg["usage"] as? [String: Any])
-    if usageSettings != nextUsageSettings { usageSettings = nextUsageSettings }
+    // Respostas antigas/parciais não podem apagar a última preferência válida.
+    // Só atualiza essas propriedades quando o servidor realmente as enviou.
+    if let usage = cfg["usage"] as? [String: Any] {
+      let nextUsageSettings = DokkeUsageSettings(json: usage)
+      if usageSettings != nextUsageSettings { usageSettings = nextUsageSettings }
+    }
+    if let rawUsageProvider = cfg["usageProvider"] as? String {
+      let nextUsageProviderId = rawUsageProvider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if usageProviderId != nextUsageProviderId { usageProviderId = nextUsageProviderId }
+    }
   }
 
   func refreshAll() async {
@@ -255,6 +265,26 @@ final class DockStore: ObservableObject {
     }
   }
 
+  func pollUsageActivity() async {
+    while !Task.isCancelled {
+      await loadUsageActivity()
+      try? await Task.sleep(nanoseconds: 1_000_000_000)
+    }
+  }
+
+  private func loadUsageActivity() async {
+    guard let url = URL(string: baseURL + "/api/usage/activity") else { return }
+    do {
+      let (data, response) = try await session.data(from: url)
+      guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
+      let decoded = try JSONDecoder().decode(UsageActivitySnapshot.self, from: data)
+      guard decoded.ok else { return }
+      usageActivity = decoded
+    } catch {
+      // A transient activity read must not erase the last known usage state.
+    }
+  }
+
   /// Salva preferências que controlam como o painel de uso aparece nos dispositivos.
   /// `usageSettings` só muda quando o servidor confirma a resposta 200.
   @discardableResult
@@ -283,6 +313,25 @@ final class DockStore: ObservableObject {
       usageSettingsError = I18n.text("usage.settingsSaveError", language: language)
       return false
     }
+  }
+
+  /// Persiste a IA que o usuário deixou no topo do painel de Uso.
+  @discardableResult
+  func updateUsageProvider(_ providerId: String) async -> Bool {
+    guard let url = URL(string: baseURL + "/api/config/usage/provider") else { return false }
+    var req = URLRequest(url: url)
+    req.httpMethod = "PUT"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: ["providerId": providerId])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      guard (response as? HTTPURLResponse)?.statusCode == 200,
+            object?["ok"] as? Bool == true else { return false }
+      if let cfg = object?["config"] as? [String: Any] { applyConfig(cfg) }
+      return true
+    } catch { return false }
   }
 
   /// Regenera o código — o device precisará digitar o novo (cookie antigo vira 401 → wall).

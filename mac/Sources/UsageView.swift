@@ -29,7 +29,7 @@ struct UsageView: View {
   private var language: DokkeLanguage { languageStore.selected }
 
   private var connectionState: UsageConnectionState {
-    guard let snapshot = store.usage, snapshot.sourceState == "available" else { return .offline }
+    guard let snapshot = store.usage, (snapshot.sourceState == "available" || snapshot.sourceState == "partial") else { return .offline }
     guard let updatedAt = snapshot.updatedAt, let date = parseDate(updatedAt) else { return .stale }
     let age = Date().timeIntervalSince(date)
     if age < -60 || age > 120 || visibleProviders.contains(where: { $0.provider.stale }) { return .stale }
@@ -47,6 +47,7 @@ struct UsageView: View {
         provider = snapshot.providers["codex"]
       }
       guard let provider else { return nil }
+      guard provider.hasUsableUsageData else { return nil }
       return VisibleUsageProvider(kind: kind, provider: provider)
     }
   }
@@ -58,14 +59,20 @@ struct UsageView: View {
 
         if store.usageLoading && store.usage == nil {
           loadingState
-        } else if let snapshot = store.usage, snapshot.sourceState == "available", !visibleProviders.isEmpty {
+        } else if let snapshot = store.usage, (snapshot.sourceState == "available" || snapshot.sourceState == "partial"), !visibleProviders.isEmpty {
           UsageProviderPager(
             providers: visibleProviders,
+            activity: store.usageActivity?.providers ?? [:],
             language: language,
             reduceMotion: reduceMotion,
-            selection: $selectedProviderIndex
+            selection: $selectedProviderIndex,
+            onSelectionChange: { index in
+              guard visibleProviders.indices.contains(index) else { return }
+              let providerId = visibleProviders[index].id
+              Task { await store.updateUsageProvider(providerId) }
+            }
           )
-        } else if let snapshot = store.usage, snapshot.sourceState == "available" {
+        } else if let snapshot = store.usage, (snapshot.sourceState == "available" || snapshot.sourceState == "partial") {
           emptyState(
             icon: "chart.bar.xaxis",
             title: "usage.noData",
@@ -88,7 +95,28 @@ struct UsageView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(DokkeTheme.canvas)
     .task {
+      await store.loadConfig()
       await store.loadUsage(force: true)
+      await store.pollUsageActivity()
+    }
+    .onChange(of: store.usageProviderId) { _, _ in
+      synchronizeSelection()
+    }
+    .onChange(of: store.usage) { _, _ in
+      synchronizeSelection()
+    }
+  }
+
+  private func synchronizeSelection() {
+    guard !visibleProviders.isEmpty else {
+      selectedProviderIndex = 0
+      return
+    }
+    if let providerId = store.usageProviderId,
+       let preferredIndex = visibleProviders.firstIndex(where: { $0.id == providerId }) {
+      selectedProviderIndex = preferredIndex
+    } else if !visibleProviders.indices.contains(selectedProviderIndex) {
+      selectedProviderIndex = 0
     }
   }
 
@@ -174,9 +202,17 @@ struct UsageView: View {
 
 private struct UsageProviderPager: View {
   let providers: [VisibleUsageProvider]
+  let activity: [String: UsageActivityState]
   let language: DokkeLanguage
   let reduceMotion: Bool
   @Binding var selection: Int
+  let onSelectionChange: (Int) -> Void
+
+  private func select(_ index: Int) {
+    guard providers.indices.contains(index), selection != index else { return }
+    selection = index
+    onSelectionChange(index)
+  }
 
   var body: some View {
     VStack(spacing: 10) {
@@ -187,6 +223,7 @@ private struct UsageProviderPager: View {
             UsageProviderCard(
               kind: item.kind,
               provider: item.provider,
+              activityState: activity[item.kind.rawValue]?.state ?? item.provider.activity?.state ?? "idle",
               language: language,
               reduceMotion: reduceMotion
             )
@@ -203,10 +240,10 @@ private struct UsageProviderPager: View {
             let next = value.translation.width < 0 ? selection + 1 : selection - 1
             guard providers.indices.contains(next) else { return }
             if reduceMotion {
-              selection = next
+              select(next)
             } else {
               withAnimation(.smooth(duration: 0.24)) {
-                selection = next
+                select(next)
               }
             }
           }
@@ -217,7 +254,8 @@ private struct UsageProviderPager: View {
       UsageProviderDots(
         count: providers.count,
         selection: $selection,
-        language: language
+        language: language,
+        onSelectionChange: select
       )
     }
     .frame(maxWidth: .infinity, minHeight: 430, alignment: .top)
@@ -228,12 +266,13 @@ private struct UsageProviderDots: View {
   let count: Int
   @Binding var selection: Int
   let language: DokkeLanguage
+  let onSelectionChange: (Int) -> Void
 
   var body: some View {
     HStack(spacing: 7) {
       ForEach(0..<count, id: \.self) { index in
         Button {
-          selection = index
+          onSelectionChange(index)
         } label: {
           Capsule(style: .continuous)
             .fill(index == selection ? Color.white : Color.white.opacity(0.35))
@@ -251,6 +290,7 @@ private struct UsageProviderDots: View {
 private struct UsageProviderCard: View {
   let kind: UsageProviderOrder
   let provider: UsageProvider
+  let activityState: String
   let language: DokkeLanguage
   let reduceMotion: Bool
 
@@ -284,7 +324,7 @@ private struct UsageProviderCard: View {
         }
       }
       Spacer()
-      TokenMascot(mood: provider.mascot ?? "neutral", reduceMotion: reduceMotion)
+      TokenMascot(mood: provider.mascot ?? "neutral", activity: activityState, reduceMotion: reduceMotion)
         .frame(width: 38, height: 38)
       Text(statusText)
         .font(.caption.weight(.semibold))
@@ -757,53 +797,40 @@ private struct UsageMeter: View {
 
 private struct TokenMascot: View {
   let mood: String
+  let activity: String
   let reduceMotion: Bool
   @State private var floating = false
 
   var body: some View {
+    let writing = activity == "working"
     ZStack {
       Circle()
-        .fill(moodColor.opacity(0.24))
+        .fill(Color.white.opacity(0.16))
         .blur(radius: 7)
       Circle()
         .fill(
           LinearGradient(
-            colors: [moodColor.opacity(0.95), moodColor.opacity(0.58)],
+            colors: [Color.white.opacity(0.86), Color.white.opacity(0.28)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
           )
         )
-        .overlay(Circle().strokeBorder(Color.white.opacity(0.46), lineWidth: 1))
-        .shadow(color: moodColor.opacity(0.42), radius: 8)
-      VStack(spacing: 5) {
-        HStack(spacing: 8) {
-          Circle().fill(.white.opacity(0.9)).frame(width: 4, height: 4)
-          Circle().fill(.white.opacity(0.9)).frame(width: 4, height: 4)
-        }
-        Capsule()
-          .fill(.white.opacity(0.82))
-          .frame(width: 14, height: 2.5)
-          .rotationEffect(.degrees(mood == "exhausted" || mood == "tired" ? 180 : 0))
+        .overlay(Circle().strokeBorder(Color.white.opacity(0.62), lineWidth: 1))
+        .shadow(color: Color.white.opacity(0.18), radius: 8)
+      if writing {
+        WorkingMascotAnimation(reduceMotion: reduceMotion)
+      } else {
+        StaticMascotFace(mood: mood)
       }
     }
-    .offset(y: reduceMotion ? 0 : (floating ? -1 : 1))
+    .offset(y: reduceMotion || writing ? 0 : (floating ? -1 : 1))
     .onAppear {
-      guard !reduceMotion else { return }
+      guard !reduceMotion, !writing else { return }
       withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
         floating = true
       }
     }
     .accessibilityLabel(moodAccessibilityLabel)
-  }
-
-  private var moodColor: Color {
-    switch mood {
-    case "exhausted": return .red
-    case "tired": return .orange
-    case "attentive": return .yellow
-    case "energized": return .green
-    default: return .gray
-    }
   }
 
   private var moodAccessibilityLabel: String {
@@ -814,6 +841,160 @@ private struct TokenMascot: View {
     case "energized": return "Token energized"
     default: return "Token waiting"
     }
+  }
+}
+
+private struct StaticMascotFace: View {
+  let mood: String
+
+  var body: some View {
+    VStack(spacing: 5) {
+      HStack(spacing: 8) {
+        Capsule()
+          .fill(.black.opacity(0.76))
+          .frame(width: 4, height: 8)
+        Capsule()
+          .fill(.black.opacity(0.76))
+          .frame(width: 4, height: 8)
+      }
+      Capsule()
+        .fill(.black.opacity(0.68))
+        .frame(width: 14, height: 2.5)
+        .rotationEffect(.degrees(mood == "exhausted" || mood == "tired" ? 180 : 0))
+    }
+  }
+}
+
+private struct WorkingMascotAnimation: View {
+  let reduceMotion: Bool
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
+      let writingPhase = WritingMascotPose.phase(at: context.date)
+      let pose = WritingMascotPose.sample(at: writingPhase)
+      ZStack {
+        StaticWritingEyes()
+        WritingHand(progress: pose.handProgress)
+          .frame(width: 27, height: 17)
+          .offset(x: pose.handX, y: 8)
+      }
+    }
+  }
+}
+
+private struct StaticWritingEyes: View {
+  var body: some View {
+    HStack(spacing: 8) {
+      Capsule()
+        .fill(.black.opacity(0.76))
+        .frame(width: 4.6, height: 14)
+      Capsule()
+        .fill(.black.opacity(0.76))
+        .frame(width: 4.6, height: 14)
+    }
+  }
+}
+
+private struct WritingMascotPose {
+  let handX: CGFloat
+  let handProgress: CGFloat
+
+  private static let frames: [WritingMascotPose] = [
+    WritingMascotPose(handX: 3.5, handProgress: 0.86),
+    WritingMascotPose(handX: -1.0, handProgress: 0.48),
+    WritingMascotPose(handX: -3.2, handProgress: 0.14),
+    WritingMascotPose(handX: 1.5, handProgress: 0.68),
+  ]
+
+  static func phase(at date: Date) -> CGFloat {
+    let cycleDuration: TimeInterval = 2.8
+    let elapsed = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycleDuration)
+    return CGFloat(elapsed / cycleDuration)
+  }
+
+  static func sample(at phase: CGFloat) -> WritingMascotPose {
+    let normalized = min(max(phase, 0), 0.999999)
+    let position = normalized * CGFloat(frames.count)
+    let index = Int(position.rounded(.down))
+    let amount = smoothStep(position - CGFloat(index))
+    return interpolate(frames[index], frames[(index + 1) % frames.count], amount)
+  }
+
+  private static func smoothStep(_ value: CGFloat) -> CGFloat {
+    let clamped = min(max(value, 0), 1)
+    return clamped * clamped * (3 - 2 * clamped)
+  }
+
+  private static func interpolate(_ from: WritingMascotPose, _ to: WritingMascotPose,
+                                  _ amount: CGFloat) -> WritingMascotPose {
+    func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * amount }
+    return WritingMascotPose(
+      handX: mix(from.handX, to.handX),
+      handProgress: mix(from.handProgress, to.handProgress)
+    )
+  }
+}
+
+private struct WritingHand: View {
+  let progress: CGFloat
+
+  var body: some View {
+    Canvas { context, size in
+      let amount = min(max(progress, 0), 1)
+      let baseline = size.height * 0.76
+      let handX = size.width * (0.42 + amount * 0.45)
+      let lineStart = size.width * 0.06
+      let lineEnd = max(lineStart, handX - size.width * 0.18)
+
+      var writingLine = Path()
+      let samples = 12
+      for index in 0...samples {
+        let t = CGFloat(index) / CGFloat(samples)
+        let x = lineStart + (lineEnd - lineStart) * t
+        let y = baseline + sin(t * .pi * 5) * size.height * 0.075
+        if index == 0 {
+          writingLine.move(to: CGPoint(x: x, y: y))
+        } else {
+          writingLine.addLine(to: CGPoint(x: x, y: y))
+        }
+      }
+      context.stroke(
+        writingLine,
+        with: .color(.black.opacity(0.68)),
+        style: StrokeStyle(lineWidth: max(1, size.width * 0.045), lineCap: .round, lineJoin: .round)
+      )
+
+      var hand = Path()
+      let handWidth = size.width * 0.24
+      let handHeight = size.height * 0.52
+      hand.move(to: CGPoint(x: handX - handWidth * 0.9, y: baseline + handHeight * 0.22))
+      hand.addCurve(
+        to: CGPoint(x: handX + handWidth * 0.4, y: baseline - handHeight * 0.75),
+        control1: CGPoint(x: handX - handWidth * 0.1, y: baseline + handHeight * 0.1),
+        control2: CGPoint(x: handX - handWidth * 0.05, y: baseline - handHeight * 0.65)
+      )
+      hand.addCurve(
+        to: CGPoint(x: handX + handWidth * 0.78, y: baseline + handHeight * 0.5),
+        control1: CGPoint(x: handX + handWidth * 0.95, y: baseline - handHeight * 0.45),
+        control2: CGPoint(x: handX + handWidth, y: baseline + handHeight * 0.18)
+      )
+      hand.addCurve(
+        to: CGPoint(x: handX - handWidth * 0.9, y: baseline + handHeight * 0.22),
+        control1: CGPoint(x: handX + handWidth * 0.3, y: baseline + handHeight * 0.72),
+        control2: CGPoint(x: handX - handWidth * 0.68, y: baseline + handHeight * 0.7)
+      )
+      context.fill(hand, with: .color(.black.opacity(0.74)))
+
+      var pen = Path()
+      pen.move(to: CGPoint(x: handX + handWidth * 0.05, y: baseline - handHeight * 0.12))
+      pen.addLine(to: CGPoint(x: handX + handWidth * 0.72, y: baseline - handHeight * 0.86))
+      context.stroke(
+        pen,
+        with: .color(.black.opacity(0.82)),
+        style: StrokeStyle(lineWidth: max(1, size.width * 0.055), lineCap: .round)
+      )
+    }
+    .shadow(color: .black.opacity(0.24), radius: 1)
   }
 }
 

@@ -1,3 +1,15 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createActivityMonitor } from "./usage/activity.js";
+import { createProviderCatalog } from "./usage/catalog.js";
+import { createUsageCoordinator } from "./usage/coordinator.js";
+import { createUsageStore } from "./usage/store.js";
+import { createPricingLoader } from "./usage/pricing-loader.js";
+import { createAntigravityProvider } from "./usage/providers/antigravity.js";
+import { createClaudeProvider } from "./usage/providers/claude.js";
+import { createCodexProvider } from "./usage/providers/codex.js";
+import { createGrokProvider } from "./usage/providers/grok.js";
+
 const OPENUSAGE_URL = "http://127.0.0.1:6736/v1/limits";
 const OPENUSAGE_USAGE_URL = "http://127.0.0.1:6736/v1/usage";
 const DEFAULT_TIMEOUT_MS = 2500;
@@ -278,6 +290,74 @@ export function createUsageSource({
         inFlight = null;
       }
     },
+  };
+}
+
+/**
+ * Fonte nativa do Dokke. Os adapters leem as mesmas fontes que o OpenUsage lia,
+ * mas o snapshot, histórico, cache e refresh pertencem ao processo do Dokke.
+ */
+export function createDokkeUsageSource({
+  dataDir = join(tmpdir(), `dokke-usage-${process.pid}`),
+  providers = null,
+  fetchImpl = globalThis.fetch,
+  now = () => new Date(),
+  pricing = null,
+  timeoutMs = 10_000,
+  refreshMs = 5 * 60 * 1000,
+  backoffMs = 5 * 60 * 1000,
+  intervalMs = refreshMs,
+  activityIntervalMs = 1_000,
+  pricingLoader = null,
+} = {}) {
+  const hasInjectedProviders = Array.isArray(providers);
+  const providerList = providers || createProviderCatalog({ providers: [
+    createClaudeProvider({ fetchImpl }),
+    createCodexProvider({ fetchImpl }),
+    createAntigravityProvider({ fetchImpl }),
+    createGrokProvider({ fetchImpl }),
+  ] });
+  const store = createUsageStore({ file: join(dataDir, "usage-cache.json") });
+  const coordinator = createUsageCoordinator({
+    providers: providerList,
+    catalog: providerList,
+    store,
+    pricing,
+    pricingLoader: pricingLoader || (!hasInjectedProviders ? createPricingLoader({ fetchImpl, cacheFile: join(dataDir, "pricing-cache.json") }) : null),
+    now,
+    timeoutMs,
+    refreshMs,
+    backoffMs,
+    intervalMs,
+    historyCacheFile: join(dataDir, "usage-history-cache.json"),
+  });
+  const activityMonitor = createActivityMonitor({ providers: providerList, now, intervalMs: activityIntervalMs });
+  function attachActivity(snapshot, activity) {
+    if (!snapshot || typeof snapshot !== "object") return snapshot;
+    const activityProviders = activity?.providers || {};
+    const providers = Object.fromEntries(Object.entries(snapshot.providers || {}).map(([id, provider]) => [
+      id,
+      provider && typeof provider === "object"
+        ? { ...provider, activity: activityProviders[id] || null }
+        : provider,
+    ]));
+    return { ...snapshot, providers };
+  }
+  return {
+    async getUsage(options) {
+      const [snapshot, activity] = await Promise.all([coordinator.getUsage(options), activityMonitor.getActivity()]);
+      return attachActivity(snapshot, activity);
+    },
+    getActivity: () => activityMonitor.getActivity(),
+    ingestActivityEvent: event => activityMonitor.ingestActivityEvent(event),
+    async refresh(options) {
+      const [snapshot, activity] = await Promise.all([
+        coordinator.refresh(options),
+        activityMonitor.getActivity(),
+      ]);
+      return attachActivity(snapshot, activity);
+    },
+    close: () => { coordinator.close(); activityMonitor.close(); },
   };
 }
 

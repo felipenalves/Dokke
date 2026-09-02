@@ -6,13 +6,20 @@ import { join } from "node:path";
 import {
   loadConfig,
   saveConfig,
+  normalizeConfig,
   normalizePinned,
   PINNED_PAGE_SIZE,
   PINNED_MAX_PAGES,
   MAX_PINNED_APPS,
 } from "../config.js";
 
-const emptyConfig = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
+const emptyConfig = {
+  schemaVersion: 2,
+  revision: 0,
+  pieces: [],
+  pinned: [],
+  usage: { enabled: true, display: "used", reset: "exact" },
+};
 
 test("limite do dock cabe em cinco páginas completas", () => {
   assert.equal(PINNED_PAGE_SIZE, 8);
@@ -55,4 +62,10 @@ test("loadConfig com partial {} preenche defaults e guard de tipo normaliza pinn
 
 test("normalizePinned trim, dedupe e ignora lixo", () => {
   assert.deepEqual(normalizePinned([" A ", "B", "A", "", 1, null]), ["A", "B"]);
+});
+
+test("normalizeConfig preserva a última IA selecionada e ignora IDs inválidos", () => {
+  assert.equal(normalizeConfig({ usageProvider: " Codex " }).usageProvider, "codex");
+  assert.equal(normalizeConfig({ usageProvider: "claude" }).usageProvider, "claude");
+  assert.equal(normalizeConfig({ usageProvider: "não é um id" }).usageProvider, undefined);
 });

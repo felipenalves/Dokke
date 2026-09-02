@@ -184,17 +184,26 @@ export function normalizeUsageSettings(raw) {
   };
 }
 
+/** Normaliza o identificador do provider escolhido no Mac para compartilhar com o PWA. */
+export function normalizeUsageProvider(raw) {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim().toLowerCase();
+  return /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(value) ? value : null;
+}
+
 /** Converte legado e formato v2 para uma representação canônica em memória. */
 export function normalizeConfig(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const legacy = normalizePinned(source.pinned).map(name => ({ type: "app", name }));
   const pieces = normalizePieces(Array.isArray(source.pieces) ? source.pieces : legacy);
+  const usageProvider = normalizeUsageProvider(source.usageProvider);
   return {
     schemaVersion: 2,
     revision: safeRevision(source.revision),
     pieces,
     pinned: piecesToPinned(pieces),
     usage: normalizeUsageSettings(source.usage),
+    ...(usageProvider ? { usageProvider } : {}),
   };
 }
 

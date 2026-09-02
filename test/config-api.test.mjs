@@ -87,6 +87,29 @@ test("PUT /api/config/usage idempotente não incrementa revisão", async () => {
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
+test("PUT /api/config/usage/provider compartilha a última IA selecionada", async () => {
+  const s = await startTemp();
+  try {
+    const r = await fetch(`${base(s)}/api/config/usage/provider`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "Codex" }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).config.usageProvider, "codex");
+
+    const config = await fetch(`${base(s)}/api/config`);
+    assert.equal((await config.json()).config.usageProvider, "codex");
+
+    const invalid = await fetch(`${base(s)}/api/config/usage/provider`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "not a provider" }),
+    });
+    assert.equal(invalid.status, 400);
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
 test("POST /api/config/pinned adiciona app fixa", async () => {
   const s = await startTemp();
   try {
@@ -115,7 +138,13 @@ test("PUT /api/config/pinned substitui lista inteira", async () => {
 });
 
 test("GET /api/status retorna devices e pinned", async () => {
-  const s = await startTemp();
+  const s = await startTemp({
+    configFile: null,
+    config: {
+      usage: { enabled: false, display: "remaining", reset: "exact" },
+      usageProvider: "codex",
+    },
+  });
   try {
     await fetch(`${base(s)}/api/config/pinned`, { method: "POST", body: JSON.stringify({ app: "Notes" }) });
     const r = await fetch(`${base(s)}/api/status`);
@@ -125,6 +154,8 @@ test("GET /api/status retorna devices e pinned", async () => {
     assert.equal(typeof j.devices, "number");
     assert.equal(j.pinned, 1);
     assert.deepEqual(j.config.pinned, ["Notes"]);
+    assert.deepEqual(j.config.usage, { enabled: false, display: "remaining", reset: "exact" });
+    assert.equal(j.config.usageProvider, "codex");
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 

@@ -161,6 +161,11 @@ fi
 SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
 mkdir -p "${SRV_DIR}"
 cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${ROOT}/../usage.js" "${SRV_DIR}/"
+if [[ ! -d "${ROOT}/../usage" ]]; then
+  echo "error: usage runtime missing: ${ROOT}/../usage" >&2
+  exit 1
+fi
+cp -R "${ROOT}/../usage" "${SRV_DIR}/usage"
 ICON_HELPER_APP="${SRV_DIR}/bin/DokkeIconHelper.app"
 mkdir -p "${ICON_HELPER_APP}/Contents/MacOS" "${ICON_HELPER_APP}/Contents/Resources"
 cp "${ICON_HELPER_PATH}" "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"

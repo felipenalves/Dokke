@@ -53,13 +53,47 @@ struct UsageSettingsView: View {
   @State private var draft: DokkeUsageSettings
   @State private var saving = false
   @State private var saveTask: Task<Void, Never>?
+  @State private var providerDraft: String?
+  @State private var providerSaving = false
+  @State private var providerSaveTask: Task<Void, Never>?
 
   init(store: DockStore) {
     self.store = store
     _draft = State(initialValue: store.usageSettings)
+    _providerDraft = State(initialValue: store.usageProviderId)
   }
 
   private var language: DokkeLanguage { languageStore.selected }
+
+  private var availableProviderIds: [String] {
+    guard let snapshot = store.usage else { return [] }
+    return UsageProviderOrder.allCases.compactMap { kind in
+      let provider: UsageProvider?
+      switch kind {
+      case .claude:
+        provider = snapshot.providers["claude"] ?? snapshot.providers["anthropic"]
+      case .codex:
+        provider = snapshot.providers["codex"]
+      }
+      return provider?.hasUsableUsageData == true ? kind.rawValue : nil
+    }
+  }
+
+  private var providerSelection: Binding<String> {
+    Binding(
+      get: {
+        guard let providerDraft, availableProviderIds.contains(providerDraft) else {
+          return availableProviderIds.first ?? ""
+        }
+        return providerDraft
+      },
+      set: { next in
+        guard !next.isEmpty, availableProviderIds.contains(next) else { return }
+        providerDraft = next
+        scheduleProviderSave(next)
+      }
+    )
+  }
 
   var body: some View {
     ScrollView {
@@ -67,7 +101,7 @@ struct UsageSettingsView: View {
         header
         settingsGroup
 
-        if saving {
+        if saving || providerSaving {
           Label(I18n.text("usage.settingsSaving", language: language), systemImage: "arrow.triangle.2.circlepath")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -89,12 +123,22 @@ struct UsageSettingsView: View {
       guard !saving else { return }
       if draft != next { draft = next }
     }
+    .onChange(of: store.usageProviderId) { _, next in
+      if let next, availableProviderIds.contains(next), providerDraft != next {
+        providerDraft = next
+      }
+    }
+    .task {
+      await store.loadConfig()
+      await store.loadUsage(force: true)
+    }
     .onChange(of: draft) { _, next in
       guard !saving else { return }
       scheduleSave(next)
     }
     .onDisappear {
       saveTask?.cancel()
+      providerSaveTask?.cancel()
     }
   }
 
@@ -136,6 +180,26 @@ struct UsageSettingsView: View {
 
       Divider().overlay(Color.white.opacity(0.08))
 
+      if !availableProviderIds.isEmpty {
+        settingRow {
+          VStack(alignment: .leading, spacing: 3) {
+            Picker(I18n.text("usage.settingsProvider", language: language), selection: providerSelection) {
+              ForEach(availableProviderIds, id: \.self) { providerId in
+                Text(I18n.text("usage.provider.\(providerId)", language: language)).tag(providerId)
+              }
+            }
+            .pickerStyle(.menu)
+            .disabled(!draft.enabled)
+            Text(I18n.text("usage.settingsProviderDescription", language: language))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+
+        Divider().overlay(Color.white.opacity(0.08))
+      }
+
       settingRow {
         Picker(I18n.text("usage.settingsDisplay", language: language), selection: $draft.display) {
           ForEach(UsageDisplayMode.allCases) { mode in
@@ -163,7 +227,7 @@ struct UsageSettingsView: View {
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(Color.white.opacity(0.055))
     )
-    .disabled(saving)
+    .disabled(saving || providerSaving)
   }
 
   private func settingRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -180,6 +244,18 @@ struct UsageSettingsView: View {
       let confirmed = await store.updateUsageSettings(next)
       if !confirmed { draft = store.usageSettings }
       saving = false
+    }
+  }
+
+  private func scheduleProviderSave(_ next: String) {
+    providerSaveTask?.cancel()
+    providerSaveTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 180_000_000)
+      guard !Task.isCancelled else { return }
+      providerSaving = true
+      let confirmed = await store.updateUsageProvider(next)
+      if !confirmed { providerDraft = store.usageProviderId }
+      providerSaving = false
     }
   }
 }

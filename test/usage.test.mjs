@@ -182,6 +182,19 @@ test("PWA aplica preferências compartilhadas para visibilidade, porcentagem e r
   assert.match(html, /if \(!state\.usageSettings\.enabled && state\.screen === "usage"\)/);
 });
 
+test("PWA respeita a última IA selecionada e não abre provider sem dados", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const renderStart = html.indexOf("function renderUsage()");
+  const renderEnd = html.indexOf("async function loadUsage", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
+
+  assert.match(html, /usageProviderId/);
+  assert.match(html, /function usageProviderHasData\(/);
+  assert.match(renderSource, /usageProviderHasData\(item\.provider\)/);
+  assert.match(renderSource, /state\.usageProviderId/);
+  assert.doesNotMatch(renderSource, /providers\.find\(function\(item\)\{ return item\.id === "claude"; \}\)/);
+});
+
 test("PWA destaca janela de 5 horas e semanal com gráficos simples", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
@@ -220,9 +233,10 @@ test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem
   assert.match(html, /\.usage-five-copy \.usage-limit-reset-label\{[^}]*display:\s*none;/, "o reset exato não deve ocupar espaço no card");
   assert.match(html, /\.usage-week-caption\{[^}]*display:\s*none;/, "o semanal não deve repetir a palavra usado");
   assert.match(html, /\.usage-provider-plan\{[^}]*display:\s*inline;[^}]*margin-left:/, "o plano deve ficar na mesma linha do provedor");
-  assert.match(html, /\.usage-sync\{[^}]*display:\s*none;/, "o status técnico não deve empurrar o card para baixo");
-  assert.match(html, /\.usage-title\{[^}]*font-size:\s*42px;[^}]*font-weight:\s*700;[^}]*line-height:\s*\.95;/, "o título deve seguir a escala tipográfica da Usage");
+  assert.match(html, /\.usage-sync\{[^}]*display:\s*flex;[^}]*gap:\s*6px;[^}]*margin-top:\s*4px;[^}]*min-height:\s*12px;/, "o status deve ficar compacto abaixo do título");
+  assert.match(html, /\.usage-title\{[^}]*font-size:\s*36px;[^}]*font-weight:\s*700;[^}]*line-height:\s*\.95;/, "o título deve seguir a escala tipográfica da Usage");
   assert.match(html, /\.usage-card\.is-open\{[^}]*border-radius:\s*32px;/, "o card aberto deve seguir o raio do esboço");
+  assert.match(html, /\.usage-card\.is-open\{[^}]*box-shadow:\s*inset 0 1px 0 rgba\(255,255,255,\.08\), 0 12px 24px rgba\(0,0,0,\.20\);/, "a sombra do card principal deve ser discreta");
   assert.match(html, /\.usage-card\.is-open \.usage-card-head\{[^}]*min-height:\s*28px;[^}]*margin-bottom:\s*0;/, "o cabeçalho do card deve encostar no conteúdo como no esboço");
   assert.match(html, /\.usage-card\.is-open \.usage-featured\{[^}]*margin-top:\s*0;/, "o conteúdo principal não deve ganhar espaço vertical extra");
   assert.match(html, /\.usage-card\.is-open \.usage-limits\{[^}]*gap:\s*0;/, "os dois limites devem manter o intervalo do esboço");
@@ -237,7 +251,7 @@ test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem
   assert.match(html, /\.usage-card\.is-open\[data-status="attention"\]\{[^}]*--usage-accent:\s*#ff8a38;/, "o estado de atenção deve usar o laranja do esboço");
   assert.match(html, /I18N\["pt-BR"\]\["usage\.fiveHourShort"\]\s*=\s*"5 horas"/);
   assert.match(html, /I18N\["pt-BR"\]\["usage\.weekShort"\]\s*=\s*"semana"/);
-  assert.match(renderSource, /providers\.find\(function\(item\)\{ return item\.id === "claude"; \}\)/, "Claude deve ser o provedor aberto por padrão");
+  assert.match(renderSource, /const preferredId = state\.usageProviderId \|\| state\.usageOpenId/, "a preferência compartilhada deve decidir o provedor aberto");
   assert.match(html, /Math\.max\(0,\s*Math\.min\(100,\s*remainingPct\)/, "o gauge deve aceitar zero sem forçar um traço");
   assert.doesNotMatch(html, /Math\.max\(1,\s*Math\.round\(\(Math\.max\(0,\s*Math\.min\(100,\s*remainingPct\)/, "0% não pode acender um segmento artificial");
 });
@@ -274,7 +288,7 @@ test("PWA coloca o Usage Trend no segundo slide", async () => {
   assert.doesNotMatch(renderSource, /card\.appendChild\(trend\)/, "a tendência não deve ocupar o card do provedor");
 });
 
-test("PWA transforma o status em balão do mascote e anima os olhos por estado", async () => {
+test("PWA transforma o status em balão e mantém a animação normal dos olhos por estado", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const renderStart = html.indexOf("function renderUsage()");
   const renderEnd = html.indexOf("async function loadUsage", renderStart);
@@ -293,41 +307,72 @@ test("PWA transforma o status em balão do mascote e anima os olhos por estado",
   assert.match(html, /\.usage-mascot-wrap\.is-status-changing \.usage-token\{[^}]*animation:\s*usageStatusChange/);
   assert.match(html, /--dokke-orange:\s*#f08737/);
   assert.match(html, /\.usage-mascot-wrap\{[^}]*justify-content:\s*flex-end;[^}]*width:\s*36px;/, "o mascote deve ocupar mais presença no cabeçalho");
-  assert.match(html, /\.usage-mascot-wrap \.usage-token\{[^}]*width:\s*32px;[^}]*height:\s*32px;[^}]*background:\s*var\(--usage-mascot-accent\)/, "o mascote deve usar o laranja Dokke no estado normal");
+  assert.match(html, /\.usage-mascot-wrap \.usage-token\{[^}]*width:\s*32px;[^}]*height:\s*32px;[^}]*background:\s*linear-gradient\(145deg,\s*rgba\(255,255,255,\.84\),\s*rgba\(255,255,255,\.28\)\)/, "o mascote deve usar branco translúcido no estado normal");
   assert.match(html, /\.usage-mascot-wrap\[data-status="attention"\]\{[^}]*--usage-mascot-accent:\s*var\(--amber\)/);
   assert.match(html, /\.usage-mascot-wrap\[data-status="exhausted"\]\{[^}]*--usage-mascot-accent:\s*var\(--red\)/);
   assert.match(html, /\.usage-mascot-wrap\[data-mascot="energized"\]\{[^}]*animation-duration:/);
+  assert.match(html, /\.usage-mascot-wrap \.usage-token\{[^}]*background:\s*linear-gradient\(145deg,\s*rgba\(255,255,255,\.84\),\s*rgba\(255,255,255,\.28\)\)/, "o mascote deve usar branco translúcido");
+  assert.match(html, /\.usage-token-eyes\{[^}]*display:\s*inline-flex;[^}]*width:\s*58%;[^}]*height:\s*38%;/, "os olhos devem ocupar uma área oval");
+  assert.match(html, /@keyframes usageWritingTool/);
+  assert.match(html, /@keyframes usageWritingLine/);
+  assert.match(html, /\.usage-writing-tool\{[^}]*animation:\s*usageWritingTool/);
+  assert.match(html, /\.usage-writing-line\{[^}]*animation:\s*usageWritingLine/);
+  assert.match(html, /\.usage-mascot-wrap\[data-activity="working"\] \.usage-token-eyes i\{[^}]*animation:\s*none !important/);
+  assert.doesNotMatch(html, /usageWritingEye/);
   assert.match(html, /@keyframes usageBubblePop/);
-  assert.match(html, /\.usage-mascot-wrap\.is-reacting \.usage-mood-bubble\{[^}]*animation:\s*usageBubblePop/);
+  assert.match(html, /\.usage-mascot-wrap\.is-reacting \.usage-mood-bubble\[data-reaction\]\{[^}]*animation:\s*usageBubblePop/);
+  assert.match(html, /@keyframes usageMascotChartReaction/);
+  assert.match(html, /@keyframes usageMascotProviderReaction/);
+  assert.match(html, /\.usage-mascot-wrap\[data-reaction="chart"\] \.usage-token\{[^}]*animation:\s*usageTokenChartReaction/);
+  assert.match(html, /\.usage-mascot-wrap\[data-reaction="provider"\] \.usage-token\{[^}]*animation:\s*usageTokenProviderReaction/);
   assert.match(html, /\.usage-trend-bar\{[^}]*background:\s*rgba\(255,255,255,\.66\)/, "a tendência deve usar branco translúcido");
-  assert.match(html, /\.usage-token\[data-mascot="energized"\]::before\{[^}]*animation:\s*usageBlink/);
-  assert.match(html, /\.usage-token\[data-mascot="tired"\]::before\{[^}]*animation:\s*usageTiredEyes/);
+  assert.match(html, /\.usage-token\[data-mascot="energized"\] \.usage-token-eyes i\{[^}]*animation:\s*usageBlink/);
+  assert.match(html, /\.usage-token\[data-mascot="tired"\] \.usage-token-eyes i\{[^}]*animation:\s*usageTiredEyes/);
   assert.doesNotMatch(html, /\.usage-mood-bubble::after\{[^}]*content:/, "o balão não deve ter bolinhas auxiliares");
-  assert.match(html, /@media \(prefers-reduced-motion:\s*reduce\)\{[^}]*\.usage-token::before\{[^}]*animation-duration:/, "em redução de movimento o piscar deve ficar mais lento, não desaparecer");
+  assert.match(html, /@media \(prefers-reduced-motion:\s*reduce\)\{[^}]*\.usage-token-eyes i\{[^}]*animation-duration:/, "em redução de movimento o piscar deve ficar mais lento, não desaparecer");
 });
 
-test("PWA permite tocar no mascote e restaura o estado depois da reação", async () => {
+test("PWA working mantém olhos fixos e reserva o movimento para a mão", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const renderStart = html.indexOf("function renderUsage()");
   const renderEnd = html.indexOf("async function loadUsage", renderStart);
   const renderSource = html.slice(renderStart, renderEnd);
 
-  assert.match(renderSource, /mascotWrap\.type\s*=\s*"button"/);
-  assert.match(renderSource, /mascotWrap\.addEventListener\("click"/);
+  assert.match(renderSource, /usageWritingHand\(\)/);
+  assert.match(html, /\.usage-mascot-wrap\[data-activity="working"\] \.usage-token-eyes i\{[^}]*animation:\s*none !important/);
+  assert.doesNotMatch(html, /usageWritingEye/);
+});
+
+test("PWA writing usa camadas procedurais sem mover o avatar inteiro", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+
+  assert.match(html, /@keyframes usageWritingTool/);
+  assert.match(html, /@keyframes usageWritingLine/);
+  assert.match(html, /\.usage-mascot-wrap\[data-activity="working"\]\{[^}]*animation:\s*none !important/);
+  assert.match(html, /\.usage-mascot-wrap\[data-activity="working"\] \.usage-token\{[^}]*animation:\s*none !important/);
+  assert.match(html, /\.usage-writing-tool\{[^}]*animation:\s*usageWritingTool/);
+  assert.match(html, /\.usage-writing-line\{[^}]*animation:\s*usageWritingLine/);
+  assert.match(html, /tool\.setAttribute\("class", "usage-writing-tool"\)/);
+});
+
+test("PWA reserva a reação do mascote ao gráfico e à troca de IA", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const renderStart = html.indexOf("function renderUsage()");
+  const renderEnd = html.indexOf("async function loadUsage", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
+
+  assert.doesNotMatch(renderSource, /mascotWrap\.type\s*=\s*"button"/);
+  assert.doesNotMatch(renderSource, /mascotWrap\.addEventListener\("click"/);
   assert.match(renderSource, /usageMascotStates\[item\.id\]/);
   assert.match(renderSource, /mascotWrap\.classList\.add\("is-status-changing"\)/);
-  assert.match(renderSource, /usage\.pet\.greeting/);
-  assert.match(html, /"usage\.pet\.greeting":\s*"Opa! Sou o token"/);
   assert.match(html, /\.usage-mood-bubble\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;/, "o balão deve iniciar oculto");
-  assert.match(html, /\.usage-mood-bubble\[data-reaction="true"\]\{[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "o balão só aparece durante a reação");
+  assert.match(html, /\.usage-mascot-wrap\.is-reacting \.usage-mood-bubble\[data-reaction\]/, "o balão deve acompanhar a reação do mascote");
   assert.match(html, /\.usage-mascot-wrap\{[^}]*justify-content:\s*flex-end;[^}]*width:\s*36px;/, "o mascote deve ficar alinhado à borda do card");
   assert.match(html, /\.usage-mood-bubble\{[^}]*right:\s*calc\(100%\s*\+\s*6px\);[^}]*width:\s*max-content;/, "o balão deve ficar à esquerda e ajustar à mensagem");
-  assert.match(renderSource, /setTimeout\(function\(\)\{[\s\S]*statusNode\.textContent\s*=\s*statusText/);
-  assert.match(html, /@keyframes usageMascotTap/);
-  assert.match(html, /@keyframes usageTapBlink/);
-  assert.match(html, /\.usage-mascot-wrap\{[^}]*background:\s*transparent;/, "o botão do mascote não deve criar um fundo nativo");
-  assert.match(html, /\.usage-mascot-wrap\.is-reacting \.usage-token::before\{[^}]*animation:\s*usageTapBlink/);
-  assert.match(html, /\.usage-mascot-wrap:focus-visible\{/);
+  assert.match(renderSource, /queueUsageMascotReaction\(item\.id, "provider"\)/);
+  assert.match(html, /queueUsageMascotReaction\(providerId, "chart"\)/);
+  assert.match(html, /@keyframes usageMascotChartReaction/);
+  assert.match(html, /@keyframes usageMascotProviderReaction/);
 });
 
 test("PWA usa a altura da terceira tela e dá prioridade extra ao limite principal", async () => {
@@ -449,13 +494,13 @@ test("PWA mantém marca e plano do provedor no cabeçalho do card", async () => 
   const renderEnd = html.indexOf("async function loadUsage", renderStart);
   const renderSource = html.slice(renderStart, renderEnd);
 
-  assert.match(renderSource, /const primaryLimit = primary \? usageLimitNode\(primary, status, true\) : null;/, "o limite principal deve ser criado separadamente");
+  assert.match(renderSource, /const primaryLimit = primary \? usageLimitNode\(primary, status, true, item\.id\) : null;/, "o limite principal deve ser criado separadamente");
   assert.match(renderSource, /cardHead\.appendChild\(usageProviderLogo\(item\.id\)\)/, "cada card deve identificar seu provedor");
   assert.match(renderSource, /if \(provider\.plan\) providerName\.appendChild\(usageTextNode\("span", "usage-provider-plan", provider\.plan\)\)/, "o plano deve aparecer no cabeçalho quando a fonte o informar");
   assert.match(renderSource, /document\.createTextNode\("Claude"\)/, "Claude deve manter a identificação curta do esboço");
   assert.match(renderSource, /providerName\.appendChild\(document\.createTextNode\(item\.provider\.name \|\| item\.id\)\)/, "o nome do Codex deve acompanhar o logo");
   assert.doesNotMatch(renderSource, /primaryLimit\.appendChild\(usageProviderLogo/, "o logo não deve ficar duplicado dentro do limite");
-  assert.match(renderSource, /const weeklyLimit = weekly && weekly\.id !== primary\?\.id \? usageLimitNode\(weekly, status, false\) : null;/, "o limite semanal deve ser criado separadamente");
+  assert.match(renderSource, /const weeklyLimit = weekly && weekly\.id !== primary\?\.id \? usageLimitNode\(weekly, status, false, item\.id\) : null;/, "o limite semanal deve ser criado separadamente");
   assert.match(renderSource, /limits\.appendChild\(primaryLimit\)/);
   assert.match(html, /\.usage-provider-logo\[data-provider="codex"\]\{[^}]*background:\s*transparent;/, "o logo do Codex deve ser renderizado sem cápsula de fundo");
   assert.match(html, /image\.setAttribute\("fill-rule",\s*"evenodd"\)/, "o logo do Codex deve declarar a regra de preenchimento do SVG");
@@ -470,24 +515,19 @@ test("PWA aumenta e reforça o percentual dos dois limites", async () => {
   assert.match(html, /\.usage-limit:not\(.primary\) \.usage-limit-value\{[^}]*font-size:\s*clamp\(34px,\s*8\.5vw,\s*46px\);[^}]*font-weight:\s*700;/, "o limite semanal deve crescer");
 });
 
-test("PWA atualiza imediatamente pelo mascote e confirma em verde", async () => {
+test("PWA não atualiza a cota pelo mascote", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const renderStart = html.indexOf("function renderUsage()");
   const renderEnd = html.indexOf("async function loadUsage", renderStart);
   const renderSource = html.slice(renderStart, renderEnd);
 
   assert.doesNotMatch(renderSource, /usage-refresh/, "a tela Usage não deve renderizar botão de atualizar");
-  assert.match(html, /"usage\.pet\.refreshing":\s*"Atualizando\.\.\."/);
-  assert.match(html, /"usage\.pet\.updated":\s*"Atualizado"/);
-  assert.match(renderSource, /state\.usageMascotRefreshPending/);
-  assert.match(renderSource, /state\.usageMascotNextAction === "greeting"/);
-  assert.match(renderSource, /state\.usageMascotFeedback\[item\.id\]\s*=\s*"refreshing"/, "o primeiro toque deve sinalizar atualização em andamento");
-  assert.doesNotMatch(renderSource, /showMascotMessage\(t\("usage\.pet\.refreshPrompt"\)/, "o primeiro toque não deve perguntar se quer atualizar");
-  assert.match(renderSource, /loadUsage\(true\)/, "o clique do mascote deve disparar uma leitura atualizada");
-  assert.match(html, /usageMascotRefreshPending:\s*false/);
-  assert.match(html, /usageMascotNextAction:\s*"refresh"/);
-  assert.match(html, /usageMascotFeedback:\s*\{\}/);
-  assert.match(html, /\.usage-mood-bubble\[data-reaction="updated"\]\{[^}]*color:\s*var\(--green\)/, "a confirmação deve aparecer em verde");
+  assert.doesNotMatch(renderSource, /state\.usageMascotRefreshPending/);
+  assert.doesNotMatch(renderSource, /state\.usageMascotNextAction/);
+  assert.doesNotMatch(renderSource, /state\.usageMascotFeedback/);
+  assert.doesNotMatch(renderSource, /loadUsage\(true\)/, "a reação do mascote não deve disparar uma leitura atualizada");
+  assert.match(html, /queueUsageMascotReaction\(providerId, "chart"\)/);
+  assert.match(renderSource, /queueUsageMascotReaction\(item\.id, "provider"\)/);
 });
 
 test("PWA embute a marca do OpenAI para WebViews que falham ao decodificar SVG", async () => {
@@ -508,8 +548,9 @@ test("PWA embute a marca do OpenAI para WebViews que falham ao decodificar SVG",
 test("mascote de token mostra somente os olhos", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
-  assert.match(html, /\.usage-token::before\{ content: "";[^}]*width:\s*14px;[^}]*height:\s*10px;/, "os olhos devem ser retângulos verticais próximos");
-  assert.match(html, /background:\s*linear-gradient\(currentColor,currentColor\) left center\s*\/\s*4px 10px no-repeat,[\s\S]*linear-gradient\(currentColor,currentColor\) right center\s*\/\s*4px 10px no-repeat/, "o mascote deve ter dois olhos verticais");
+  assert.match(html, /\.usage-token-eyes\{[^}]*width:\s*58%;[^}]*height:\s*38%;/, "os olhos devem ocupar uma área oval proporcional ao mascote");
+  assert.match(html, /\.usage-token-eyes i\{[^}]*width:\s*31%;[^}]*height:\s*100%;[^}]*border-radius:\s*999px;/, "o mascote deve ter dois olhos verticais arredondados");
+  assert.match(html, /usageMascotEyes\(\)/, "o mascote deve montar os olhos como elementos independentes");
   assert.doesNotMatch(html, /\.usage-token::after\{[^}]*content:/, "o mascote não deve desenhar boca");
   assert.doesNotMatch(html, /\.usage-token\[data-mascot="(?:tired|exhausted)"\]::after/, "nenhum estado deve reintroduzir a boca");
 });

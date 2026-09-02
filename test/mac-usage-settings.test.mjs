@@ -23,11 +23,24 @@ test("DockStore lê e salva a configuração compartilhada sem estado otimista",
 
   assert.match(store, /@Published private\(set\) var usageSettings:\s*DokkeUsageSettings/);
   assert.match(store, /cfg\["usage"\]/);
+  assert.match(store, /if let usage = cfg\["usage"\] as\? \[String: Any\]/);
+  assert.match(store, /if let rawUsageProvider = cfg\["usageProvider"\] as\? String/);
   assert.match(store, /func updateUsageSettings\(_ settings:\s*DokkeUsageSettings\) async/);
   assert.match(store, /baseURL \+ "\/api\/config\/usage"/);
   assert.match(store, /req\.httpMethod = "PUT"/);
   assert.match(store, /JSONSerialization\.data/);
   assert.match(store, /applyConfig\(cfg\)/);
+});
+
+test("tela Mac escolhe apenas uma IA com dados e persiste a preferência do topo", async () => {
+  const store = await source("DockStore.swift");
+  const settings = await source("UsageSettings.swift");
+
+  assert.match(store, /@Published private\(set\) var usageProviderId:\s*String\?/);
+  assert.match(store, /func updateUsageProvider\(_ providerId:\s*String\) async/);
+  assert.match(settings, /availableProviderIds/);
+  assert.match(settings, /hasUsableUsageData/);
+  assert.match(settings, /updateUsageProvider\(/);
 });
 
 test("tela Mac oferece controles nativos de preferência, não cards do painel", async () => {
@@ -50,6 +63,8 @@ test("preferências de uso estão traduzidas em português e inglês", async () 
     "usage.settingsTitle",
     "usage.settingsDescription",
     "usage.settingsEnabled",
+    "usage.settingsProvider",
+    "usage.settingsProviderDescription",
     "usage.settingsDisplay",
     "usage.settingsDisplayUsed",
     "usage.settingsDisplayRemaining",

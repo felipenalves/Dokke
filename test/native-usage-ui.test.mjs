@@ -91,6 +91,19 @@ test("tela nativa pagina Claude e Codex com dots do SwiftUI", async () => {
   assert.match(usage, /minHeight: isPrimary \? 220 : 170/);
 });
 
+test("tela nativa compartilha a IA selecionada e evita provider sem dados no topo", async () => {
+  const models = await source("UsageModels.swift");
+  const store = await source("DockStore.swift");
+  const usage = await source("UsageView.swift");
+
+  assert.match(models, /var hasUsableUsageData:\s*Bool/);
+  assert.match(store, /usageProviderId/);
+  assert.match(store, /func updateUsageProvider\(/);
+  assert.match(usage, /store\.usageProviderId/);
+  assert.match(usage, /onSelectionChange/);
+  assert.match(usage, /hasUsableUsageData/);
+});
+
 test("logo nativa do Codex resolve o SVG diretamente no bundle", async () => {
   const usage = await source("UsageView.swift");
 
@@ -117,6 +130,44 @@ test("tela nativa mostra o Usage Trend abaixo dos limites", async () => {
   assert.match(models, /let trend: UsageTrend\?/);
   assert.match(usage, /UsageTrendChart/);
   assert.match(usage, /provider\.trend/);
+});
+
+test("tela nativa acompanha atividade real e anima o Token enquanto trabalha", async () => {
+  const models = await source("UsageModels.swift");
+  const store = await source("DockStore.swift");
+  const usage = await source("UsageView.swift");
+
+  assert.match(models, /struct UsageActivitySnapshot:\s*Decodable,\s*Equatable/);
+  assert.match(models, /struct UsageActivityState:\s*Decodable,\s*Equatable/);
+  assert.match(store, /@Published private\(set\) var usageActivity:\s*UsageActivitySnapshot\?/);
+  assert.match(store, /baseURL \+ "\/api\/usage\/activity"/);
+  assert.match(store, /func pollUsageActivity\(\)/);
+  assert.match(usage, /pollUsageActivity\(\)/);
+  assert.match(usage, /activityState/);
+  assert.match(usage, /let activity:\s*String/);
+  assert.match(usage, /TimelineView\(\.animation/);
+  assert.match(usage, /let writing = activity == "working"/);
+  assert.match(usage, /activity == "working"/);
+});
+
+test("working usa a sequência de escrita com mão e caneta, não deformação dos olhos", async () => {
+  const usage = await source("UsageView.swift");
+
+  assert.match(usage, /private struct WorkingMascotAnimation/);
+  assert.match(usage, /Canvas/);
+  assert.match(usage, /WritingHand/);
+  assert.match(usage, /writingPhase/);
+  assert.doesNotMatch(usage, /let leftEye = writing \?/);
+  assert.doesNotMatch(usage, /let rightEye = writing \?/);
+});
+
+test("working mantém os olhos fixos e anima somente a mão", async () => {
+  const usage = await source("UsageView.swift");
+
+  assert.match(usage, /StaticWritingEyes/);
+  assert.match(usage, /WritingHand\(progress: pose\.handProgress\)/);
+  assert.doesNotMatch(usage, /pose\.leftWidth|pose\.leftHeight|pose\.leftAngle|pose\.leftX/);
+  assert.doesNotMatch(usage, /pose\.rightWidth|pose\.rightHeight|pose\.rightAngle|pose\.rightX|pose\.eyeY/);
 });
 
 test("texto da Usage existe nos dois idiomas do app v0.2.8", async () => {

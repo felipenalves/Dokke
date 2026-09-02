@@ -15,11 +15,57 @@ struct UsageSnapshot: Decodable, Equatable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     ok = try container.decodeIfPresent(Bool.self, forKey: .ok) ?? false
-    source = try container.decodeIfPresent(String.self, forKey: .source) ?? "openusage"
+    source = try container.decodeIfPresent(String.self, forKey: .source) ?? "dokke"
     sourceState = try container.decodeIfPresent(String.self, forKey: .sourceState) ?? "invalid"
     updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     providers = try container.decodeIfPresent([String: UsageProvider].self, forKey: .providers) ?? [:]
     errors = try container.decodeIfPresent([UsageError].self, forKey: .errors) ?? []
+  }
+}
+
+struct UsageActivitySnapshot: Decodable, Equatable {
+  let ok: Bool
+  let source: String
+  let sourceState: String
+  let updatedAt: String?
+  let providers: [String: UsageActivityState]
+  let errors: [UsageError]
+
+  private enum CodingKeys: String, CodingKey {
+    case ok, source, sourceState, updatedAt, providers, errors
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    ok = try container.decodeIfPresent(Bool.self, forKey: .ok) ?? false
+    source = try container.decodeIfPresent(String.self, forKey: .source) ?? "dokke"
+    sourceState = try container.decodeIfPresent(String.self, forKey: .sourceState) ?? "invalid"
+    updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    providers = try container.decodeIfPresent([String: UsageActivityState].self, forKey: .providers) ?? [:]
+    errors = try container.decodeIfPresent([UsageError].self, forKey: .errors) ?? []
+  }
+}
+
+struct UsageActivityState: Decodable, Equatable {
+  let providerId: String?
+  let state: String
+  let since: String?
+  let detail: String?
+  let sessions: Int
+  let observedAt: String?
+
+  private enum CodingKeys: String, CodingKey {
+    case providerId, state, since, detail, sessions, observedAt
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    providerId = try container.decodeIfPresent(String.self, forKey: .providerId)
+    state = try container.decodeIfPresent(String.self, forKey: .state) ?? "idle"
+    since = try container.decodeIfPresent(String.self, forKey: .since)
+    detail = try container.decodeIfPresent(String.self, forKey: .detail)
+    sessions = try container.decodeIfPresent(Int.self, forKey: .sessions) ?? 0
+    observedAt = try container.decodeIfPresent(String.self, forKey: .observedAt)
   }
 }
 
@@ -37,9 +83,11 @@ struct UsageProvider: Decodable, Equatable {
   let refreshedAt: String?
   let resources: [String: UsageResource]
   let trend: UsageTrend?
+  let history: UsageHistory?
+  let activity: UsageActivityState?
 
   private enum CodingKeys: String, CodingKey {
-    case name, plan, status, mascot, stale, refreshedAt, resources, trend
+    case name, plan, status, mascot, stale, refreshedAt, resources, trend, history, activity
   }
 
   init(from decoder: Decoder) throws {
@@ -52,6 +100,8 @@ struct UsageProvider: Decodable, Equatable {
     refreshedAt = try container.decodeIfPresent(String.self, forKey: .refreshedAt)
     resources = try container.decodeIfPresent([String: UsageResource].self, forKey: .resources) ?? [:]
     trend = try container.decodeIfPresent(UsageTrend.self, forKey: .trend)
+    history = try container.decodeIfPresent(UsageHistory.self, forKey: .history)
+    activity = try container.decodeIfPresent(UsageActivityState.self, forKey: .activity)
   }
 
   var highestUtilization: Double? {
@@ -59,6 +109,18 @@ struct UsageProvider: Decodable, Equatable {
       .filter { $0.kind == "consumption" }
       .compactMap(\.utilization)
       .max()
+  }
+
+  /// Um provider sem recursos numéricos não pode ocupar o card principal.
+  var hasUsableUsageData: Bool {
+    resources.values.contains { resource in
+      guard resource.kind == "consumption" || resource.kind == "balance" else { return false }
+      return resource.used != nil
+        || resource.limit != nil
+        || resource.remaining != nil
+        || resource.available != nil
+        || resource.utilization != nil
+    }
   }
 
   var resourceEntries: [UsageResourceEntry] {
@@ -131,4 +193,34 @@ struct UsageTrendPoint: Decodable, Equatable {
   let label: String
   let value: Double
   let valueLabel: String?
+}
+
+struct UsageHistory: Decodable, Equatable {
+  let today: UsagePeriodSummary?
+  let yesterday: UsagePeriodSummary?
+  let last30Days: UsagePeriodSummary?
+  let byModel: [UsageModelSummary]
+
+  private enum CodingKeys: String, CodingKey { case today, yesterday, last30Days, byModel }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    today = try container.decodeIfPresent(UsagePeriodSummary.self, forKey: .today)
+    yesterday = try container.decodeIfPresent(UsagePeriodSummary.self, forKey: .yesterday)
+    last30Days = try container.decodeIfPresent(UsagePeriodSummary.self, forKey: .last30Days)
+    byModel = try container.decodeIfPresent([UsageModelSummary].self, forKey: .byModel) ?? []
+  }
+}
+
+struct UsagePeriodSummary: Decodable, Equatable {
+  let totalTokens: Double?
+  let costUSD: Double?
+  let estimated: Bool
+}
+
+struct UsageModelSummary: Decodable, Equatable {
+  let model: String?
+  let totalTokens: Double?
+  let costUSD: Double?
+  let estimated: Bool
 }
