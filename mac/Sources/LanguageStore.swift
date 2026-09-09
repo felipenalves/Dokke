@@ -66,12 +66,12 @@ enum I18n {
     .portuguese: [
       "usage.title": "Painel de Uso", "usage.online": "Online", "usage.stale": "Desatualizado", "usage.offline": "Offline",
       "usage.syncUnknown": "Sem horário de atualização", "usage.updatedNow": "Atualizado agora", "usage.updatedMinutes": "Atualizado há {value} min",
-      "usage.resetLabel": "RESETA", "usage.fiveHourShort": "5 HORAS", "usage.weekShort": "SEMANA", "usage.trend": "Tendência de uso", "usage.trendPeak": "pico {value}", "usage.source": "Fonte: Dokke", "usage.unavailable": "Uso indisponível", "usage.unavailableBody": "Nenhuma fonte local retornou limites utilizáveis.", "usage.provider.claude": "Claude Code"
+      "usage.resetLabel": "RESETA", "usage.fiveHourShort": "5 HORAS", "usage.weekShort": "SEMANA", "usage.trend": "Tendência de uso", "usage.trendPeak": "pico {value}", "usage.source": "Fonte: Dokke", "usage.unavailable": "Uso indisponível", "usage.unavailableBody": "Nenhuma fonte local retornou limites utilizáveis.", "usage.provider.claude": "Claude Code", "usage.activitySyncing": "Atualizando limites", "usage.activityWorking": "Processando...", "usage.activityWaiting": "Aguardando ação"
     ],
     .english: [
       "usage.title": "Usage Panel", "usage.online": "Online", "usage.stale": "Stale", "usage.offline": "Offline",
       "usage.syncUnknown": "Update time unavailable", "usage.updatedNow": "Updated now", "usage.updatedMinutes": "Updated {value} min ago",
-      "usage.resetLabel": "RESETS", "usage.fiveHourShort": "5 HOURS", "usage.weekShort": "WEEK", "usage.trend": "Usage Trend", "usage.trendPeak": "peak {value}", "usage.source": "Source: Dokke", "usage.unavailable": "Usage unavailable", "usage.unavailableBody": "No local source returned usable limits.", "usage.provider.claude": "Claude Code"
+      "usage.resetLabel": "RESETS", "usage.fiveHourShort": "5 HOURS", "usage.weekShort": "WEEK", "usage.trend": "Usage Trend", "usage.trendPeak": "peak {value}", "usage.source": "Source: Dokke", "usage.unavailable": "Usage unavailable", "usage.unavailableBody": "No local source returned usable limits.", "usage.provider.claude": "Claude Code", "usage.activitySyncing": "Updating limits", "usage.activityWorking": "Processing...", "usage.activityWaiting": "Waiting for action"
     ]
   ]
 

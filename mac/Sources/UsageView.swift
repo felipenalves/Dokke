@@ -63,6 +63,7 @@ struct UsageView: View {
           UsageProviderPager(
             providers: visibleProviders,
             activity: store.usageActivity?.providers ?? [:],
+            loading: store.usageLoading,
             language: language,
             reduceMotion: reduceMotion,
             selection: $selectedProviderIndex,
@@ -166,12 +167,16 @@ struct UsageView: View {
   }
 
   private var loadingState: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      ProgressView()
-        .controlSize(.small)
-      Text(I18n.text("usage.loading", language: language))
-        .font(.subheadline)
-        .foregroundStyle(.white.opacity(0.62))
+    HStack(spacing: 14) {
+      TokenMascot(mood: "neutral", activity: "syncing", reduceMotion: reduceMotion)
+        .frame(width: 38, height: 38)
+      VStack(alignment: .leading, spacing: 5) {
+        ProgressView()
+          .controlSize(.small)
+        Text(I18n.text("usage.activitySyncing", language: language))
+          .font(.subheadline)
+          .foregroundStyle(.white.opacity(0.62))
+      }
     }
     .frame(maxWidth: .infinity, minHeight: 260, alignment: .center)
   }
@@ -203,6 +208,7 @@ struct UsageView: View {
 private struct UsageProviderPager: View {
   let providers: [VisibleUsageProvider]
   let activity: [String: UsageActivityState]
+  let loading: Bool
   let language: DokkeLanguage
   let reduceMotion: Bool
   @Binding var selection: Int
@@ -223,7 +229,7 @@ private struct UsageProviderPager: View {
             UsageProviderCard(
               kind: item.kind,
               provider: item.provider,
-              activityState: activity[item.kind.rawValue]?.state ?? item.provider.activity?.state ?? "idle",
+              activityState: loading ? "syncing" : (activity[item.kind.rawValue]?.state ?? item.provider.activity?.state ?? "idle"),
               language: language,
               reduceMotion: reduceMotion
             )
@@ -326,7 +332,9 @@ private struct UsageProviderCard: View {
       Spacer()
       TokenMascot(mood: provider.mascot ?? "neutral", activity: activityState, reduceMotion: reduceMotion)
         .frame(width: 38, height: 38)
-      Text(statusText)
+      Text(activityState == "syncing" ? I18n.text("usage.activitySyncing", language: language) :
+        activityState == "working" ? I18n.text("usage.activityWorking", language: language) :
+        activityState == "waiting" ? I18n.text("usage.activityWaiting", language: language) : statusText)
         .font(.caption.weight(.semibold))
         .foregroundStyle(statusColor)
     }
@@ -802,7 +810,7 @@ private struct TokenMascot: View {
   @State private var floating = false
 
   var body: some View {
-    let writing = activity == "working"
+    let writing = activity == "working" || activity == "syncing"
     ZStack {
       Circle()
         .fill(Color.white.opacity(0.16))

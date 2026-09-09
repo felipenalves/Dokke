@@ -343,6 +343,18 @@ test("PWA working mantém olhos fixos e reserva o movimento para a mão", async 
   assert.doesNotMatch(html, /usageWritingEye/);
 });
 
+test("PWA diferencia sincronização de atividade real do modelo", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const renderStart = html.indexOf("function renderUsage()");
+  const renderEnd = html.indexOf("async function loadUsage", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
+
+  assert.match(renderSource, /const manualSyncing = state\.usageLoading/);
+  assert.match(renderSource, /manualSyncing \? "syncing"/);
+  assert.match(renderSource, /usage\.activitySyncing/);
+  assert.match(html, /\.usage-mascot-wrap\[data-activity="syncing"\]/);
+});
+
 test("PWA writing usa camadas procedurais sem mover o avatar inteiro", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 

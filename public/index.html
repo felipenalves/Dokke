@@ -803,6 +803,8 @@
   .usage-token[data-mascot="exhausted"] .usage-token-eyes i{ animation: usageExhaustedEyes 4s ease-in-out infinite; }
   .usage-token[data-activity="working"]{ filter: brightness(1.04); }
   .usage-token[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-token[data-activity="syncing"]{ filter: brightness(1.04); }
+  .usage-token[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
   .usage-mascot-wrap[data-activity="waiting"] .usage-token{ animation: usageTokenAttentive 2.8s ease-in-out infinite; filter: brightness(1.06); }
   .usage-mood-bubble{ position: absolute; top: -7px; right: calc(100% + 6px); z-index: 2; width: max-content; max-width: calc(100vw - 120px); padding: 3px 7px 4px; border: 1px solid color-mix(in srgb, var(--usage-accent) 38%, transparent); border-radius: 10px 10px 4px 10px; background: color-mix(in srgb, var(--usage-accent) 13%, rgba(8,3,1,.92)); color: var(--usage-accent); font-size: 9px; font-weight: 800; line-height: 1; white-space: nowrap; box-shadow: 0 4px 9px rgba(0,0,0,.16); opacity: 0; visibility: hidden; transform: translateY(-3px) scale(.84); transform-origin: right center; pointer-events: none; }
   .usage-mood-bubble[data-status="attention"]{ --usage-accent: var(--amber); }
@@ -841,6 +843,9 @@
   .usage-mascot-wrap[data-activity="working"]{ animation: none !important; }
   .usage-mascot-wrap[data-activity="working"] .usage-token{ animation: none !important; filter: brightness(1.04); }
   .usage-mascot-wrap[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-mascot-wrap[data-activity="syncing"]{ animation: none !important; }
+  .usage-mascot-wrap[data-activity="syncing"] .usage-token{ animation: none !important; filter: brightness(1.04); }
+  .usage-mascot-wrap[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
   .usage-mood-bubble[data-reaction="true"]{ opacity: 1; visibility: visible; transform: translateY(0) scale(1); color: var(--ink); border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.12); }
   .usage-mood-bubble[data-reaction="updated"]{ opacity: 1; visibility: visible; transform: translateY(0) scale(1); color: var(--green); border-color: rgba(48,209,88,.38); background: rgba(48,209,88,.14); }
   .usage-featured{ display: block; padding: 0; border-radius: 0; background: transparent; }
@@ -1582,6 +1587,7 @@
   I18N["pt-BR"]["usage.unavailableBody"] = "Nenhuma fonte local retornou limites utilizáveis.";
   I18N["pt-BR"]["usage.noDataBody"] = "Nenhum provedor retornou limites utilizáveis.";
   I18N["pt-BR"]["usage.activityWorking"] = "Processando...";
+  I18N["pt-BR"]["usage.activitySyncing"] = "Atualizando limites";
   I18N["pt-BR"]["usage.activityWaiting"] = "Aguardando ação";
       I18N["pt-BR"]["usage.trendPeak"] = "{value}";
   I18N["pt-BR"]["usage.trendBars"] = "{count} dias de uso";
@@ -1612,6 +1618,7 @@
   I18N["en"]["usage.unavailableBody"] = "No local source returned usable limits.";
   I18N["en"]["usage.noDataBody"] = "No provider returned usable limits yet.";
   I18N["en"]["usage.activityWorking"] = "Processing...";
+  I18N["en"]["usage.activitySyncing"] = "Updating limits";
   I18N["en"]["usage.activityWaiting"] = "Waiting for action";
       I18N["en"]["usage.trendPeak"] = "{value}";
   I18N["en"]["usage.trendBars"] = "{count} days of usage";
@@ -3733,8 +3740,8 @@
       const provider = item.provider;
       const activity = usageProviderActivity(provider, item.id);
       const activityState = activity && activity.state;
-      const manualWorking = state.usageLoading;
-      const visibleActivity = manualWorking ? "working" : (activityState || "idle");
+      const manualSyncing = state.usageLoading;
+      const visibleActivity = manualSyncing ? "syncing" : (activityState || "idle");
       const mascotState = status + ":" + (provider.mascot || "neutral") + ":" + visibleActivity;
       const previousMascotState = state.usageMascotStates[item.id];
       const mascotChanged = previousMascotState !== undefined && previousMascotState !== mascotState;
@@ -3744,9 +3751,12 @@
       const token = usageTextNode("div", "usage-token", "");
       token.dataset.mascot = provider.mascot || "neutral";
       token.setAttribute("role", "img");
-      token.setAttribute("aria-label", usageMascotLabel(provider.mascot));
+      token.setAttribute("aria-label", usageMascotLabel(provider.mascot) + ". " +
+        (visibleActivity === "syncing" ? t("usage.activitySyncing") :
+          visibleActivity === "working" ? t("usage.activityWorking") :
+          visibleActivity === "waiting" ? t("usage.activityWaiting") : ""));
       token.appendChild(usageMascotEyes());
-      if (visibleActivity === "working") token.appendChild(usageWritingHand());
+      if (visibleActivity === "working" || visibleActivity === "syncing") token.appendChild(usageWritingHand());
       tokenDock.appendChild(token);
       const mascotWrap = document.createElement("div");
       mascotWrap.className = "usage-mascot-wrap";
@@ -3768,12 +3778,14 @@
         mascotWrap.classList.add("is-reacting");
       }
       token.dataset.activity = visibleActivity;
-      const statusText = visibleActivity === "working" ? t("usage.activityWorking")
+      const statusText = visibleActivity === "syncing" ? t("usage.activitySyncing")
+        : visibleActivity === "working" ? t("usage.activityWorking")
         : visibleActivity === "waiting" ? t("usage.activityWaiting")
         : usageStatusLabel(status);
       const statusNode = usageTextNode("div", "usage-mood-bubble", statusText);
       statusNode.dataset.status = status;
       statusNode.setAttribute("role", "status");
+      statusNode.setAttribute("aria-live", "polite");
       mascotWrap.appendChild(statusNode);
       return mascotWrap;
     }
