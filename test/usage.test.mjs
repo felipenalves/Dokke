@@ -233,6 +233,7 @@ test("PWA usa loading minimalista e tendência legível no mobile", async () => 
   assert.match(html, /prefers-reduced-motion:[^}]*usage-loading-bar/);
   assert.match(html, /\.usage-trend-slide\{[^}]*justify-content:\s*flex-start;/);
   assert.match(html, /\.usage-trend-slide\{[^}]*padding-top:\s*22px;/, "a tendência deve começar na mesma régua vertical do card principal");
+  assert.match(html, /\.usage-provider-slider\{[^}]*clip-path:\s*inset\(0\)/, "o pager deve recortar a pintura do slide seguinte no limite da tela ativa");
   assert.match(html, /\.usage-trend\{[^}]*border-radius:\s*32px;[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.84\), rgba\(12,14,16,\.89\)\)/, "a tendência deve compartilhar a superfície do card Codex");
   assert.match(html, /\.usage-trend-bars\{[^}]*position:\s*relative;[^}]*height:\s*clamp/);
   assert.match(html, /background-image:\s*linear-gradient/);
