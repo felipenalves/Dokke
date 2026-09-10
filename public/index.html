@@ -40,6 +40,7 @@
     --amber: #ffd60a;
     --red: #ff453a;
     --dokke-orange: #f08737;
+    --usage-mascot-scale: 1.36;
     --glass: rgba(255,255,255,.07);
     --edge: rgba(255,255,255,.10);
     --dokke-safe-top: env(safe-area-inset-top, 0px);
@@ -599,6 +600,10 @@
   .usage-resource-meter{ height: 5px; margin-top: 8px; }
   .usage-empty{ margin: 0 8px; padding: 28px 18px; border: 1px dashed rgba(255,255,255,.18); border-radius: 22px; color: var(--ink-2); font-size: 12px; line-height: 1.45; text-align: center; }
   .usage-empty strong{ display: block; color: var(--ink); font-size: 14px; margin-bottom: 6px; }
+  .usage-loading{ display: flex; align-items: center; gap: 10px; margin: 22px 8px 0; color: var(--ink-2); font-size: 11px; line-height: 1.2; }
+  .usage-loading-bar{ display: block; width: 38px; height: 3px; flex: 0 0 38px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
+  .usage-loading-bar i{ display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--dokke-orange); animation: usageLoadingSweep 1.15s cubic-bezier(.22,.61,.36,1) infinite; }
+  @keyframes usageLoadingSweep{ 0%{ transform: translateX(-140%); opacity: .25; } 48%{ opacity: 1; } 100%{ transform: translateX(250%); opacity: .25; } }
   .usage-error{ margin: 0 8px 12px; color: var(--amber); font-size: 11px; line-height: 1.35; }
   @media (prefers-reduced-motion: reduce){ .usage-token, .usage-resource-meter i, .usage-island-meter i{ transition: none; } }
 
@@ -666,7 +671,7 @@
   .usage-provider-track{ display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
   .usage-provider-track::-webkit-scrollbar{ display: none; }
   .usage-provider-slide{ min-width: 100%; flex: 0 0 100%; scroll-snap-align: start; padding: 0 8px; }
-  .usage-trend-slide{ display: flex; flex-direction: column; justify-content: center; }
+  .usage-trend-slide{ display: flex; flex-direction: column; justify-content: flex-start; padding-top: 22px; }
   .usage-trend-slide .usage-trend{ width: 100%; margin: 0; }
   /* Pager da Usage: mesmo contrato visual dos dots da tela 1. */
   .usage-provider-dots{ display: flex; align-items: center; justify-content: center; gap: 0; margin-top: auto; padding-top: 12px; padding-bottom: 4px; }
@@ -699,11 +704,11 @@
   .usage-provider-logo[data-provider="codex"]{ color: #f5f7ff; background: transparent; }
   .usage-provider-name{ font-size: 15px; letter-spacing: -.01em; }
   .usage-provider-plan{ display: inline; margin-left: 6px; color: var(--ink-3); font-size: 10px; }
-  .usage-mascot-wrap{ --usage-mascot-accent: var(--dokke-orange); position: relative; display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; width: 36px; height: 38px; margin-left: auto; }
+  .usage-mascot-wrap{ --usage-mascot-accent: var(--dokke-orange); position: relative; display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; width: 36px; height: 38px; margin-left: auto; overflow: visible; }
   .usage-mascot-wrap[data-status="attention"]{ --usage-mascot-accent: var(--amber); }
   .usage-mascot-wrap[data-status="exhausted"]{ --usage-mascot-accent: var(--red); }
   .usage-mascot-wrap[data-status="unknown"]{ --usage-mascot-accent: var(--ink-2); }
-  .usage-token-dock{ display: grid; width: 36px; height: 36px; place-items: center; border: 0; background: transparent; }
+  .usage-token-dock{ display: grid; width: 36px; height: 36px; place-items: center; border: 0; background: transparent; overflow: visible; }
   .usage-mascot-wrap .usage-token{ width: 32px; height: 32px; background: linear-gradient(145deg, rgba(255,255,255,.84), rgba(255,255,255,.28)); border-color: rgba(255,255,255,.72); box-shadow: inset 0 1px 0 rgba(255,255,255,.62), 0 0 14px rgba(255,255,255,.16), 0 4px 10px rgba(0,0,0,.24); }
   .usage-token{ width: 25px; height: 25px; border-width: 1px; transform-origin: center bottom; animation: usageTokenIdle 5.8s ease-in-out infinite; }
   @keyframes usageBlink{
@@ -717,10 +722,6 @@
   @keyframes usageExhaustedEyes{
     0%, 100%{ transform: scaleY(.34); }
     48%, 54%{ transform: scaleY(.08); }
-  }
-  @keyframes usageMascotBreathe{
-    0%, 100%{ transform: translateY(0); }
-    50%{ transform: translateY(-1px); }
   }
   @keyframes usageTokenIdle{
     0%, 100%{ transform: translateY(0) rotate(-3deg); }
@@ -756,16 +757,6 @@
     18%, 78%{ opacity: 1; transform: translateY(0) scale(1); }
     100%{ opacity: 0; transform: translateY(-2px) scale(.9); }
   }
-  @keyframes usageWritingTool{
-    0%, 8%{ transform: translateX(0) translateY(1px) rotate(-8deg); }
-    44%{ transform: translateX(10px) translateY(-1px) rotate(6deg); }
-    52%, 100%{ transform: translateX(0) translateY(1px) rotate(-8deg); }
-  }
-  @keyframes usageWritingLine{
-    0%, 8%{ stroke-dashoffset: 28; opacity: .2; }
-    44%, 52%{ stroke-dashoffset: 0; opacity: .82; }
-    60%, 100%{ stroke-dashoffset: 28; opacity: .2; }
-  }
   @keyframes usageMascotChartReaction{
     0%, 100%{ transform: translateY(0) rotate(0deg) scale(1); }
     28%{ transform: translateY(-2px) rotate(-4deg) scale(1.04); }
@@ -791,12 +782,9 @@
   }
   .usage-token-eyes{ display: inline-flex; align-items: center; justify-content: space-between; width: 58%; height: 38%; }
   .usage-token-eyes i{ display: block; width: 31%; height: 100%; flex: 0 0 31%; border-radius: 999px; background: currentColor; transform-origin: center; animation: usageBlink 4.6s ease-in-out infinite; }
-  .usage-writing-hand{ position: absolute; right: 4px; bottom: 1px; left: 4px; z-index: 2; height: 15px; color: currentColor; pointer-events: none; }
-  .usage-writing-hand svg{ display: block; width: 100%; height: 100%; overflow: visible; }
-  .usage-writing-line{ fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 28; stroke-dashoffset: 28; opacity: .2; animation: usageWritingLine 1.08s ease-in-out infinite; }
-  .usage-writing-tool{ transform-box: fill-box; transform-origin: center bottom; animation: usageWritingTool 1.08s cubic-bezier(.22,.61,.36,1) infinite; }
-  .usage-writing-palm{ fill: currentColor; opacity: .9; }
-  .usage-writing-pen{ fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; opacity: .96; }
+  .usage-mascot-sprite, .usage-mascot-idle{ position: relative; display: block; width: 100%; height: 100%; overflow: hidden; transform: scale(var(--usage-mascot-scale)); transform-origin: center; }
+  .usage-mascot-sprite-layer, .usage-mascot-idle-layer{ position: absolute; top: 0; left: 0; display: block; height: 100%; background-position: 0 50%; background-repeat: no-repeat; background-size: 100% 100%; pointer-events: none; will-change: transform, opacity; transition: opacity 90ms linear; animation: none !important; opacity: 1; }
+  .usage-mascot-sprite-layer, .usage-mascot-idle-layer{ width: 1600%; }
   .usage-token[data-mascot="energized"] .usage-token-eyes i{ animation: usageBlink 4.2s ease-in-out infinite; }
   .usage-token[data-mascot="attentive"] .usage-token-eyes i{ animation: usageBlink 3.2s ease-in-out infinite; }
   .usage-token[data-mascot="tired"] .usage-token-eyes i{ animation: usageTiredEyes 3.4s ease-in-out infinite; }
@@ -805,7 +793,13 @@
   .usage-token[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
   .usage-token[data-activity="syncing"]{ filter: brightness(1.04); }
   .usage-token[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
-  .usage-mascot-wrap[data-activity="waiting"] .usage-token{ animation: usageTokenAttentive 2.8s ease-in-out infinite; filter: brightness(1.06); }
+  .usage-token[data-mascot-sprite="true"]{ background: transparent; border-color: transparent; box-shadow: none; overflow: visible; }
+  .usage-token[data-mascot-sprite="true"]{ animation: none; }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"]{ display: grid; width: 32px; height: 32px; border: 2px solid rgba(255,138,56,.84); border-radius: 10px; background: linear-gradient(145deg, #ff8a38, #d95b18); color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,.24); }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"]::before{ content: ">_"; position: relative; z-index: 1; font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"] .usage-mascot-sprite,
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"] .usage-mascot-idle{ display: none; }
+  .usage-mascot-wrap[data-activity="waiting"] .usage-token{ filter: brightness(1.06); }
   .usage-mood-bubble{ position: absolute; top: -7px; right: calc(100% + 6px); z-index: 2; width: max-content; max-width: calc(100vw - 120px); padding: 3px 7px 4px; border: 1px solid color-mix(in srgb, var(--usage-accent) 38%, transparent); border-radius: 10px 10px 4px 10px; background: color-mix(in srgb, var(--usage-accent) 13%, rgba(8,3,1,.92)); color: var(--usage-accent); font-size: 9px; font-weight: 800; line-height: 1; white-space: nowrap; box-shadow: 0 4px 9px rgba(0,0,0,.16); opacity: 0; visibility: hidden; transform: translateY(-3px) scale(.84); transform-origin: right center; pointer-events: none; }
   .usage-mood-bubble[data-status="attention"]{ --usage-accent: var(--amber); }
   .usage-mood-bubble[data-status="exhausted"]{ --usage-accent: var(--red); }
@@ -823,11 +817,6 @@
     68%, 80%{ transform: scaleY(.1); }
   }
   .usage-mascot-wrap{ border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
-  .usage-mascot-wrap{ animation: usageMascotBreathe 3.4s ease-in-out infinite; }
-  .usage-mascot-wrap[data-mascot="energized"]{ animation-duration: 2.7s; }
-  .usage-mascot-wrap[data-mascot="attentive"]{ animation-duration: 3.1s; }
-  .usage-mascot-wrap[data-mascot="tired"]{ animation-duration: 4.2s; }
-  .usage-mascot-wrap[data-mascot="exhausted"]{ animation-duration: 4.8s; }
   .usage-mascot-wrap.is-status-changing .usage-token{ animation: usageStatusChange 1.1s cubic-bezier(.22,.61,.36,1); }
   .usage-mascot-wrap.is-status-changing .usage-token-eyes i{ animation: usageTapBlink 1.1s ease-in-out !important; }
   .usage-mascot-wrap.is-reacting{ animation: usageMascotTap .64s cubic-bezier(.22,.61,.36,1); }
@@ -840,10 +829,8 @@
   .usage-mascot-wrap[data-reaction="provider"]{ animation: usageMascotProviderReaction .82s cubic-bezier(.22,.61,.36,1); }
   .usage-mascot-wrap[data-reaction="provider"] .usage-token{ animation: usageTokenProviderReaction .82s cubic-bezier(.22,.61,.36,1); }
   .usage-mascot-wrap[data-reaction="provider"] .usage-token-eyes i{ animation: usageTapBlink .82s ease-in-out !important; }
-  .usage-mascot-wrap[data-activity="working"]{ animation: none !important; }
   .usage-mascot-wrap[data-activity="working"] .usage-token{ animation: none !important; filter: brightness(1.04); }
   .usage-mascot-wrap[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
-  .usage-mascot-wrap[data-activity="syncing"]{ animation: none !important; }
   .usage-mascot-wrap[data-activity="syncing"] .usage-token{ animation: none !important; filter: brightness(1.04); }
   .usage-mascot-wrap[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
   .usage-mood-bubble[data-reaction="true"]{ opacity: 1; visibility: visible; transform: translateY(0) scale(1); color: var(--ink); border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.12); }
@@ -867,13 +854,16 @@
   .usage-limit-meter i[data-active="true"]{ background: var(--usage-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--usage-accent) 42%, transparent); }
   .usage-limit .usage-provider-logo{ position: absolute; top: 8px; right: 9px; width: 24px; height: 24px; border-radius: 0; }
   .usage-limit .usage-provider-logo svg{ width: 22px; height: 22px; }
-  .usage-trend{ margin-top: 10px; padding: 13px 14px 11px; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; background: rgba(36,17,6,.42); }
+  .usage-trend{ margin-top: 10px; padding: 16px 16px 13px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px; background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.20); }
   .usage-trend-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .usage-trend-title{ color: var(--ink); font-size: 12px; font-weight: 800; }
   .usage-trend-peak{ overflow: hidden; color: var(--ink-3); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-  .usage-trend-bars{ display: flex; align-items: flex-end; gap: 3px; height: 76px; margin-top: 10px; padding: 0 1px 2px; border-bottom: 1px solid rgba(255,255,255,.12); }
-  .usage-trend-bar{ min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: rgba(255,255,255,.66); opacity: 1; box-shadow: 0 0 8px rgba(255,255,255,.1); }
+  .usage-trend-bars{ position: relative; display: flex; align-items: flex-end; gap: 3px; height: clamp(150px, 31vh, 230px); margin-top: 13px; padding: 0 1px 3px; border-bottom: 1px solid rgba(255,255,255,.16); background-image: linear-gradient(to bottom, transparent 0, transparent calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% + .5px), transparent calc(33.333% + .5px), transparent calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
+  .usage-trend-bar{ position: relative; z-index: 1; min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--dokke-orange) 70%, white); opacity: .82; box-shadow: none; }
+  .usage-trend-bar[data-level="empty"]{ height: 4px; opacity: .28; background: rgba(255,255,255,.72); }
+  .usage-trend-bar[data-peak="true"]{ background: #fff; opacity: 1; box-shadow: 0 0 10px rgba(255,255,255,.18); }
   .usage-trend-axis{ display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; color: var(--ink-3); font-size: 9px; }
+  .usage-trend-axis-label{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .usage-trend-note{ display: block; margin-top: 10px; color: var(--ink-3); font-size: 10px; line-height: 1.3; text-align: center; }
   .usage-limit-empty{ color: var(--ink-2); }
   .usage-featured-copy{ display: none; }
@@ -888,8 +878,9 @@
     .usage-limit.primary{ min-height: 160px; padding: 12px 14px 11px; }
     .usage-limit.primary .usage-limit-value{ font-size: clamp(58px, 17vw, 78px); font-weight: 700; margin-top: 14px; }
     .usage-limit:not(.primary) .usage-limit-value{ font-size: clamp(31px, 8vw, 42px); font-weight: 700; margin-top: 12px; }
-    .usage-trend{ padding: 10px 12px 8px; }
-    .usage-trend-bars{ height: 42px; }
+    .usage-trend-slide{ padding-top: 22px; }
+    .usage-trend{ padding: 14px 13px 11px; }
+    .usage-trend-bars{ height: clamp(150px, 31vh, 210px); }
     .usage-trend-note{ margin-top: 6px; }
     .usage-provider-dots{ padding-top: 2px; padding-bottom: 2px; }
   }
@@ -945,7 +936,7 @@
     .usage-limit.primary .usage-limit-meter{ height: 7px; margin-top: 3px; }
     .usage-limit .usage-provider-logo{ top: 6px; right: 8px; width: 24px; height: 24px; border-radius: 0; }
     .usage-limit .usage-provider-logo svg{ width: 22px; height: 22px; }
-    .usage-trend{ margin-top: 4px; padding: 5px 8px 4px; }
+    .usage-trend{ margin-top: 0; padding: 14px 13px 11px; border-radius: 32px; }
     .usage-trend-title{ font-size: 10px; }
     .usage-trend-peak{ font-size: 9px; }
     .usage-trend-bars{ height: clamp(34px, 12vh, 48px); margin-top: 4px; }
@@ -954,9 +945,10 @@
     .usage-provider-dots{ padding-top: 1px; padding-bottom: 0; }
   }
   @media (prefers-reduced-motion: reduce){ .usage-live-dot[data-state="online"]{ animation: none; } }
+  @media (prefers-reduced-motion: reduce){ .usage-loading-bar i{ width: 100%; transform: translateX(0); opacity: .5; animation: none; } }
   @media (prefers-reduced-motion: reduce){ .usage-token-eyes i{ animation-duration: 7s; } }
   @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap{ animation-duration: 8s; } }
-  @media (prefers-reduced-motion: reduce){ .usage-writing-tool, .usage-writing-line{ animation-duration: 2.2s; } }
+  @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap[data-activity="working"], .usage-mascot-wrap[data-activity="syncing"]{ animation-duration: 4.4s; } }
   @media (prefers-reduced-motion: reduce){
     .usage-mascot-wrap[data-reaction="chart"], .usage-mascot-wrap[data-reaction="chart"] .usage-token,
     .usage-mascot-wrap[data-reaction="provider"], .usage-mascot-wrap[data-reaction="provider"] .usage-token{ animation: none; }
@@ -980,6 +972,9 @@
   .usage-content .usage-five-copy span,
   .usage-content .usage-peek{ font-family: inherit; }
   .usage-provider-slide{ padding: 0; }
+  /* O reset do slide acima vem depois das regras mobile; reaplica aqui a
+     folga do segundo slide para que a tendência não encoste no cabeçalho. */
+  .usage-trend-slide{ padding-top: 22px; }
   .usage-stack{ margin: 22px 8px 0 0; }
   .usage-provider-slider{ width: 100%; }
   .usage-provider-track{ width: 100%; }
@@ -1071,7 +1066,6 @@
   .usage-title{ font-family: inherit; font-size: 36px; font-weight: 700; line-height: .95; letter-spacing: -.055em; }
   .usage-head{ gap: 10px; margin-left: 0; margin-right: 8px; margin-bottom: 0; }
   .usage-card.is-open .usage-card-head{ min-height: 28px; margin-bottom: 0; }
-  .usage-head-mascot .usage-token-dock{ border: 1px solid rgba(255,255,255,.15); border-radius: 22px; background: rgba(0,0,0,.2); }
   .usage-mascot-wrap[data-status="attention"]{ --usage-mascot-accent: #ff8a38; }
   .usage-head-mascot{ min-height: 64px; }
   .usage-head-mascot .usage-mascot-wrap{ width: 64px; height: 64px; }
@@ -1125,6 +1119,40 @@
   .usage-card.is-open{ padding: 16px 16px 14px; }
   @media (orientation: portrait){
     .usage-scroll{ padding: 14px 0 30px; }
+  }
+
+  /* Usage mobile horizontal: aproveita a largura da tela e separa a
+     leitura principal dos provedores secundários. */
+  @media (orientation: landscape) and (max-height: 760px) and (pointer: coarse),
+         (max-width: 699px) and (orientation: landscape){
+    .usage-scroll{
+      align-items: stretch;
+      overflow: hidden;
+      padding: 10px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .usage-content{
+      width: min(100%, 620px); max-width: 620px; min-height: 0; flex: 1 1 auto;
+      margin: 0 auto; padding: 0;
+    }
+    .usage-head{ min-height: 50px; margin: 0 8px 10px; align-items: center; }
+    .usage-title{ font-size: 30px; }
+    .usage-provider-slider{ width: 100%; min-height: 0; flex: 1 1 auto; }
+    .usage-provider-track{ width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
+    .usage-provider-slide{ display: block; width: 100%; height: 100%; min-height: 0; padding: 0; }
+    .usage-stack{
+      display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-rows: repeat(3, minmax(0,1fr));
+      gap: 8px 12px; width: 100%; height: 100%; min-height: 0; margin: 0;
+    }
+    .usage-card.is-open{
+      grid-column: 1; grid-row: 1 / span 3; height: 100%; min-height: 0; padding: 10px; border-radius: 32px;
+    }
+    .usage-card.is-closed{
+      grid-column: 2; height: auto; min-height: 0; margin: 0; padding: 10px 12px; border-radius: 20px;
+    }
+    .usage-card.is-closed .usage-card-head{ margin: 0; }
+    .usage-trend-slide{ display: flex; height: 100%; padding: 22px 0 0; }
+    .usage-trend-slide .usage-trend{ min-height: 0; flex: 1 1 auto; }
+    .usage-provider-dots{ flex: 0 0 auto; margin-top: 0; padding: 4px 0 2px; }
   }
 
   /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
@@ -1967,7 +1995,7 @@
     installedReady: false,
     obs: { connected: false, error: false, scenes: [], scene: null, recording: false, streaming: false },
     obsTimer: null,
-    usage: null, usageActivity: null, usageError: null, usageLoading: false, usageOpenId: null, usageProviderId: null, usageMascotStates: {}, usageMascotReaction: null,
+    usage: null, usageActivity: null, usageError: null, usageLoading: false, usageOpenId: null, usageProviderId: null, usageMascotStates: {}, usageMascotAnimations: Object.create(null), usageMascotReaction: null,
     usageSettings: { enabled: true, display: "used", reset: "exact" },
   };
 
@@ -2859,35 +2887,355 @@
     return node;
   }
 
-  function usageMascotEyes(){
-    const eyes = usageTextNode("span", "usage-token-eyes", "");
-    eyes.setAttribute("aria-hidden", "true");
-    eyes.appendChild(document.createElement("i"));
-    eyes.appendChild(document.createElement("i"));
-    return eyes;
+  const MASCOT_ASSET_VERSION = "?v=20260909-11";
+  const MASCOT_FRAME_DURATION = 180;
+  const MASCOT_FRAME_CROSSFADE_MS = 90;
+  const MASCOT_AMBIENT_PHASES = ["idlePrincipal", "idlePrincipal", "idleCoffee", "idlePrincipal", "idleOne", "idlePrincipal"];
+
+  function usageMascotFrames(duration){
+    return Array.from({ length: 16 }, function(_, index){
+      return { spriteIndex: index, duration: duration };
+    });
   }
 
-  function usageWritingHand(){
-    const hand = usageTextNode("span", "usage-writing-hand", "");
-    hand.setAttribute("aria-hidden", "true");
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 32 24");
-    svg.setAttribute("aria-hidden", "true");
-    const path = function(tag, attributes, className){
-      const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
-      Object.keys(attributes).forEach(function(name){ node.setAttribute(name, attributes[name]); });
-      node.setAttribute("class", className);
-      return node;
+  function usageMascotTrack(file, loop){
+    return {
+      asset: "/mascot/" + file + MASCOT_ASSET_VERSION,
+      frameCount: 16,
+      frames: usageMascotFrames(MASCOT_FRAME_DURATION),
+      loopStart: loop ? 0 : null,
     };
-    svg.appendChild(path("path", { d: "M2 18 C6 15, 9 20, 13 17 S20 20, 27 16" }, "usage-writing-line"));
-    const tool = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    tool.setAttribute("class", "usage-writing-tool");
-    tool.setAttribute("aria-hidden", "true");
-    tool.appendChild(path("path", { d: "M7 18 C6 15, 7 11, 9 8 C10 7, 11 8, 10 11 L9 14 C10 11, 11 7, 12 8 C13 8, 12 12, 12 14 C13 11, 14 9, 15 10 C16 11, 14 15, 14 16 C15 14, 17 13, 18 15 C18 17, 15 20, 11 21 Z" }, "usage-writing-palm"));
-    tool.appendChild(path("line", { x1: "9", y1: "14", x2: "17", y2: "6" }, "usage-writing-pen"));
-    svg.appendChild(tool);
-    hand.appendChild(svg);
-    return hand;
+  }
+
+  const USAGE_MASCOT_TRACKS = {
+    working: {
+      start: usageMascotTrack("dokke-mascot-working-start-strip.webp", false),
+      loop: usageMascotTrack("dokke-mascot-working-loop-strip.webp", true),
+      end: usageMascotTrack("dokke-mascot-working-end-strip.webp", false),
+    },
+    thinking: {
+      start: usageMascotTrack("dokke-mascot-thinking-start-strip.webp", false),
+      loop: usageMascotTrack("dokke-mascot-thinking-loop-strip.webp", true),
+      end: usageMascotTrack("dokke-mascot-thinking-end-strip.webp", false),
+    },
+    idle: {
+      idlePrincipal: usageMascotTrack("dokke-mascot-idle-principal-strip.webp", false),
+      idleOne: usageMascotTrack("dokke-mascot-idle-one-strip.webp", false),
+      idleCoffee: usageMascotTrack("dokke-mascot-idle-coffee-strip.webp", false),
+    },
+  };
+
+  const usageMascotAssetCache = Object.create(null);
+
+  function usageMascotAssetReady(asset){
+    if (usageMascotAssetCache[asset]) return usageMascotAssetCache[asset];
+    if (typeof Image !== "function") return Promise.resolve();
+    usageMascotAssetCache[asset] = new Promise(function(resolve){
+      const image = new Image();
+      let settled = false;
+      const done = function(ready){
+        if (settled) return;
+        settled = true;
+        resolve(ready);
+      };
+      image.onload = function(){ done(true); };
+      image.onerror = function(){ done(false); };
+      image.decoding = "async";
+      image.src = asset;
+      if (typeof image.decode === "function") image.decode().then(function(){ done(true); }, function() {});
+    });
+    return usageMascotAssetCache[asset];
+  }
+
+  Object.keys(USAGE_MASCOT_TRACKS).forEach(function(activity){
+    Object.keys(USAGE_MASCOT_TRACKS[activity]).forEach(function(phase){
+      usageMascotAssetReady(USAGE_MASCOT_TRACKS[activity][phase].asset);
+    });
+  });
+
+  function usageMascotNow(){
+    return typeof performance === "object" && performance && typeof performance.now === "function"
+      ? performance.now() : Date.now();
+  }
+
+  function usageMascotReducedMotion(){
+    try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+    catch (e) { return false; }
+  }
+
+  function usageMascotFrameAtElapsed(animation, elapsedMs){
+    const frames = animation.frames;
+    if (!frames.length) return { spriteIndex: 0, delay: null };
+    if (frames.length === 1) return { spriteIndex: frames[0].spriteIndex, delay: null };
+    let elapsed = Math.max(0, elapsedMs);
+    const total = frames.reduce(function(sum, frame){ return sum + frame.duration; }, 0);
+    const loopStart = Number.isInteger(animation.loopStart) ? animation.loopStart : null;
+    if (loopStart != null && loopStart >= 0 && loopStart < frames.length){
+      const prefix = frames.slice(0, loopStart).reduce(function(sum, frame){ return sum + frame.duration; }, 0);
+      const loopDuration = total - prefix;
+      if (elapsed >= total && loopDuration > 0){
+        elapsed = prefix + (elapsed - prefix) % loopDuration;
+      }
+    } else if (elapsed >= total){
+      const finalFrame = frames[frames.length - 1];
+      return { spriteIndex: finalFrame.spriteIndex, delay: null };
+    }
+    for (let i = 0; i < frames.length; i++){
+      const duration = Math.max(1, frames[i].duration);
+      if (elapsed < duration){
+        return {
+          spriteIndex: frames[i].spriteIndex,
+          delay: duration - elapsed,
+        };
+      }
+      elapsed -= duration;
+    }
+    return { spriteIndex: frames[frames.length - 1].spriteIndex, delay: null };
+  }
+
+  function usageMascotRequestFrame(callback){
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(callback);
+    else setTimeout(function(){ callback(usageMascotNow()); }, 16);
+  }
+
+  function usageMascotAnimationRate(){
+    // Movimento reduzido desacelera o mascote, mas não o congela no primeiro frame.
+    return usageMascotReducedMotion() ? 0.5 : 1;
+  }
+
+  function usageMascotLayers(sprite){
+    return Array.from(sprite.children).filter(function(layer){
+      return layer.classList.contains("usage-mascot-sprite-layer") || layer.classList.contains("usage-mascot-idle-layer");
+    }).slice(0, 2);
+  }
+
+  function usageMascotActiveLayer(sprite){
+    const layers = usageMascotLayers(sprite);
+    const index = Number(sprite.dataset.activeLayer);
+    return layers[Number.isInteger(index) ? index : 0] || layers[0] || null;
+  }
+
+  function usageMascotPreparePhase(sprite, animation, preserveVisible){
+    const layers = usageMascotLayers(sprite);
+    if (layers.length < 2) return;
+    const activeIndex = Number(sprite.dataset.activeLayer);
+    const currentIndex = Number.isInteger(activeIndex) && activeIndex >= 0 && activeIndex < layers.length ? activeIndex : 0;
+    const active = layers[currentIndex];
+    const incoming = layers[1 - currentIndex];
+    const configure = function(layer){
+      layer.style.width = animation.frameCount * 100 + "%";
+      layer.style.backgroundImage = "url(\"" + animation.asset + "\")";
+      layer.dataset.frameCount = String(animation.frameCount);
+      layer.dataset.phase = sprite.dataset.phase || "";
+      layer.dataset.asset = animation.asset;
+    };
+    if (!preserveVisible){
+      layers.forEach(function(layer, index){
+        configure(layer);
+        layer.dataset.frame = index === currentIndex ? "" : "";
+        layer.dataset.active = index === currentIndex ? "true" : "false";
+        layer.style.transition = "none";
+        layer.style.transform = "translate3d(0, 0, 0)";
+        layer.style.opacity = index === currentIndex ? "1" : "0";
+      });
+      sprite.dataset.activeLayer = String(currentIndex);
+      return;
+    }
+    configure(incoming);
+    incoming.dataset.frame = "";
+    incoming.dataset.active = "false";
+    incoming.style.transition = "none";
+    incoming.style.transform = "translate3d(0, 0, 0)";
+    incoming.style.opacity = "0";
+    active.dataset.active = "true";
+  }
+
+  function usageMascotPaintFrame(sprite, layer, animation, startedAt, now){
+    const rate = usageMascotAnimationRate();
+    const frame = usageMascotFrameAtElapsed(animation, (now - startedAt) * rate);
+    const frameKey = String(frame.spriteIndex);
+    const active = usageMascotActiveLayer(sprite) || layer;
+    const assetChanged = active.dataset.asset !== animation.asset;
+    if (active.dataset.frame !== frameKey || assetChanged){
+      if (!assetChanged){
+        active.dataset.frame = frameKey;
+        active.style.transform = "translate3d(-" + (frame.spriteIndex * 100 / animation.frameCount).toFixed(4) + "%, 0, 0)";
+        return frame.delay == null ? null : frame.delay / rate;
+      }
+      const layers = usageMascotLayers(sprite);
+      const activeIndex = layers.indexOf(active) >= 0 ? layers.indexOf(active) : 0;
+      const incoming = layers.length > 1 ? layers[1 - activeIndex] : active;
+      const offset = frame.spriteIndex * 100 / animation.frameCount;
+      const position = offset === 0 ? "0" : offset.toFixed(4);
+      incoming.style.transition = "none";
+      incoming.style.width = animation.frameCount * 100 + "%";
+      incoming.style.backgroundImage = "url(\"" + animation.asset + "\")";
+      incoming.dataset.frameCount = String(animation.frameCount);
+      incoming.dataset.phase = animation.asset;
+      incoming.dataset.asset = animation.asset;
+      incoming.dataset.frame = frameKey;
+      incoming.style.transform = "translate3d(-" + position + "%, 0, 0)";
+      incoming.style.opacity = "0";
+      void incoming.offsetWidth;
+      incoming.style.transition = "opacity " + MASCOT_FRAME_CROSSFADE_MS + "ms linear";
+      active.style.transition = "opacity " + MASCOT_FRAME_CROSSFADE_MS + "ms linear";
+      incoming.style.opacity = "1";
+      active.style.opacity = "0";
+      active.dataset.active = "false";
+      incoming.dataset.active = "true";
+      sprite.dataset.activeLayer = String(layers.indexOf(incoming));
+    }
+    return frame.delay == null ? null : frame.delay / rate;
+  }
+
+  function usageMascotComplete(sprite, onComplete){
+    if (typeof onComplete !== "function") return;
+    if (sprite.isConnected){
+      onComplete();
+      return;
+    }
+    // usageMascotNode starts the clock before renderUsage appends the node.
+    // Defer only the disconnected case so an already-finished finite track
+    // cannot lose its start/end transition during that same render turn.
+    const complete = function(){ if (sprite.isConnected) onComplete(); };
+    if (typeof queueMicrotask === "function") queueMicrotask(complete);
+    else Promise.resolve().then(complete);
+  }
+
+  function usageMascotRun(sprite, layer, animation, startedAt, onComplete){
+    function schedule(delay){
+      if (delay == null){
+        usageMascotComplete(sprite, onComplete);
+        return;
+      }
+      setTimeout(function(){
+        if (!sprite.isConnected || state.screen !== "usage") return;
+        usageMascotRequestFrame(function(now){
+          if (state.screen !== "usage") return;
+          const nextDelay = usageMascotPaintFrame(sprite, layer, animation, startedAt, now);
+          schedule(nextDelay);
+        });
+      }, Math.max(1, Math.ceil(delay)));
+    }
+    usageMascotAssetReady(animation.asset).then(function(ready){
+      if (!sprite.isConnected || state.screen !== "usage") return;
+      const token = sprite.parentElement;
+      if (!ready){
+        if (token) token.dataset.assetError = "true";
+        return;
+      }
+      const delay = usageMascotPaintFrame(sprite, layer, animation, startedAt, usageMascotNow());
+      schedule(delay);
+    });
+  }
+
+  function usageMascotActivityType(activity){
+    if (activity === "working" || activity === "syncing") return "working";
+    if (activity === "waiting") return "thinking";
+    return "idle";
+  }
+
+  function usageMascotTrackFor(controller){
+    const group = USAGE_MASCOT_TRACKS[controller.activity] || USAGE_MASCOT_TRACKS.idle;
+    return group[controller.phase] || group.loop || group.idlePrincipal || group.idleOne;
+  }
+
+  function usageMascotNextIdlePhase(controller){
+    const index = controller.ambientIndex % MASCOT_AMBIENT_PHASES.length;
+    controller.ambientIndex = (index + 1) % MASCOT_AMBIENT_PHASES.length;
+    return MASCOT_AMBIENT_PHASES[index];
+  }
+
+  function usageMascotStartPhase(controller, activity){
+    return activity === "idle" ? usageMascotNextIdlePhase(controller) : "start";
+  }
+
+  function usageMascotAdvance(providerId, controller, token, sprite){
+    const current = state.usageMascotAnimations && state.usageMascotAnimations[providerId];
+    if (current !== controller || current.token !== token) return;
+    const now = usageMascotNow();
+    if (controller.phase === "start"){
+      controller.phase = "loop";
+    } else if (controller.phase === "end"){
+      controller.activity = controller.targetActivity;
+      controller.phase = usageMascotStartPhase(controller, controller.activity);
+    } else {
+      controller.phase = usageMascotStartPhase(controller, controller.activity);
+    }
+    controller.startedAt = now;
+    controller.token += 1;
+    if (!sprite || !sprite.isConnected){
+      if (state.screen === "usage" && state.usage) renderUsage();
+      return;
+    }
+    const idle = controller.activity === "idle";
+    const animation = usageMascotTrackFor(controller);
+    const layer = usageMascotActiveLayer(sprite);
+    if (!layer) return;
+    const spriteClass = idle ? "usage-mascot-idle usage-mascot-phase" : "usage-mascot-sprite usage-mascot-phase";
+    const layerClass = idle ? "usage-mascot-idle-layer" : "usage-mascot-sprite-layer";
+    sprite.className = spriteClass;
+    Array.from(sprite.children).forEach(function(child){ child.className = layerClass; });
+    sprite.dataset.phase = controller.phase;
+    sprite.dataset.activity = controller.activity;
+    usageMascotPreparePhase(sprite, animation, true);
+    usageMascotRun(sprite, layer, animation, controller.startedAt, function(){
+      usageMascotAdvance(providerId, controller, controller.token, sprite);
+    });
+  }
+
+  function usageMascotEnsureAnimation(providerId, requestedActivity){
+    if (!state.usageMascotAnimations || typeof state.usageMascotAnimations !== "object") state.usageMascotAnimations = Object.create(null);
+    const now = usageMascotNow();
+    const hasController = Object.prototype.hasOwnProperty.call(state.usageMascotAnimations, providerId);
+    let controller = hasController ? state.usageMascotAnimations[providerId] : null;
+    if (!controller){
+      controller = {
+        activity: requestedActivity,
+        targetActivity: requestedActivity,
+        phase: usageMascotStartPhase({ ambientIndex: 0 }, requestedActivity),
+        ambientIndex: requestedActivity === "idle" ? 1 : 0,
+        startedAt: now,
+        token: 0,
+      };
+      state.usageMascotAnimations[providerId] = controller;
+      return controller;
+    }
+    if (controller.targetActivity === requestedActivity) return controller;
+    controller.targetActivity = requestedActivity;
+    if (controller.phase === "end") return controller;
+    if (controller.activity !== "idle"){
+      controller.phase = "end";
+      controller.startedAt = now;
+      controller.token += 1;
+      return controller;
+    }
+    controller.activity = requestedActivity;
+    controller.phase = usageMascotStartPhase(controller, requestedActivity);
+    controller.startedAt = now;
+    controller.token += 1;
+    return controller;
+  }
+
+  function usageMascotNode(providerId, controller){
+    const idle = controller.activity === "idle";
+    const className = idle ? "usage-mascot-idle usage-mascot-phase" : "usage-mascot-sprite usage-mascot-phase";
+    const layerClassName = idle ? "usage-mascot-idle-layer" : "usage-mascot-sprite-layer";
+    const animation = usageMascotTrackFor(controller);
+    const token = controller.token;
+    const sprite = usageTextNode("span", className, "");
+    sprite.setAttribute("aria-hidden", "true");
+    sprite.dataset.phase = controller.phase;
+    sprite.dataset.activity = controller.activity;
+    const firstLayer = usageTextNode("span", layerClassName, "");
+    const secondLayer = usageTextNode("span", layerClassName, "");
+    sprite.appendChild(firstLayer);
+    sprite.appendChild(secondLayer);
+    usageMascotPreparePhase(sprite, animation, false);
+    usageMascotRun(sprite, firstLayer, animation, controller.startedAt, function(){
+      usageMascotAdvance(providerId, controller, token, sprite);
+    });
+    return sprite;
   }
 
   function usageResourceLabel(id, resource){
@@ -3188,9 +3536,10 @@
       tokenDock.className = "usage-token-dock";
       const token = usageTextNode("div", "usage-token", "");
       token.dataset.mascot = provider.mascot || "neutral";
+      token.dataset.mascotSprite = "true";
       token.setAttribute("role", "img");
       token.setAttribute("aria-label", usageMascotLabel(provider.mascot));
-      token.appendChild(usageMascotEyes());
+      token.appendChild(usageMascotNode(item.id, usageMascotEnsureAnimation(item.id, "idle")));
       tokenDock.appendChild(token);
       islandMain.appendChild(tokenDock);
       const islandCopy = document.createElement("div");
@@ -3599,15 +3948,24 @@
     points.forEach(function(point){
       const bar = document.createElement("i");
       bar.className = "usage-trend-bar";
-      bar.style.setProperty("--trend-height", Math.max(5, Math.round((point.value / maxValue) * 100)) + "%");
+      const value = Number(point.value);
+      bar.dataset.level = value > 0 ? "used" : "empty";
+      bar.dataset.peak = peak === point ? "true" : "false";
+      bar.style.setProperty("--trend-height", Math.max(5, Math.round((value / maxValue) * 100)) + "%");
       bar.title = point.label + " · " + (point.valueLabel || usageTrendValue(point.value));
       bars.appendChild(bar);
     });
     trendNode.appendChild(bars);
     const axis = document.createElement("div");
     axis.className = "usage-trend-axis";
-    axis.appendChild(usageTextNode("span", "", points[0].label));
-    axis.appendChild(usageTextNode("span", "", points[points.length - 1].label));
+    const middleIndex = Math.floor((points.length - 1) / 2);
+    [0, middleIndex, points.length - 1].filter(function(index, position, indexes){
+      return indexes.indexOf(index) === position;
+    }).forEach(function(index){
+      const label = usageTextNode("span", "usage-trend-axis-label", points[index].label);
+      label.dataset.position = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
+      axis.appendChild(label);
+    });
     trendNode.appendChild(axis);
     if (trend.note) trendNode.appendChild(usageTextNode("small", "usage-trend-note", trend.note));
     return trendNode;
@@ -3618,6 +3976,20 @@
     if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, "") + "M tokens";
     if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + "K tokens";
     return Math.round(value) + " tokens";
+  }
+
+  function usageLoadingNode(){
+    const loading = document.createElement("div");
+    loading.className = "usage-loading";
+    loading.setAttribute("role", "status");
+    loading.setAttribute("aria-live", "polite");
+    const bar = document.createElement("span");
+    bar.className = "usage-loading-bar";
+    bar.setAttribute("aria-hidden", "true");
+    bar.appendChild(document.createElement("i"));
+    loading.appendChild(bar);
+    loading.appendChild(usageTextNode("span", "usage-loading-copy", t("usage.loading")));
+    return loading;
   }
 
   function animateUsageProviderPromotion(root, previousRects){
@@ -3688,7 +4060,7 @@
 
     if (state.usageError) content.appendChild(usageTextNode("div", "usage-error", state.usageError));
     if (state.usageLoading && !state.usage){
-      content.appendChild(usageTextNode("div", "usage-empty", t("usage.loading")));
+      content.appendChild(usageLoadingNode());
       root.replaceChildren(scroll);
       return;
     }
@@ -3742,10 +4114,12 @@
       const activityState = activity && activity.state;
       const manualSyncing = state.usageLoading;
       const visibleActivity = manualSyncing ? "syncing" : (activityState || "idle");
+      const mascotActivity = usageMascotActivityType(visibleActivity);
       const mascotState = status + ":" + (provider.mascot || "neutral") + ":" + visibleActivity;
       const previousMascotState = state.usageMascotStates[item.id];
       const mascotChanged = previousMascotState !== undefined && previousMascotState !== mascotState;
       state.usageMascotStates[item.id] = mascotState;
+      const mascotAnimation = usageMascotEnsureAnimation(item.id, mascotActivity);
       const tokenDock = document.createElement("div");
       tokenDock.className = "usage-token-dock";
       const token = usageTextNode("div", "usage-token", "");
@@ -3755,8 +4129,8 @@
         (visibleActivity === "syncing" ? t("usage.activitySyncing") :
           visibleActivity === "working" ? t("usage.activityWorking") :
           visibleActivity === "waiting" ? t("usage.activityWaiting") : ""));
-      token.appendChild(usageMascotEyes());
-      if (visibleActivity === "working" || visibleActivity === "syncing") token.appendChild(usageWritingHand());
+      token.dataset.mascotSprite = "true";
+      token.appendChild(usageMascotNode(item.id, mascotAnimation));
       tokenDock.appendChild(token);
       const mascotWrap = document.createElement("div");
       mascotWrap.className = "usage-mascot-wrap";
@@ -5157,7 +5531,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v24").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v28").catch(function() {});
   }
 })();</script>
 </body>

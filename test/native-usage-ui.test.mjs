@@ -146,28 +146,63 @@ test("tela nativa acompanha atividade real e anima o Token enquanto trabalha", a
   assert.match(usage, /activityState/);
   assert.match(usage, /let activity:\s*String/);
   assert.match(usage, /TimelineView\(\.animation/);
-  assert.match(usage, /let writing = activity == "working"/);
-  assert.match(usage, /activity == "working"/);
+  assert.match(usage, /MascotVisualActivity\(activity: activity\)/);
+  assert.match(usage, /case "waiting": self = \.thinking/);
+  assert.match(usage, /PhasedMascotAnimation\(activity: activity, reduceMotion: reduceMotion\)/);
 });
 
-test("working usa a sequência de escrita com mão e caneta, não deformação dos olhos", async () => {
+test("working e thinking usam spritesheets inteiros, não overlay de caneta", async () => {
   const usage = await source("UsageView.swift");
 
-  assert.match(usage, /private struct WorkingMascotAnimation/);
-  assert.match(usage, /Canvas/);
-  assert.match(usage, /WritingHand/);
-  assert.match(usage, /writingPhase/);
-  assert.doesNotMatch(usage, /let leftEye = writing \?/);
-  assert.doesNotMatch(usage, /let rightEye = writing \?/);
+  assert.match(usage, /private struct PhasedMascotAnimation/);
+  assert.match(usage, /SpriteMascotFrame/);
+  assert.match(usage, /dokke-mascot-working-start-strip/);
+  assert.match(usage, /dokke-mascot-working-loop-strip/);
+  assert.match(usage, /dokke-mascot-thinking-start-strip/);
+  assert.match(usage, /dokke-mascot-thinking-loop-strip/);
+  assert.match(usage, /Image\(nsImage:/);
+  assert.doesNotMatch(usage, /WritingHand|Canvas/);
 });
 
-test("working mantém os olhos fixos e anima somente a mão", async () => {
+test("working troca start, loop e end em vez de animar apenas a mão", async () => {
   const usage = await source("UsageView.swift");
 
-  assert.match(usage, /StaticWritingEyes/);
-  assert.match(usage, /WritingHand\(progress: pose\.handProgress\)/);
-  assert.doesNotMatch(usage, /pose\.leftWidth|pose\.leftHeight|pose\.leftAngle|pose\.leftX/);
-  assert.doesNotMatch(usage, /pose\.rightWidth|pose\.rightHeight|pose\.rightAngle|pose\.rightX|pose\.eyeY/);
+  assert.match(usage, /case \.workingStart:/);
+  assert.match(usage, /case \.workingLoop:/);
+  assert.match(usage, /case \.workingEnd/);
+  assert.match(usage, /restart\(with: \.workingLoop\)/);
+  assert.match(usage, /\.offset\(x: -geometry\.size\.width \* CGFloat\(frame\)\)/);
+  assert.doesNotMatch(usage, /MascotWorkingMotion/);
+  assert.doesNotMatch(usage, /StaticWritingEyes|WritingHand/);
+});
+
+test("idle prioriza o comportamento principal e usa pausas ocasionais em tracks separados", async () => {
+  const usage = await source("UsageView.swift");
+
+  assert.match(usage, /private static let ambientPhases: \[MascotPhase\] = \[\.idlePrincipal, \.idlePrincipal, \.idleCoffee, \.idlePrincipal, \.idleOne, \.idlePrincipal\]/);
+  assert.match(usage, /case idlePrincipal/);
+  assert.match(usage, /dokke-mascot-idle-principal-strip/);
+  assert.match(usage, /dokke-mascot-idle-one-strip/);
+  assert.doesNotMatch(usage, /idleTwo|dokke-mascot-idle-two-strip/, "o idleTwo removido não pode voltar ao runtime nativo");
+  assert.match(usage, /dokke-mascot-idle-coffee-strip/);
+  assert.match(usage, /CGImageSourceCreateImageAtIndex/);
+  assert.match(usage, /NSImage\(cgImage: image/);
+  assert.match(usage, /PhasedMascotAnimation\(activity: activity, reduceMotion: reduceMotion\)/);
+  assert.match(usage, /private enum MascotLayout/);
+  assert.match(usage, /MascotLayout\.tokenSize/);
+  assert.match(usage, /private enum MascotPhase/);
+  assert.match(usage, /frameCount = 16/);
+  assert.match(usage, /case \.idleCoffee/);
+});
+
+test("todos os tracks do mascote usam escala de 16 frames e reducao de movimento proporcional", async () => {
+  const usage = await source("UsageView.swift");
+
+  assert.match(usage, /private static let frameCount = 16/);
+  assert.match(usage, /private static let frameDuration: TimeInterval = 0\.18/);
+  assert.match(usage, /return loops \? index % frameCount : min\(index, frameCount - 1\)/);
+  assert.match(usage, /reduceMotion \? 0\.5 : 1\.0/);
+  assert.match(usage, /track\.duration \/ motionRate/);
 });
 
 test("texto da Usage existe nos dois idiomas do app v0.2.8", async () => {

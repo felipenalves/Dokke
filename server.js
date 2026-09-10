@@ -50,7 +50,7 @@ import { normalizeHookEvent } from "./usage/mascot-hook.js";
 import { ensurePin, newPin, isLoopback, sessionCookie, tokenFromCookie, clearLegacyPinCookie, createSessionStore, createPinLocks, safeEqual, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
-const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml", ".otf": "font/otf", ".apk": "application/vnd.android.package-archive" };
+const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml", ".otf": "font/otf", ".apk": "application/vnd.android.package-archive" };
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
 /** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */

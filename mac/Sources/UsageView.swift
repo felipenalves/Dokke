@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import ImageIO
 
 private enum UsageConnectionState {
   case online
@@ -169,7 +170,7 @@ struct UsageView: View {
   private var loadingState: some View {
     HStack(spacing: 14) {
       TokenMascot(mood: "neutral", activity: "syncing", reduceMotion: reduceMotion)
-        .frame(width: 38, height: 38)
+        .frame(width: MascotLayout.tokenSize, height: MascotLayout.tokenSize)
       VStack(alignment: .leading, spacing: 5) {
         ProgressView()
           .controlSize(.small)
@@ -331,7 +332,7 @@ private struct UsageProviderCard: View {
       }
       Spacer()
       TokenMascot(mood: provider.mascot ?? "neutral", activity: activityState, reduceMotion: reduceMotion)
-        .frame(width: 38, height: 38)
+        .frame(width: MascotLayout.tokenSize, height: MascotLayout.tokenSize)
       Text(activityState == "syncing" ? I18n.text("usage.activitySyncing", language: language) :
         activityState == "working" ? I18n.text("usage.activityWorking", language: language) :
         activityState == "waiting" ? I18n.text("usage.activityWaiting", language: language) : statusText)
@@ -803,42 +804,18 @@ private struct UsageMeter: View {
   }
 }
 
+private enum MascotLayout {
+  static let tokenSize: CGFloat = 42
+}
+
 private struct TokenMascot: View {
   let mood: String
   let activity: String
   let reduceMotion: Bool
-  @State private var floating = false
 
   var body: some View {
-    let writing = activity == "working" || activity == "syncing"
-    ZStack {
-      Circle()
-        .fill(Color.white.opacity(0.16))
-        .blur(radius: 7)
-      Circle()
-        .fill(
-          LinearGradient(
-            colors: [Color.white.opacity(0.86), Color.white.opacity(0.28)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-        )
-        .overlay(Circle().strokeBorder(Color.white.opacity(0.62), lineWidth: 1))
-        .shadow(color: Color.white.opacity(0.18), radius: 8)
-      if writing {
-        WorkingMascotAnimation(reduceMotion: reduceMotion)
-      } else {
-        StaticMascotFace(mood: mood)
-      }
-    }
-    .offset(y: reduceMotion || writing ? 0 : (floating ? -1 : 1))
-    .onAppear {
-      guard !reduceMotion, !writing else { return }
-      withAnimation(.easeInOut(duration: 1.7).repeatForever(autoreverses: true)) {
-        floating = true
-      }
-    }
-    .accessibilityLabel(moodAccessibilityLabel)
+    PhasedMascotAnimation(activity: activity, reduceMotion: reduceMotion)
+    .accessibilityLabel("\(moodAccessibilityLabel). \(activityAccessibilityLabel)")
   }
 
   private var moodAccessibilityLabel: String {
@@ -850,159 +827,238 @@ private struct TokenMascot: View {
     default: return "Token waiting"
     }
   }
-}
 
-private struct StaticMascotFace: View {
-  let mood: String
-
-  var body: some View {
-    VStack(spacing: 5) {
-      HStack(spacing: 8) {
-        Capsule()
-          .fill(.black.opacity(0.76))
-          .frame(width: 4, height: 8)
-        Capsule()
-          .fill(.black.opacity(0.76))
-          .frame(width: 4, height: 8)
-      }
-      Capsule()
-        .fill(.black.opacity(0.68))
-        .frame(width: 14, height: 2.5)
-        .rotationEffect(.degrees(mood == "exhausted" || mood == "tired" ? 180 : 0))
+  private var activityAccessibilityLabel: String {
+    switch activity {
+    case "working", "syncing": return "Working"
+    case "waiting": return "Thinking"
+    default: return "Idle"
     }
   }
 }
 
-private struct WorkingMascotAnimation: View {
-  let reduceMotion: Bool
+private enum MascotVisualActivity: Equatable {
+  case idle
+  case working
+  case thinking
 
-  var body: some View {
-    TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { context in
-      let writingPhase = WritingMascotPose.phase(at: context.date)
-      let pose = WritingMascotPose.sample(at: writingPhase)
-      ZStack {
-        StaticWritingEyes()
-        WritingHand(progress: pose.handProgress)
-          .frame(width: 27, height: 17)
-          .offset(x: pose.handX, y: 8)
-      }
+  init(activity: String) {
+    switch activity {
+    case "working", "syncing": self = .working
+    case "waiting": self = .thinking
+    default: self = .idle
     }
   }
 }
 
-private struct StaticWritingEyes: View {
-  var body: some View {
-    HStack(spacing: 8) {
-      Capsule()
-        .fill(.black.opacity(0.76))
-        .frame(width: 4.6, height: 14)
-      Capsule()
-        .fill(.black.opacity(0.76))
-        .frame(width: 4.6, height: 14)
+private enum MascotPhase: Equatable {
+  case workingStart
+  case workingLoop
+  case workingEnd
+  case thinkingStart
+  case thinkingLoop
+  case thinkingEnd
+  case idlePrincipal
+  case idleOne
+  case idleCoffee
+
+  var isLoop: Bool {
+    switch self {
+    case .workingLoop, .thinkingLoop: return true
+    default: return false
     }
   }
 }
 
-private struct WritingMascotPose {
-  let handX: CGFloat
-  let handProgress: CGFloat
+private struct MascotTrack {
+  let image: NSImage?
+  let frameCount: Int
+  let frameDuration: TimeInterval
 
-  private static let frames: [WritingMascotPose] = [
-    WritingMascotPose(handX: 3.5, handProgress: 0.86),
-    WritingMascotPose(handX: -1.0, handProgress: 0.48),
-    WritingMascotPose(handX: -3.2, handProgress: 0.14),
-    WritingMascotPose(handX: 1.5, handProgress: 0.68),
-  ]
-
-  static func phase(at date: Date) -> CGFloat {
-    let cycleDuration: TimeInterval = 2.8
-    let elapsed = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycleDuration)
-    return CGFloat(elapsed / cycleDuration)
+  var duration: TimeInterval {
+    TimeInterval(frameCount) * frameDuration
   }
 
-  static func sample(at phase: CGFloat) -> WritingMascotPose {
-    let normalized = min(max(phase, 0), 0.999999)
-    let position = normalized * CGFloat(frames.count)
-    let index = Int(position.rounded(.down))
-    let amount = smoothStep(position - CGFloat(index))
-    return interpolate(frames[index], frames[(index + 1) % frames.count], amount)
+  func frame(at elapsed: TimeInterval, rate: Double, loops: Bool) -> Int {
+    guard frameCount > 1 else { return 0 }
+    let adjusted = max(0, elapsed) * rate
+    let index = Int(adjusted / frameDuration)
+    return loops ? index % frameCount : min(index, frameCount - 1)
+  }
+}
+
+private enum MascotTracks {
+  private static let frameCount = 16
+  private static let frameDuration: TimeInterval = 0.18
+
+  static let workingStart = make(resource: "dokke-mascot-working-start-strip")
+  static let workingLoop = make(resource: "dokke-mascot-working-loop-strip")
+  static let workingEnd = make(resource: "dokke-mascot-working-end-strip")
+  static let thinkingStart = make(resource: "dokke-mascot-thinking-start-strip")
+  static let thinkingLoop = make(resource: "dokke-mascot-thinking-loop-strip")
+  static let thinkingEnd = make(resource: "dokke-mascot-thinking-end-strip")
+  static let idlePrincipal = make(resource: "dokke-mascot-idle-principal-strip")
+  static let idleOne = make(resource: "dokke-mascot-idle-one-strip")
+  static let idleCoffee = make(resource: "dokke-mascot-idle-coffee-strip")
+
+  static func track(for phase: MascotPhase) -> MascotTrack {
+    switch phase {
+    case .workingStart: return workingStart
+    case .workingLoop: return workingLoop
+    case .workingEnd: return workingEnd
+    case .thinkingStart: return thinkingStart
+    case .thinkingLoop: return thinkingLoop
+    case .thinkingEnd: return thinkingEnd
+    case .idlePrincipal: return idlePrincipal
+    case .idleOne: return idleOne
+    case .idleCoffee: return idleCoffee
+    }
   }
 
-  private static func smoothStep(_ value: CGFloat) -> CGFloat {
-    let clamped = min(max(value, 0), 1)
-    return clamped * clamped * (3 - 2 * clamped)
-  }
-
-  private static func interpolate(_ from: WritingMascotPose, _ to: WritingMascotPose,
-                                  _ amount: CGFloat) -> WritingMascotPose {
-    func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * amount }
-    return WritingMascotPose(
-      handX: mix(from.handX, to.handX),
-      handProgress: mix(from.handProgress, to.handProgress)
+  private static func make(resource: String) -> MascotTrack {
+    MascotTrack(
+      image: MascotImageLoader.load(resource: resource, extension: "webp"),
+      frameCount: frameCount,
+      frameDuration: frameDuration
     )
   }
 }
 
-private struct WritingHand: View {
-  let progress: CGFloat
+private struct PhasedMascotAnimation: View {
+  let activity: String
+  let reduceMotion: Bool
+  @State private var visualActivity: MascotVisualActivity
+  @State private var targetActivity: MascotVisualActivity
+  @State private var phase: MascotPhase
+  @State private var ambientIndex: Int
+  @State private var startedAt = Date()
+  @State private var phaseGeneration = 0
+
+  private static let ambientPhases: [MascotPhase] = [.idlePrincipal, .idlePrincipal, .idleCoffee, .idlePrincipal, .idleOne, .idlePrincipal]
+
+  init(activity: String, reduceMotion: Bool) {
+    self.activity = activity
+    self.reduceMotion = reduceMotion
+    let initialActivity = MascotVisualActivity(activity: activity)
+    _visualActivity = State(initialValue: initialActivity)
+    _targetActivity = State(initialValue: initialActivity)
+    _phase = State(initialValue: Self.startPhase(for: initialActivity))
+    _ambientIndex = State(initialValue: initialActivity == .idle ? 0 : 0)
+  }
 
   var body: some View {
-    Canvas { context, size in
-      let amount = min(max(progress, 0), 1)
-      let baseline = size.height * 0.76
-      let handX = size.width * (0.42 + amount * 0.45)
-      let lineStart = size.width * 0.06
-      let lineEnd = max(lineStart, handX - size.width * 0.18)
-
-      var writingLine = Path()
-      let samples = 12
-      for index in 0...samples {
-        let t = CGFloat(index) / CGFloat(samples)
-        let x = lineStart + (lineEnd - lineStart) * t
-        let y = baseline + sin(t * .pi * 5) * size.height * 0.075
-        if index == 0 {
-          writingLine.move(to: CGPoint(x: x, y: y))
-        } else {
-          writingLine.addLine(to: CGPoint(x: x, y: y))
-        }
-      }
-      context.stroke(
-        writingLine,
-        with: .color(.black.opacity(0.68)),
-        style: StrokeStyle(lineWidth: max(1, size.width * 0.045), lineCap: .round, lineJoin: .round)
-      )
-
-      var hand = Path()
-      let handWidth = size.width * 0.24
-      let handHeight = size.height * 0.52
-      hand.move(to: CGPoint(x: handX - handWidth * 0.9, y: baseline + handHeight * 0.22))
-      hand.addCurve(
-        to: CGPoint(x: handX + handWidth * 0.4, y: baseline - handHeight * 0.75),
-        control1: CGPoint(x: handX - handWidth * 0.1, y: baseline + handHeight * 0.1),
-        control2: CGPoint(x: handX - handWidth * 0.05, y: baseline - handHeight * 0.65)
-      )
-      hand.addCurve(
-        to: CGPoint(x: handX + handWidth * 0.78, y: baseline + handHeight * 0.5),
-        control1: CGPoint(x: handX + handWidth * 0.95, y: baseline - handHeight * 0.45),
-        control2: CGPoint(x: handX + handWidth, y: baseline + handHeight * 0.18)
-      )
-      hand.addCurve(
-        to: CGPoint(x: handX - handWidth * 0.9, y: baseline + handHeight * 0.22),
-        control1: CGPoint(x: handX + handWidth * 0.3, y: baseline + handHeight * 0.72),
-        control2: CGPoint(x: handX - handWidth * 0.68, y: baseline + handHeight * 0.7)
-      )
-      context.fill(hand, with: .color(.black.opacity(0.74)))
-
-      var pen = Path()
-      pen.move(to: CGPoint(x: handX + handWidth * 0.05, y: baseline - handHeight * 0.12))
-      pen.addLine(to: CGPoint(x: handX + handWidth * 0.72, y: baseline - handHeight * 0.86))
-      context.stroke(
-        pen,
-        with: .color(.black.opacity(0.82)),
-        style: StrokeStyle(lineWidth: max(1, size.width * 0.055), lineCap: .round)
+    let track = MascotTracks.track(for: phase)
+    TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: false)) { context in
+      SpriteMascotFrame(
+        frame: track.frame(at: context.date.timeIntervalSince(startedAt), rate: motionRate, loops: phase.isLoop),
+        frameCount: CGFloat(track.frameCount),
+        image: track.image
       )
     }
-    .shadow(color: .black.opacity(0.24), radius: 1)
+    .task(id: "\(phaseGeneration)-\(reduceMotion)") {
+      await finishFinitePhase(generation: phaseGeneration, phase: phase)
+    }
+    .onChange(of: activity) { _, newValue in
+      requestActivity(MascotVisualActivity(activity: newValue))
+    }
+  }
+
+  private var motionRate: Double {
+    reduceMotion ? 0.5 : 1.0
+  }
+
+  private static func startPhase(for activity: MascotVisualActivity) -> MascotPhase {
+    switch activity {
+    case .working: return .workingStart
+    case .thinking: return .thinkingStart
+    case .idle: return .idlePrincipal
+    }
+  }
+
+  private func requestActivity(_ next: MascotVisualActivity) {
+    targetActivity = next
+    if phase == .workingEnd || phase == .thinkingEnd { return }
+    guard next != visualActivity else { return }
+
+    if visualActivity == .idle {
+      visualActivity = next
+      restart(with: Self.startPhase(for: next))
+    } else {
+      restart(with: visualActivity == .working ? .workingEnd : .thinkingEnd)
+    }
+  }
+
+  private func finishFinitePhase(generation: Int, phase: MascotPhase) async {
+    let track = MascotTracks.track(for: phase)
+    guard !phase.isLoop else { return }
+    let nanoseconds = UInt64((track.duration / motionRate) * 1_000_000_000)
+    do {
+      try await Task.sleep(nanoseconds: nanoseconds)
+    } catch {
+      return
+    }
+    guard !Task.isCancelled, generation == phaseGeneration else { return }
+
+    switch phase {
+    case .workingStart:
+      restart(with: .workingLoop)
+    case .thinkingStart:
+      restart(with: .thinkingLoop)
+    case .workingEnd, .thinkingEnd:
+      visualActivity = targetActivity
+      restart(with: Self.startPhase(for: targetActivity))
+    case .idlePrincipal, .idleOne, .idleCoffee:
+      ambientIndex = (ambientIndex + 1) % Self.ambientPhases.count
+      restart(with: Self.ambientPhases[ambientIndex])
+    case .workingLoop, .thinkingLoop:
+      break
+    }
+  }
+
+  private func restart(with nextPhase: MascotPhase) {
+    phase = nextPhase
+    startedAt = Date()
+    phaseGeneration += 1
+  }
+}
+
+private struct SpriteMascotFrame: View {
+  let frame: Int
+  let frameCount: CGFloat
+  let image: NSImage?
+
+  var body: some View {
+    GeometryReader { geometry in
+      if let image {
+        Image(nsImage: image)
+          .resizable()
+          .interpolation(.high)
+          .frame(width: geometry.size.width * frameCount, height: geometry.size.height)
+          .offset(x: -geometry.size.width * CGFloat(frame))
+      } else {
+        RoundedRectangle(cornerRadius: geometry.size.width * 0.22, style: .continuous)
+          .fill(.orange.opacity(0.72))
+          .overlay {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .font(.system(size: geometry.size.width * 0.28, weight: .bold))
+              .foregroundStyle(.white.opacity(0.9))
+          }
+      }
+    }
+    .clipped()
+  }
+}
+
+private enum MascotImageLoader {
+  static func load(resource: String, extension: String) -> NSImage? {
+    guard let url = Bundle.module.url(
+      forResource: resource,
+      withExtension: `extension`,
+      subdirectory: "mascot"
+    ),
+    let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+    let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+    return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
   }
 }
 

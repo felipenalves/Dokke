@@ -195,6 +195,11 @@ for public_file in "${PUBLIC_FILES[@]}"; do
   fi
   cp "${source_file}" "${SRV_DIR}/public/${public_file}"
 done
+if [[ ! -d "${ROOT}/../public/mascot" ]]; then
+  echo "error: mascot assets missing: ${ROOT}/../public/mascot" >&2
+  exit 1
+fi
+cp -R "${ROOT}/../public/mascot" "${SRV_DIR}/public/mascot"
 cp "${ROOT}/../package.json" "${ROOT}/../package-lock.json" "${SRV_DIR}/"
 if command -v npm >/dev/null 2>&1; then
   (cd "${SRV_DIR}" && npm ci --omit=dev >/dev/null 2>&1) \

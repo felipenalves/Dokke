@@ -642,21 +642,232 @@ test("Usage deixa o mascote em modo de escrita enquanto o modelo atualiza", asyn
     });
     await page.waitForSelector('.usage-mascot-wrap[data-activity="working"]', { timeout: 5000 });
     const writingState = await page.locator('.usage-mascot-wrap[data-activity="working"]').evaluate(wrap => ({
-      eyes: [...wrap.querySelectorAll(".usage-token-eyes i")].map(eye => {
-      const style = getComputedStyle(eye);
-      return { animation: style.animationName, transform: style.transform, opacity: style.opacity };
-      }),
-      hand: wrap.querySelector(".usage-writing-tool") ? getComputedStyle(wrap.querySelector(".usage-writing-tool")).animationName : null,
-      line: wrap.querySelector(".usage-writing-line") ? getComputedStyle(wrap.querySelector(".usage-writing-line")).animationName : null,
+      sprite: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).animationName : null,
+      frame: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame,
+      transform: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.style.transform,
+      image: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).backgroundImage : null,
+      oldOverlay: wrap.querySelector(".usage-writing-tool, .usage-writing-line")
     }));
-    assert.deepEqual(writingState.eyes.map(eye => eye.animation), ["none", "none"]);
-    assert.equal(writingState.eyes[0].transform, "none");
-    assert.equal(writingState.eyes[1].transform, "none");
-    assert.equal(writingState.eyes[0].opacity, "1");
-    assert.equal(writingState.eyes[1].opacity, "1");
-    assert.equal(writingState.hand, "usageWritingTool");
-    assert.equal(writingState.line, "usageWritingLine");
+    assert.equal(writingState.sprite, "none");
+    assert.match(writingState.frame, /^\d+$/);
+    assert.match(writingState.transform, /translate3d\(/);
+    assert.match(writingState.image, /dokke-mascot-working-(start|loop|end)-strip\.webp/);
+    assert.equal(await page.locator('.usage-mascot-wrap[data-activity="working"] .usage-mascot-sprite').getAttribute("data-phase"), "start");
+    assert.equal(writingState.oldOverlay, null);
+    const workingFrames = await page.evaluate(async () => {
+      const read = () => document.querySelector('.usage-mascot-wrap[data-activity="working"] .usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame;
+      const initial = read();
+      const deadline = performance.now() + 1200;
+      let later = initial;
+      while (performance.now() < deadline && later === initial) {
+        await new Promise(resolve => setTimeout(resolve, 80));
+        later = read();
+      }
+      return { initial, later };
+    });
+    assert.notEqual(workingFrames.initial, workingFrames.later, "o working deve avançar as poses enquanto o modelo atualiza");
     assert.equal(await page.locator('.usage-mascot-wrap[data-activity="working"]').count(), 1);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage encadeia start, loop e end ao trocar entre working e thinking", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  let activityState = "working";
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", route => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          source: "dokke",
+          sourceState: "available",
+          updatedAt: new Date().toISOString(),
+          providers: { codex: { state: activityState, since: new Date().toISOString(), detail: activityState, sessions: 1 } },
+          errors: [],
+        }),
+      }));
+    });
+    const mascot = page.locator('.usage-mascot-wrap[data-provider="codex"]');
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="loop"]', { timeout: 5000 });
+    assert.match(await mascot.locator('.usage-mascot-sprite-layer[data-active="true"]').evaluate(layer => getComputedStyle(layer).backgroundImage), /working-loop-strip/);
+
+    activityState = "waiting";
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="end"]', { timeout: 5000 });
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="start"]', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const wrap = document.querySelector('.usage-mascot-wrap[data-provider="codex"]');
+      const sprite = wrap?.querySelector(".usage-mascot-sprite");
+      return wrap?.dataset.activity === "waiting" && sprite?.dataset.activity === "thinking";
+    }, null, { timeout: 5000 });
+    assert.match(await mascot.locator('.usage-mascot-sprite-layer[data-active="true"]').evaluate(layer => getComputedStyle(layer).backgroundImage), /thinking-(start|loop)-strip/);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o loop do mascote no WebView com movimento reduzido", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.route("**/api/usage/activity", route => route.abort());
+    });
+    const frames = await page.evaluate(async () => {
+      const read = () => document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]')?.dataset.frame || null;
+      const initial = read();
+      await new Promise(resolve => setTimeout(resolve, 1400));
+      return { initial, later: read(), reduced: matchMedia("(prefers-reduced-motion: reduce)").matches };
+    });
+    assert.equal(frames.reduced, true, "o teste deve estar no modo de movimento reduzido");
+    assert.match(frames.initial || "", /^\d+$/, "o frame inicial deve existir");
+    assert.match(frames.later || "", /^\d+$/, "o frame posterior deve existir");
+    assert.notEqual(frames.initial, frames.later, "o mascote deve continuar em loop, mesmo em movimento reduzido");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o loop de standby quando o modelo está idle", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-activity="idle"]', { timeout: 5000 });
+    const standbyState = await page.locator('.usage-mascot-wrap[data-activity="idle"]').evaluate(wrap => {
+      const idle = wrap.querySelector(".usage-mascot-idle");
+      const layer = idle?.querySelector('.usage-mascot-idle-layer[data-active="true"]');
+      const style = layer ? getComputedStyle(layer) : null;
+      return {
+        animation: style?.animationName,
+        frame: layer?.dataset.frame,
+        image: style?.backgroundImage,
+        oldEyes: wrap.querySelector(".usage-token-eyes"),
+      };
+    });
+    assert.equal(standbyState.animation, "none");
+    assert.match(standbyState.frame, /^\d+$/);
+    assert.match(standbyState.image, /dokke-mascot-idle-(principal|one|coffee)-strip\.webp/);
+    assert.equal(standbyState.oldEyes, null);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage avança os frames do idle e entra na pausa de cafe", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    const snapshots = await page.evaluate(async () => {
+      const read = () => {
+        const layer = document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]');
+        return { frame: Number(layer?.dataset.frame), transform: layer?.style.transform, phase: layer?.dataset.phase, image: layer ? getComputedStyle(layer).backgroundImage : "" };
+      };
+      const initial = read();
+      await new Promise(resolve => setTimeout(resolve, 900));
+      const moving = read();
+      const deadline = performance.now() + 9000;
+      let coffee = read();
+      while (performance.now() < deadline && coffee.phase !== "idleCoffee") {
+        await new Promise(resolve => setTimeout(resolve, 180));
+        coffee = read();
+      }
+      return { initial, moving, coffee };
+    });
+    assert.notEqual(snapshots.initial.frame, snapshots.moving.frame, "o idle deve trocar de pose com o tempo");
+    assert.notEqual(snapshots.initial.transform, snapshots.moving.transform, "o renderer deve mover o strip por transform");
+    assert.equal(snapshots.coffee.phase, "idleCoffee", "o idle deve entrar no track de cafe");
+    assert.match(snapshots.coffee.image, /dokke-mascot-idle-coffee-strip\.webp/);
+    assert.match(String(snapshots.coffee.frame), /^\d+$/);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage volta ao idle comum depois da pausa de cafe", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    const gesture = await page.evaluate(async () => {
+      const read = () => {
+        const layer = document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]');
+        return {
+          layer,
+          frame: Number(layer?.dataset.frame),
+          image: layer ? getComputedStyle(layer).backgroundImage : "",
+        };
+      };
+      const deadline = performance.now() + 12000;
+      let snapshot = read();
+      let frame = snapshot.frame;
+      while (performance.now() < deadline && snapshot.image.includes("idle-coffee")) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        snapshot = read();
+        frame = snapshot.frame;
+      }
+      return {
+        frame,
+        image: snapshot.image,
+      };
+    });
+    assert.notEqual(gesture.image.includes("idle-coffee"), true, "o idle deve sair da pausa de cafe");
+    assert.match(gesture.image, /dokke-mascot-idle-(principal|one)-strip\.webp/);
   } finally {
     await browser.close();
     await close();
@@ -705,20 +916,15 @@ test("Usage reage ao estado real de atividade retornado pelo backend", async () 
     await swipeUp();
     await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]', { timeout: 4000 });
     const writingState = await page.locator('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]').evaluate(wrap => ({
-      eyes: [...wrap.querySelectorAll(".usage-token-eyes i")].map(node => {
-        const style = getComputedStyle(node);
-        return { animation: style.animationName, transform: style.transform, opacity: style.opacity };
-      }),
-      hand: wrap.querySelector(".usage-writing-tool") ? getComputedStyle(wrap.querySelector(".usage-writing-tool")).animationName : null,
-      line: wrap.querySelector(".usage-writing-line") ? getComputedStyle(wrap.querySelector(".usage-writing-line")).animationName : null,
+      sprite: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).animationName : null,
+      frame: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame,
+      tokenBackground: getComputedStyle(wrap.querySelector(".usage-token")).backgroundImage,
+      oldOverlay: wrap.querySelector(".usage-writing-tool, .usage-writing-line")
     }));
-    assert.deepEqual(writingState.eyes.map(eye => eye.animation), ["none", "none"]);
-    assert.equal(writingState.eyes[0].transform, "none");
-    assert.equal(writingState.eyes[1].transform, "none");
-    assert.equal(writingState.eyes[0].opacity, "1");
-    assert.equal(writingState.eyes[1].opacity, "1");
-    assert.equal(writingState.hand, "usageWritingTool");
-    assert.equal(writingState.line, "usageWritingLine");
+    assert.equal(writingState.sprite, "none");
+    assert.match(writingState.frame, /^\d+$/);
+    assert.equal(writingState.tokenBackground, "none");
+    assert.equal(writingState.oldOverlay, null);
   } finally {
     await browser.close();
     await close();
@@ -1425,7 +1631,10 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v24/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v28/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-mascot-working-loop-strip\.webp\?v=20260909-11/, "sprites do mascote devem entrar no precache offline");
+    assert.match(js, /dokke-mascot-idle-principal-strip\.webp\?v=20260909-11/, "o idle principal deve entrar no precache offline");
+    assert.doesNotMatch(js, /dokke-mascot-idle-two-strip/, "o idleTwo removido não deve voltar ao precache");
     assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");

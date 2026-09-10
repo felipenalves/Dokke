@@ -186,6 +186,25 @@ function normalizeProvider(id, raw, trend = null) {
   };
 }
 
+function hasUsableUsageData(snapshot) {
+  const providers = snapshot?.providers && typeof snapshot.providers === "object"
+    ? Object.values(snapshot.providers)
+    : [];
+  return providers.some(provider => Object.values(provider?.resources || {}).some(resource =>
+    ["used", "limit", "remaining", "available", "utilization"].some(key => finiteNumber(resource?.[key]) !== null)
+  ));
+}
+
+function asDokkeUsageSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return snapshot;
+  const errors = Array.isArray(snapshot.errors) ? snapshot.errors : [];
+  return {
+    ...snapshot,
+    source: "dokke",
+    sourceState: snapshot.sourceState === "available" && errors.length ? "partial" : snapshot.sourceState,
+  };
+}
+
 function unavailableResult() {
   return {
     ok: true,
@@ -309,6 +328,10 @@ export function createDokkeUsageSource({
   intervalMs = refreshMs,
   activityIntervalMs = 1_000,
   pricingLoader = null,
+  openUsageSource = null,
+  openUsageUrl = OPENUSAGE_URL,
+  openUsageUsageUrl = OPENUSAGE_USAGE_URL,
+  openUsageTimeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   const hasInjectedProviders = Array.isArray(providers);
   const providerList = providers || createProviderCatalog({ providers: [
@@ -331,6 +354,11 @@ export function createDokkeUsageSource({
     intervalMs,
     historyCacheFile: join(dataDir, "usage-history-cache.json"),
   });
+  const fallbackSource = openUsageSource && typeof openUsageSource.getUsage === "function"
+    ? openUsageSource
+    : !hasInjectedProviders
+      ? createUsageSource({ fetchImpl, url: openUsageUrl, usageUrl: openUsageUsageUrl, timeoutMs: openUsageTimeoutMs })
+      : null;
   const activityMonitor = createActivityMonitor({ providers: providerList, now, intervalMs: activityIntervalMs });
   function attachActivity(snapshot, activity) {
     if (!snapshot || typeof snapshot !== "object") return snapshot;
@@ -343,16 +371,29 @@ export function createDokkeUsageSource({
     ]));
     return { ...snapshot, providers };
   }
+  async function loadUsageWithFallback(options, load) {
+    const snapshot = await load(options);
+    if (hasUsableUsageData(snapshot) || !fallbackSource) return snapshot;
+    try {
+      const fallback = await fallbackSource.getUsage(options);
+      return hasUsableUsageData(fallback) ? asDokkeUsageSnapshot(fallback) : snapshot;
+    } catch {
+      return snapshot;
+    }
+  }
   return {
     async getUsage(options) {
-      const [snapshot, activity] = await Promise.all([coordinator.getUsage(options), activityMonitor.getActivity()]);
+      const [snapshot, activity] = await Promise.all([
+        loadUsageWithFallback(options, value => coordinator.getUsage(value)),
+        activityMonitor.getActivity(),
+      ]);
       return attachActivity(snapshot, activity);
     },
     getActivity: () => activityMonitor.getActivity(),
     ingestActivityEvent: event => activityMonitor.ingestActivityEvent(event),
     async refresh(options) {
       const [snapshot, activity] = await Promise.all([
-        coordinator.refresh(options),
+        loadUsageWithFallback(options, value => coordinator.refresh(value)),
         activityMonitor.getActivity(),
       ]);
       return attachActivity(snapshot, activity);

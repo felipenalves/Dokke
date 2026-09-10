@@ -21,6 +21,7 @@ const expectedPublicFiles = [
   'icon-512.png',
   'index.html',
   'manifest.webmanifest',
+  'mascot',
   'openai.svg',
   'sw.js',
   'version.json'
@@ -192,7 +193,8 @@ test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   const script = fs.readFileSync(installScriptPath, 'utf8');
   assert.match(script, /PUBLIC_FILES=\(/);
   assert.match(script, /public_file/);
-  assert.doesNotMatch(script, /cp -R [^\n]*public/);
+  assert.match(script, /cp -R "\$\{ROOT\}\/\.\.\/public\/mascot" "\$\{SRV_DIR\}\/public\/mascot"/);
+  assert.doesNotMatch(script, /cp -R "\$\{ROOT\}\/\.\.\/public" "\$\{SRV_DIR\}\/public"/);
 });
 
 test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Release', () => {
