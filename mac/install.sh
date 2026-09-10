@@ -94,6 +94,11 @@ if [[ ! -x "${BIN_PATH}" ]]; then
   echo "error: missing binary: ${BIN_PATH}" >&2
   exit 1
 fi
+RESOURCE_BUNDLE="$(swift build -c release --show-bin-path)/Dokke_Dokke.bundle"
+if [[ ! -d "${RESOURCE_BUNDLE}" ]]; then
+  echo "error: missing SwiftUI resource bundle: ${RESOURCE_BUNDLE}" >&2
+  exit 1
+fi
 # O binário release não precisa carregar símbolos locais para distribuição.
 # Removê-los reduz o app sem alterar o executável ou o comportamento do host.
 if command -v strip >/dev/null 2>&1; then
@@ -116,6 +121,7 @@ mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 cp "${BIN_PATH}" "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${BIN_NAME}"
+cp -R "${RESOURCE_BUNDLE}" "${APP_BUNDLE}/Contents/Resources/"
 cp "${ROOT}/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
 # O .icns mantém compatibilidade com sistemas anteriores ao Icon Composer.
 if [[ -f "${ROOT}/AppIcon.icns" ]]; then
@@ -154,7 +160,12 @@ fi
 # não acha o server.js (cwd do Launchpad é /) e o dock morre offline.
 SRV_DIR="${APP_BUNDLE}/Contents/Resources/Dokke"
 mkdir -p "${SRV_DIR}"
-cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${SRV_DIR}/"
+cp "${ROOT}/../server.js" "${ROOT}/../apps.js" "${ROOT}/../actions.js" "${ROOT}/../config.js" "${ROOT}/../config.json" "${ROOT}/../auth.js" "${ROOT}/../obs.js" "${ROOT}/../obs-ws.js" "${ROOT}/../usage.js" "${SRV_DIR}/"
+if [[ ! -d "${ROOT}/../usage" ]]; then
+  echo "error: usage runtime missing: ${ROOT}/../usage" >&2
+  exit 1
+fi
+cp -R "${ROOT}/../usage" "${SRV_DIR}/usage"
 ICON_HELPER_APP="${SRV_DIR}/bin/DokkeIconHelper.app"
 mkdir -p "${ICON_HELPER_APP}/Contents/MacOS" "${ICON_HELPER_APP}/Contents/Resources"
 cp "${ICON_HELPER_PATH}" "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
@@ -170,6 +181,8 @@ PUBLIC_FILES=(
   "icon-192.png"
   "icon-192-dark.png"
   "icon-512.png"
+  "anthropic.svg"
+  "openai.svg"
   "version.json"
   "dokke.apk"
 )
@@ -182,6 +195,11 @@ for public_file in "${PUBLIC_FILES[@]}"; do
   fi
   cp "${source_file}" "${SRV_DIR}/public/${public_file}"
 done
+if [[ ! -d "${ROOT}/../public/mascot" ]]; then
+  echo "error: mascot assets missing: ${ROOT}/../public/mascot" >&2
+  exit 1
+fi
+cp -R "${ROOT}/../public/mascot" "${SRV_DIR}/public/mascot"
 cp "${ROOT}/../package.json" "${ROOT}/../package-lock.json" "${SRV_DIR}/"
 if command -v npm >/dev/null 2>&1; then
   (cd "${SRV_DIR}" && npm ci --omit=dev >/dev/null 2>&1) \
@@ -232,6 +250,15 @@ if [[ -n "${NODE_SRC}" ]]; then
   mkdir -p "${APP_BUNDLE}/Contents/Resources/node-bin"
   NODE_BIN="${APP_BUNDLE}/Contents/Resources/node-bin/node"
   cp -L "${NODE_SRC}" "${NODE_BIN}"
+  # O runtime distribuído não precisa de símbolos de debug. Remover estes
+  # símbolos mantém o orçamento do app estável entre versões do Node; o
+  # bundle recebe assinatura ad-hoc abaixo.
+  if command -v strip >/dev/null 2>&1; then
+    strip -S "${NODE_BIN}"
+    if command -v codesign >/dev/null 2>&1; then
+      codesign --force --sign - "${NODE_BIN}"
+    fi
+  fi
   chmod +x "${NODE_BIN}"
   if ! "${NODE_BIN}" --version >/dev/null 2>&1; then
     echo "error: node embutido não executa fora do ambiente de origem" >&2

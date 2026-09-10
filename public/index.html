@@ -15,8 +15,22 @@
   <title>Dokke</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&display=swap" rel="stylesheet">
 <style>
+  @font-face{
+    font-family: "Inter";
+    src: url("/fonts/Inter-Regular.otf") format("opentype");
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: "Inter";
+    src: url("/fonts/Inter-SemiBold.otf") format("opentype");
+    font-style: normal;
+    font-weight: 600 900;
+    font-display: swap;
+  }
   :root {
     --ink: rgba(255,255,255,.94);
     --ink-2: rgba(255,255,255,.62);
@@ -25,6 +39,8 @@
     --green: #30d158;
     --amber: #ffd60a;
     --red: #ff453a;
+    --dokke-orange: #f08737;
+    --usage-mascot-scale: 1.36;
     --glass: rgba(255,255,255,.07);
     --edge: rgba(255,255,255,.10);
     --dokke-safe-top: env(safe-area-inset-top, 0px);
@@ -109,6 +125,27 @@
     transform: translate3d(0, -100%, 0);
   }
   body.is-recents #screenRecents{
+    pointer-events: auto;
+    z-index: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  #screenUsage{
+    pointer-events: none;
+    z-index: 0;
+    transform: translate3d(0, 200%, 0);
+  }
+  body.is-recents #screenUsage{ transform: translate3d(0, 100%, 0); }
+  body.is-usage #screenApps{
+    pointer-events: none;
+    z-index: 0;
+    transform: translate3d(0, -200%, 0);
+  }
+  body.is-usage #screenRecents{
+    pointer-events: none;
+    z-index: 0;
+    transform: translate3d(0, -100%, 0);
+  }
+  body.is-usage #screenUsage{
     pointer-events: auto;
     z-index: 1;
     transform: translate3d(0, 0, 0);
@@ -445,19 +482,32 @@
     cursor: pointer;
     user-select: none; -webkit-user-select: none;
     -webkit-touch-callout: none;
+    container-type: inline-size;
+    --tile-r: 0.29;
+    --tile-in: 0.84;
+    --tile-in-r: 0.19;
   }
   .dcard .aglass{
     flex: 0 0 auto;
     width: var(--app-tile);
     height: var(--app-tile);
-    border-radius: 24%;
+    border-radius: 29%;
   }
-  .dcard .aglass::before{ border-radius: 24%; }
+  .dcard .aglass::before{ border-radius: 29%; }
   .dcard .aglass .gicon, .dcard .aglass img.aicon{
-    width: 92%; height: 92%;
-    border-radius: 20%;
+    width: 84%; height: 84%;
+    border-radius: 18%;
   }
   .dcard .aglass .gicon{ font-size: clamp(30px, 3vw, 66px); }
+  @supports (width: 1cqi){
+    .dcard .aglass{ border-radius: calc(100cqi * var(--tile-r)); }
+    .dcard .aglass::before{ border-radius: calc(100cqi * var(--tile-r)); }
+    .dcard .aglass .gicon, .dcard .aglass img.aicon{
+      width: calc(100cqi * var(--tile-in)); height: calc(100cqi * var(--tile-in));
+      border-radius: calc(100cqi * var(--tile-in-r));
+    }
+    .dcard .aglass .gicon{ font-size: 30cqi; }
+  }
   .dcard .dname{
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
@@ -489,6 +539,622 @@
   .robscard .os{ font-size: 11px; font-weight: 600; color: var(--ink-2); }
   .robscard .arr{ font-size: 16px; color: var(--ink-2); }
 
+  /* ---- tela 3: Usage ---- */
+  body.is-usage .screens{ touch-action: pan-y; }
+  .usage-scroll{ flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 28px 10px calc(24px + env(safe-area-inset-bottom, 0px)); scrollbar-width: none; touch-action: pan-y; overscroll-behavior-y: contain; }
+  .usage-scroll::-webkit-scrollbar{ display: none; }
+  .usage-content{ width: 100%; max-width: 700px; margin: 0 auto; }
+  .usage-head{ display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin: 4px 8px 18px; }
+  .usage-kicker{ color: var(--ink-3); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .usage-title{ color: var(--ink); font-family: "Bricolage Grotesque", sans-serif; font-size: 29px; line-height: 1; margin-top: 6px; }
+  .usage-source{ color: var(--ink-2); font-size: 11px; margin-top: 8px; }
+  .usage-refresh{ flex: 0 0 auto; border: 1px solid rgba(255,255,255,.13); border-radius: 13px; background: rgba(255,255,255,.08); color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 800; padding: 10px 12px; }
+  .usage-refresh:active{ transform: scale(.97); }
+  .usage-refresh:disabled{ opacity: .55; cursor: wait; }
+  .usage-island{ --usage-accent: #f6b758; position: relative; overflow: hidden; margin: 0 8px 16px; padding: 14px; border: 1px solid rgba(246,183,88,.3); border-radius: 22px; background: linear-gradient(145deg, rgba(246,183,88,.22), rgba(25,10,4,.7)); box-shadow: 0 15px 35px rgba(0,0,0,.18); }
+  .usage-island[data-status="attention"]{ --usage-accent: var(--amber); }
+  .usage-island[data-status="exhausted"]{ --usage-accent: var(--red); }
+  .usage-island[data-status="unknown"]{ --usage-accent: var(--ink-2); }
+  .usage-island-top, .usage-island-main, .usage-island-footer{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .usage-island-top{ color: var(--ink-3); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+  .usage-island-main{ margin-top: 16px; }
+  .usage-token-dock{ display: grid; flex: 0 0 auto; width: 62px; height: 62px; place-items: center; border: 1px solid rgba(255,255,255,.17); border-radius: 20px; background: rgba(0,0,0,.2); }
+  .usage-token{ position: relative; display: grid; width: 46px; height: 46px; place-items: center; overflow: hidden; border: 2px solid rgba(255,255,255,.66); border-radius: 50%; background: linear-gradient(145deg, rgba(255,255,255,.84), rgba(255,255,255,.28)); color: rgba(12,15,19,.88); font-size: 14px; font-weight: 900; box-shadow: inset 0 1px 0 rgba(255,255,255,.58), 0 0 18px rgba(255,255,255,.12), 0 7px 16px rgba(0,0,0,.2); transition: transform .2s ease, filter .2s ease; }
+  .usage-token[data-mascot="energized"]{ animation: usageTokenIdle 5.8s ease-in-out infinite; }
+  .usage-token[data-mascot="attentive"]{ animation: usageTokenAttentive 4.4s ease-in-out infinite; filter: saturate(.9); }
+  .usage-token[data-mascot="tired"]{ animation: usageTokenTired 5.6s ease-in-out infinite; filter: saturate(.65); }
+  .usage-token[data-mascot="exhausted"]{ animation: usageTokenExhausted 6.5s ease-in-out infinite; filter: grayscale(.45) saturate(.55); }
+  .usage-island-copy{ min-width: 0; flex: 1 1 auto; }
+  .usage-island-provider{ color: var(--ink); font-size: 17px; font-weight: 800; }
+  .usage-island-context{ overflow: hidden; color: var(--ink-2); font-size: 11px; margin-top: 3px; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-island-status{ color: var(--usage-accent); font-size: 10px; font-weight: 800; margin-top: 7px; }
+  .usage-island-metric{ flex: 0 0 auto; min-width: 80px; text-align: right; }
+  .usage-island-value{ display: block; color: var(--usage-accent); font-size: 27px; font-weight: 900; line-height: 1; }
+  .usage-island-value[data-empty="true"]{ color: var(--ink-2); }
+  .usage-island-value-caption{ display: block; color: var(--ink-3); font-size: 10px; margin-top: 4px; }
+  .usage-island-meter, .usage-resource-meter{ overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.12); }
+  .usage-island-meter{ height: 6px; margin-top: 14px; }
+  .usage-island-meter i, .usage-resource-meter i{ display: block; height: 100%; width: 0; border-radius: inherit; background: var(--usage-accent); transition: width .3s ease; }
+  .usage-island-footer{ color: var(--ink-3); font-size: 10px; margin-top: 9px; }
+  .usage-island-meta{ color: var(--ink-3); text-align: right; }
+  .usage-list-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 10px 9px; }
+  .usage-list-title{ color: var(--ink); font-size: 13px; font-weight: 800; }
+  .usage-list-count{ color: var(--ink-3); font-size: 10px; font-weight: 700; }
+  .usage-card{ margin: 0 8px 14px; padding: 14px; border: 1px solid rgba(255,255,255,.11); border-radius: 20px; background: rgba(255,255,255,.055); }
+  .usage-card[data-status="attention"]{ border-color: rgba(255,214,10,.36); }
+  .usage-card[data-status="exhausted"]{ border-color: rgba(255,69,58,.46); }
+  .usage-card-head{ display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .usage-provider-mark{ display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; background: rgba(255,255,255,.1); color: var(--ink); font-size: 11px; font-weight: 900; }
+  .usage-provider-name{ min-width: 0; flex: 1 1 auto; color: var(--ink); font-size: 15px; font-weight: 800; }
+  .usage-provider-plan{ overflow: hidden; color: var(--ink-3); font-size: 10px; margin-top: 3px; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-status{ color: var(--ink-2); font-size: 10px; font-weight: 800; text-transform: lowercase; }
+  .usage-status[data-status="attention"]{ color: var(--amber); }
+  .usage-status[data-status="exhausted"]{ color: var(--red); }
+  .usage-status[data-status="normal"]{ color: var(--green); }
+  .usage-resource{ padding: 10px 0 4px; border-top: 1px solid rgba(255,255,255,.08); }
+  .usage-resource-top, .usage-resource-bottom{ display: flex; justify-content: space-between; gap: 10px; }
+  .usage-resource-top{ align-items: baseline; }
+  .usage-resource-label{ color: var(--ink-2); font-size: 11px; font-weight: 800; }
+  .usage-resource-value{ color: var(--ink); font-size: 13px; font-weight: 800; text-align: right; }
+  .usage-resource-bottom{ color: var(--ink-3); font-size: 10px; margin-top: 5px; }
+  .usage-resource-meter{ height: 5px; margin-top: 8px; }
+  .usage-empty{ margin: 0 8px; padding: 28px 18px; border: 1px dashed rgba(255,255,255,.18); border-radius: 22px; color: var(--ink-2); font-size: 12px; line-height: 1.45; text-align: center; }
+  .usage-empty strong{ display: block; color: var(--ink); font-size: 14px; margin-bottom: 6px; }
+  .usage-loading{ display: flex; align-items: center; gap: 10px; margin: 22px 8px 0; color: var(--ink-2); font-size: 11px; line-height: 1.2; }
+  .usage-loading-bar{ display: block; width: 38px; height: 3px; flex: 0 0 38px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
+  .usage-loading-bar i{ display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--dokke-orange); animation: usageLoadingSweep 1.15s cubic-bezier(.22,.61,.36,1) infinite; }
+  @keyframes usageLoadingSweep{ 0%{ transform: translateX(-140%); opacity: .25; } 48%{ opacity: 1; } 100%{ transform: translateX(250%); opacity: .25; } }
+  .usage-error{ margin: 0 8px 12px; color: var(--amber); font-size: 11px; line-height: 1.35; }
+  @media (prefers-reduced-motion: reduce){ .usage-token, .usage-resource-meter i, .usage-island-meter i{ transition: none; } }
+
+  /* Usage: hierarquia visual curta — janela de 5 horas, semana, extras. */
+  .usage-card{ --usage-accent: var(--green); }
+  .usage-card[data-status="attention"]{ --usage-accent: var(--amber); }
+  .usage-card[data-status="exhausted"]{ --usage-accent: var(--red); }
+  .usage-featured{ display: flex; align-items: center; gap: 18px; padding: 14px; border-radius: 17px; background: linear-gradient(145deg, color-mix(in srgb, var(--usage-accent) 12%, transparent), rgba(0,0,0,.18)); }
+  .usage-charts{ display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+  .usage-chart{ display: flex; flex-direction: column; align-items: center; min-width: 78px; }
+  .usage-chart.primary{ min-width: 124px; }
+  .usage-ring{ --usage-progress: 0; position: relative; display: grid; width: 84px; height: 84px; place-items: center; border-radius: 50%; background: conic-gradient(var(--usage-accent) calc(var(--usage-progress) * 1%), rgba(255,255,255,.11) 0); }
+  .usage-ring.primary{ width: 124px; height: 124px; }
+  .usage-ring::before{ content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #24130d; box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+  .usage-ring.primary::before{ inset: 11px; }
+  .usage-ring-core{ position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .usage-ring-value{ color: var(--ink); font-size: 19px; font-weight: 900; line-height: 1; }
+  .usage-ring.primary .usage-ring-value{ font-size: 27px; }
+  .usage-ring-caption{ color: var(--ink-3); font-size: 9px; font-weight: 800; text-transform: lowercase; }
+  .usage-chart-title{ overflow: hidden; max-width: 124px; color: var(--ink-2); font-size: 10px; font-weight: 800; margin-top: 8px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-chart.primary .usage-chart-title{ color: var(--ink); font-size: 11px; }
+  .usage-chart-reset{ color: var(--ink-3); font-size: 9px; margin-top: 3px; white-space: nowrap; }
+  .usage-featured-copy{ min-width: 0; flex: 1 1 auto; }
+  .usage-featured-kicker{ color: var(--ink-3); font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+  .usage-featured-detail{ overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 800; line-height: 1.3; margin-top: 6px; text-overflow: ellipsis; }
+  .usage-featured-hint{ color: var(--ink-3); font-size: 10px; line-height: 1.35; margin-top: 7px; }
+  .usage-featured-mascot{ color: var(--usage-accent); font-size: 10px; font-weight: 800; line-height: 1.3; margin-top: 10px; }
+  .usage-more{ display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 11px; font-weight: 800; padding: 2px 0; text-align: left; }
+  .usage-more span{ display: inline-flex; align-items: center; gap: 7px; }
+  .usage-more-count{ color: var(--ink-3); font-size: 10px; }
+  .usage-more-panel{ border-top: 1px solid rgba(255,255,255,.08); margin-top: 1px; }
+  .usage-more-panel .usage-resource:first-child{ border-top: 0; }
+  @media (max-width: 440px){
+    .usage-featured{ align-items: flex-start; flex-wrap: wrap; }
+    .usage-charts{ width: 100%; justify-content: space-around; }
+    .usage-featured-copy{ width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce){ .usage-ring{ transition: none; } }
+
+  /* Painel de Uso: monitor compacto inspirado em um display dedicado. */
+  @keyframes usagePulse{
+    0%, 100%{ box-shadow: 0 0 0 0 rgba(48,209,88,0); opacity: 1; }
+    45%{ box-shadow: 0 0 0 5px rgba(48,209,88,.16); opacity: .72; }
+  }
+  .usage-scroll{ display: flex; flex-direction: column; padding: 24px 10px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .usage-content{ display: flex; flex-direction: column; max-width: 760px; min-height: 100%; }
+  .usage-head{ align-items: center; margin: 4px 8px 18px; }
+  .usage-title{ font-size: clamp(25px, 5vw, 32px); letter-spacing: -.03em; }
+  .usage-head-mascot{ display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; min-height: 46px; margin-left: auto; }
+  .usage-head-mascot .usage-mascot-wrap{ width: 46px; height: 46px; }
+  .usage-head-mascot .usage-token-dock{ width: 46px; height: 46px; }
+  .usage-head-mascot .usage-mascot-wrap .usage-token{ width: 40px; height: 40px; }
+  .usage-kicker{ display: none; }
+  .usage-source{ display: none; }
+  .usage-sync{ display: flex; align-items: center; gap: 7px; margin-top: 7px; min-height: 16px; }
+  .usage-live-dot{ display: inline-block; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--ink-3); }
+  .usage-live-dot[data-state="online"]{ background: var(--green); box-shadow: 0 0 8px rgba(48,209,88,.46); animation: usagePulse 1.8s ease-in-out infinite; }
+  .usage-live-dot[data-state="stale"]{ background: var(--amber); box-shadow: 0 0 7px rgba(255,214,10,.3); }
+  .usage-live-dot[data-state="offline"]{ background: var(--red); box-shadow: 0 0 7px rgba(255,69,58,.25); }
+  .usage-sync-label{ color: var(--ink-3); font-size: 10px; font-weight: 700; }
+  .usage-refresh{ border-color: rgba(255,255,255,.10); border-radius: 11px; background: rgba(255,255,255,.065); padding: 9px 11px; }
+  .usage-refresh:hover{ background: rgba(255,255,255,.11); }
+  .usage-list-head{ display: none; }
+  .usage-provider-slider{ display: flex; flex-direction: column; flex: 1 0 auto; min-height: 0; margin: 0; overflow: hidden; -webkit-clip-path: inset(0); clip-path: inset(0); }
+  .usage-provider-track{ display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: pan-x; }
+  .usage-provider-track::-webkit-scrollbar{ display: none; }
+  .usage-provider-slide{ min-width: 100%; flex: 0 0 100%; scroll-snap-align: start; padding: 0 8px; }
+  .usage-trend-slide{ display: flex; flex-direction: column; justify-content: flex-start; padding-top: 22px; }
+  .usage-trend-slide .usage-trend{ width: 100%; margin: 0; }
+  /* Pager da Usage: mesmo contrato visual dos dots da tela 1. */
+  .usage-provider-dots{ display: flex; align-items: center; justify-content: center; gap: 0; margin-top: auto; padding-top: 12px; padding-bottom: 4px; }
+  .usage-provider-dot{ width: 6px; height: 6px; margin: 0 5px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: all .2s ease; }
+  .usage-provider-dot[aria-current="true"]{ width: 14px; height: 6px; border-radius: 3px; background: #fff; }
+  .usage-stack{ display: flex; flex-direction: column; gap: 12px; flex: 1 0 auto; min-height: 0; margin: 0 8px; }
+  .usage-card{ --usage-accent: var(--green); margin: 0 8px 16px; padding: 12px; border: 1px solid rgba(255,255,255,.075); border-radius: 18px; background: rgba(25,10,4,.88); box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+  .usage-card.is-open{ margin: 0; padding: 0; background: transparent; border-color: transparent; box-shadow: none; }
+  .usage-card.is-closed{
+    display: flex; align-items: center; margin: 0; padding: 12px 14px;
+    border-radius: 20px; background: rgba(255,255,255,.05); cursor: pointer;
+  }
+  .usage-card.is-closed:active{ background: rgba(255,255,255,.08); }
+  .usage-card.is-closed .usage-featured,
+  .usage-card.is-closed .usage-trend,
+  .usage-card.is-open .usage-peek{ display: none; }
+  .usage-peek{
+    margin-left: auto; color: var(--ink);
+    font-family: "Bricolage Grotesque", sans-serif; font-size: 22px; font-weight: 700;
+    letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+  }
+  .usage-provider-slide .usage-card{ margin: 0; padding: 0; background: transparent; border-color: transparent; box-shadow: none; }
+  .usage-card[data-status="attention"]{ --usage-accent: var(--amber); border-color: rgba(255,214,10,.22); }
+  .usage-card[data-status="exhausted"]{ --usage-accent: var(--red); border-color: rgba(255,69,58,.30); }
+  .usage-card-head{ align-items: center; gap: 9px; margin: 0 2px 10px; }
+  .usage-provider-logo{ display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: rgba(255,255,255,.065); color: var(--ink); }
+  .usage-provider-logo img, .usage-provider-logo svg{ display: block; width: 21px; height: 21px; object-fit: contain; }
+  .usage-provider-logo-fallback{ color: var(--ink-2); font-size: 12px; font-weight: 800; line-height: 1; }
+  .usage-provider-logo[data-provider="claude"]{ background: #f4e6d8; color: #d97757; }
+  .usage-provider-logo[data-provider="codex"]{ color: #f5f7ff; background: transparent; }
+  .usage-provider-name{ font-size: 15px; letter-spacing: -.01em; }
+  .usage-provider-plan{ display: inline; margin-left: 6px; color: var(--ink-3); font-size: 10px; }
+  .usage-mascot-wrap{ --usage-mascot-accent: var(--dokke-orange); position: relative; display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; width: 36px; height: 38px; margin-left: auto; overflow: visible; }
+  .usage-mascot-wrap[data-status="attention"]{ --usage-mascot-accent: var(--amber); }
+  .usage-mascot-wrap[data-status="exhausted"]{ --usage-mascot-accent: var(--red); }
+  .usage-mascot-wrap[data-status="unknown"]{ --usage-mascot-accent: var(--ink-2); }
+  .usage-token-dock{ display: grid; width: 36px; height: 36px; place-items: center; border: 0; background: transparent; overflow: visible; }
+  .usage-mascot-wrap .usage-token{ width: 32px; height: 32px; background: linear-gradient(145deg, rgba(255,255,255,.84), rgba(255,255,255,.28)); border-color: rgba(255,255,255,.72); box-shadow: inset 0 1px 0 rgba(255,255,255,.62), 0 0 14px rgba(255,255,255,.16), 0 4px 10px rgba(0,0,0,.24); }
+  .usage-token{ width: 25px; height: 25px; border-width: 1px; transform-origin: center bottom; animation: usageTokenIdle 5.8s ease-in-out infinite; }
+  @keyframes usageBlink{
+    0%, 42%, 46%, 100%{ transform: scaleY(1); }
+    43%, 45%{ transform: scaleY(.12); }
+  }
+  @keyframes usageTiredEyes{
+    0%, 100%{ transform: scaleY(.58); }
+    46%, 52%{ transform: scaleY(.1); }
+  }
+  @keyframes usageExhaustedEyes{
+    0%, 100%{ transform: scaleY(.34); }
+    48%, 54%{ transform: scaleY(.08); }
+  }
+  @keyframes usageTokenIdle{
+    0%, 100%{ transform: translateY(0) rotate(-3deg); }
+    24%{ transform: translateY(-1px) rotate(2deg); }
+    30%{ transform: translateY(-1px) rotate(4deg); }
+    38%{ transform: translateY(0) rotate(1deg); }
+    72%{ transform: translateY(0) rotate(-1deg); }
+  }
+  @keyframes usageTokenAttentive{
+    0%, 100%{ transform: translateY(0) rotate(2deg) scale(.96); }
+    34%{ transform: translateY(-1px) rotate(-3deg) scale(.98); }
+    42%{ transform: translateY(-1px) rotate(-5deg) scale(.98); }
+    70%{ transform: translateY(0) rotate(1deg) scale(.96); }
+  }
+  @keyframes usageTokenTired{
+    0%, 100%{ transform: translateY(0) rotate(5deg) scale(.92); }
+    42%{ transform: translateY(1px) rotate(1deg) scale(.92); }
+    54%{ transform: translateY(1px) rotate(7deg) scale(.92); }
+  }
+  @keyframes usageTokenExhausted{
+    0%, 100%{ transform: translateY(1px) rotate(0) scale(.88); }
+    48%{ transform: translateY(2px) rotate(-3deg) scale(.87); }
+    58%{ transform: translateY(2px) rotate(3deg) scale(.87); }
+  }
+  @keyframes usageStatusChange{
+    0%, 100%{ transform: translateY(0) rotate(0) scale(1); }
+    22%{ transform: translateY(-3px) rotate(-8deg) scale(1.06); }
+    45%{ transform: translateY(1px) rotate(6deg) scale(.98); }
+    68%{ transform: translateY(-1px) rotate(-3deg) scale(1.02); }
+  }
+  @keyframes usageBubblePop{
+    0%{ opacity: 0; transform: translateY(-3px) scale(.72); }
+    18%, 78%{ opacity: 1; transform: translateY(0) scale(1); }
+    100%{ opacity: 0; transform: translateY(-2px) scale(.9); }
+  }
+  @keyframes usageMascotChartReaction{
+    0%, 100%{ transform: translateY(0) rotate(0deg) scale(1); }
+    28%{ transform: translateY(-2px) rotate(-4deg) scale(1.04); }
+    56%{ transform: translateY(1px) rotate(3deg) scale(.99); }
+    78%{ transform: translateY(-1px) rotate(-1deg) scale(1.01); }
+  }
+  @keyframes usageTokenChartReaction{
+    0%, 100%{ transform: translateY(0) rotate(-2deg) scale(1); filter: brightness(1); }
+    30%{ transform: translateY(-2px) rotate(3deg) scale(1.1); filter: brightness(1.12); }
+    58%{ transform: translateY(1px) rotate(-2deg) scale(1.01); filter: brightness(1.04); }
+  }
+  @keyframes usageMascotProviderReaction{
+    0%{ transform: translateX(-4px) translateY(1px) rotate(-7deg) scale(.94); }
+    38%{ transform: translateX(2px) translateY(-3px) rotate(5deg) scale(1.06); }
+    68%{ transform: translateX(-1px) translateY(0) rotate(-2deg) scale(1.02); }
+    100%{ transform: translateX(0) translateY(0) rotate(0) scale(1); }
+  }
+  @keyframes usageTokenProviderReaction{
+    0%{ transform: translateY(2px) rotate(-4deg) scale(.92); filter: brightness(.96); }
+    42%{ transform: translateY(-2px) rotate(4deg) scale(1.1); filter: brightness(1.15); }
+    72%{ transform: translateY(0) rotate(-2deg) scale(1.02); filter: brightness(1.04); }
+    100%{ transform: translateY(0) rotate(0) scale(1); filter: brightness(1); }
+  }
+  .usage-token-eyes{ display: inline-flex; align-items: center; justify-content: space-between; width: 58%; height: 38%; }
+  .usage-token-eyes i{ display: block; width: 31%; height: 100%; flex: 0 0 31%; border-radius: 999px; background: currentColor; transform-origin: center; animation: usageBlink 4.6s ease-in-out infinite; }
+  .usage-mascot-sprite, .usage-mascot-idle{ position: relative; display: block; width: 100%; height: 100%; overflow: hidden; transform: scale(var(--usage-mascot-scale)); transform-origin: center; }
+  .usage-mascot-sprite-layer, .usage-mascot-idle-layer{ position: absolute; top: 0; left: 0; display: block; height: 100%; background-position: 0 50%; background-repeat: no-repeat; background-size: 100% 100%; pointer-events: none; will-change: transform, opacity; transition: opacity 90ms linear; animation: none !important; opacity: 1; }
+  .usage-mascot-sprite-layer, .usage-mascot-idle-layer{ width: 1600%; }
+  .usage-token[data-mascot="energized"] .usage-token-eyes i{ animation: usageBlink 4.2s ease-in-out infinite; }
+  .usage-token[data-mascot="attentive"] .usage-token-eyes i{ animation: usageBlink 3.2s ease-in-out infinite; }
+  .usage-token[data-mascot="tired"] .usage-token-eyes i{ animation: usageTiredEyes 3.4s ease-in-out infinite; }
+  .usage-token[data-mascot="exhausted"] .usage-token-eyes i{ animation: usageExhaustedEyes 4s ease-in-out infinite; }
+  .usage-token[data-activity="working"]{ filter: brightness(1.04); }
+  .usage-token[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-token[data-activity="syncing"]{ filter: brightness(1.04); }
+  .usage-token[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-token[data-mascot-sprite="true"]{ background: transparent; border-color: transparent; box-shadow: none; overflow: visible; }
+  .usage-token[data-mascot-sprite="true"]{ animation: none; }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"]{ display: grid; width: 32px; height: 32px; border: 2px solid rgba(255,138,56,.84); border-radius: 10px; background: linear-gradient(145deg, #ff8a38, #d95b18); color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,.24); }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"]::before{ content: ">_"; position: relative; z-index: 1; font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"] .usage-mascot-sprite,
+  .usage-token[data-mascot-sprite="true"][data-asset-error="true"] .usage-mascot-idle{ display: none; }
+  .usage-mascot-wrap[data-activity="waiting"] .usage-token{ filter: brightness(1.06); }
+  .usage-mood-bubble{ position: absolute; top: -7px; right: calc(100% + 6px); z-index: 2; width: max-content; max-width: calc(100vw - 120px); padding: 3px 7px 4px; border: 1px solid color-mix(in srgb, var(--usage-accent) 38%, transparent); border-radius: 10px 10px 4px 10px; background: color-mix(in srgb, var(--usage-accent) 13%, rgba(8,3,1,.92)); color: var(--usage-accent); font-size: 9px; font-weight: 800; line-height: 1; white-space: nowrap; box-shadow: 0 4px 9px rgba(0,0,0,.16); opacity: 0; visibility: hidden; transform: translateY(-3px) scale(.84); transform-origin: right center; pointer-events: none; }
+  .usage-mood-bubble[data-status="attention"]{ --usage-accent: var(--amber); }
+  .usage-mood-bubble[data-status="exhausted"]{ --usage-accent: var(--red); }
+  .usage-mood-bubble[data-status="unknown"]{ --usage-accent: var(--ink-2); }
+  @keyframes usageMascotTap{
+    0%, 100%{ transform: translateY(0) rotate(0deg); }
+    24%{ transform: translateY(-3px) rotate(-7deg); }
+    52%{ transform: translateY(1px) rotate(4deg); }
+    76%{ transform: translateY(-1px) rotate(-2deg); }
+  }
+  @keyframes usageTapBlink{
+    0%, 100%{ transform: scaleY(1); }
+    18%, 30%{ transform: scaleY(.1); }
+    42%, 56%{ transform: scaleY(1); }
+    68%, 80%{ transform: scaleY(.1); }
+  }
+  .usage-mascot-wrap{ border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
+  .usage-mascot-wrap.is-status-changing .usage-token{ animation: usageStatusChange 1.1s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap.is-status-changing .usage-token-eyes i{ animation: usageTapBlink 1.1s ease-in-out !important; }
+  .usage-mascot-wrap.is-reacting{ animation: usageMascotTap .64s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap.is-reacting .usage-token{ animation: usageMascotTap .64s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap.is-reacting .usage-token-eyes i{ animation: usageTapBlink .64s ease-in-out !important; }
+  .usage-mascot-wrap.is-reacting .usage-mood-bubble[data-reaction]{ animation: usageBubblePop .95s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap[data-reaction="chart"]{ animation: usageMascotChartReaction .72s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap[data-reaction="chart"] .usage-token{ animation: usageTokenChartReaction .72s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap[data-reaction="chart"] .usage-token-eyes i{ animation: usageTapBlink .72s ease-in-out !important; }
+  .usage-mascot-wrap[data-reaction="provider"]{ animation: usageMascotProviderReaction .82s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap[data-reaction="provider"] .usage-token{ animation: usageTokenProviderReaction .82s cubic-bezier(.22,.61,.36,1); }
+  .usage-mascot-wrap[data-reaction="provider"] .usage-token-eyes i{ animation: usageTapBlink .82s ease-in-out !important; }
+  .usage-mascot-wrap[data-activity="working"] .usage-token{ animation: none !important; filter: brightness(1.04); }
+  .usage-mascot-wrap[data-activity="working"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-mascot-wrap[data-activity="syncing"] .usage-token{ animation: none !important; filter: brightness(1.04); }
+  .usage-mascot-wrap[data-activity="syncing"] .usage-token-eyes i{ animation: none !important; transform: none !important; opacity: 1 !important; }
+  .usage-mood-bubble[data-reaction="true"]{ opacity: 1; visibility: visible; transform: translateY(0) scale(1); color: var(--ink); border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.12); }
+  .usage-mood-bubble[data-reaction="updated"]{ opacity: 1; visibility: visible; transform: translateY(0) scale(1); color: var(--green); border-color: rgba(48,209,88,.38); background: rgba(48,209,88,.14); }
+  .usage-featured{ display: block; padding: 0; border-radius: 0; background: transparent; }
+  .usage-limits{ display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 7px; }
+  .usage-limit{ --usage-accent: var(--green); position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 176px; padding: 16px; border: 1px solid rgba(255,255,255,.055); border-radius: 14px; background: rgba(36,17,6,.76); }
+  .usage-limit.primary{ display: flex; flex-direction: column; justify-content: flex-start; min-height: clamp(190px, 27vh, 244px); padding: 16px; background: rgba(49,22,8,.82); }
+  .usage-limit[data-status="attention"]{ --usage-accent: var(--amber); }
+  .usage-limit[data-status="exhausted"]{ --usage-accent: var(--red); }
+  .usage-limit-label{ overflow: hidden; color: var(--ink-3); font-size: 9px; font-weight: 900; letter-spacing: .09em; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-limit-value{ display: block; color: var(--usage-accent); font-size: clamp(31px, 8vw, 44px); font-weight: 700; letter-spacing: -.06em; line-height: 1; margin-top: 10px; }
+  .usage-limit.primary .usage-limit-value{ font-size: clamp(58px, 16vw, 82px); font-weight: 700; letter-spacing: -.07em; margin-top: 14px; }
+  .usage-limit:not(.primary) .usage-limit-value{ font-size: clamp(34px, 8.5vw, 46px); font-weight: 700; margin-top: 14px; }
+  .usage-limit-reset-label{ overflow: hidden; color: var(--ink-3); font-size: 9px; margin-top: 14px; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-limit-reset-value{ color: var(--ink); font-size: clamp(20px, 5vw, 27px); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; margin-top: 4px; white-space: nowrap; }
+  .usage-limit-meter{ display: flex; gap: 3px; height: 7px; margin-top: 8px; overflow: visible; }
+  .usage-limit.primary .usage-limit-meter{ height: 8px; margin-top: 6px; }
+  .usage-limit .usage-limit-reset-label{ margin-top: auto; }
+  .usage-limit-meter i{ display: block; width: auto; height: 100%; flex: 1 1 0; border-radius: 2px; background: rgba(255,255,255,.13); }
+  .usage-limit-meter i[data-active="true"]{ background: var(--usage-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--usage-accent) 42%, transparent); }
+  .usage-limit .usage-provider-logo{ position: absolute; top: 8px; right: 9px; width: 24px; height: 24px; border-radius: 0; }
+  .usage-limit .usage-provider-logo svg{ width: 22px; height: 22px; }
+  .usage-trend{ margin-top: 10px; padding: 16px 16px 13px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px; background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.20); }
+  .usage-trend-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .usage-trend-title{ color: var(--ink); font-size: 12px; font-weight: 800; }
+  .usage-trend-peak{ overflow: hidden; color: var(--ink-3); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-trend-bars{ position: relative; display: flex; align-items: flex-end; gap: 3px; height: clamp(150px, 31vh, 230px); margin-top: 13px; padding: 0 1px 3px; border-bottom: 1px solid rgba(255,255,255,.16); background-image: linear-gradient(to bottom, transparent 0, transparent calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% + .5px), transparent calc(33.333% + .5px), transparent calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
+  .usage-trend-bar{ position: relative; z-index: 1; min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--dokke-orange) 70%, white); opacity: .82; box-shadow: none; }
+  .usage-trend-bar[data-level="empty"]{ height: 4px; opacity: .28; background: rgba(255,255,255,.72); }
+  .usage-trend-bar[data-peak="true"]{ background: #fff; opacity: 1; box-shadow: 0 0 10px rgba(255,255,255,.18); }
+  .usage-trend-axis{ display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; color: var(--ink-3); font-size: 9px; }
+  .usage-trend-axis-label{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-trend-note{ display: block; margin-top: 10px; color: var(--ink-3); font-size: 10px; line-height: 1.3; text-align: center; }
+  .usage-limit-empty{ color: var(--ink-2); }
+  .usage-featured-copy{ display: none; }
+  .usage-more{ margin-top: 11px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); }
+  .usage-more-panel{ border-top: 0; }
+  .usage-resource{ padding: 10px 1px 4px; }
+  .usage-empty{ background: rgba(15,18,29,.78); }
+  @media (max-height: 780px) and (orientation: portrait){
+    .usage-scroll{ padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .usage-head{ margin-bottom: 8px; }
+    .usage-limit{ padding: 12px 14px 11px; }
+    .usage-limit.primary{ min-height: 160px; padding: 12px 14px 11px; }
+    .usage-limit.primary .usage-limit-value{ font-size: clamp(58px, 17vw, 78px); font-weight: 700; margin-top: 14px; }
+    .usage-limit:not(.primary) .usage-limit-value{ font-size: clamp(31px, 8vw, 42px); font-weight: 700; margin-top: 12px; }
+    .usage-trend-slide{ padding-top: 22px; }
+    .usage-trend{ padding: 14px 13px 11px; }
+    .usage-trend-bars{ height: clamp(150px, 31vh, 210px); }
+    .usage-trend-note{ margin-top: 6px; }
+    .usage-provider-dots{ padding-top: 2px; padding-bottom: 2px; }
+  }
+  @media (max-width: 380px){
+    .usage-limit{ padding-inline: 16px; }
+    .usage-limit-reset-value{ font-size: 18px; }
+  }
+  @media (max-width: 699px){
+    .usage-limits{ grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  }
+  @media (max-width: 699px) and (orientation: portrait){
+    .usage-provider-track{ flex: 1 1 auto; width: 100%; min-height: 0; }
+    .usage-provider-slide{ display: flex; width: 100%; flex-direction: column; }
+    .usage-provider-slide .usage-card{ flex: 1 1 auto; display: flex; width: 100%; flex-direction: column; }
+    .usage-featured{ flex: 1 1 auto; display: flex; width: 100%; flex-direction: column; }
+    .usage-limits{ flex: 1 1 auto; min-height: 0; width: 100%; grid-template-rows: minmax(0, 1.18fr) minmax(0, 1fr); }
+    .usage-limit{ min-height: 0; }
+    .usage-limit.primary{ min-height: 0; }
+  }
+  @media (min-height: 781px) and (max-width: 699px) and (orientation: portrait){
+    .usage-scroll{ padding-top: 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .usage-head{ margin-top: 0; margin-bottom: 8px; }
+    .usage-card-head{ margin-bottom: 6px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px){
+    .usage-scroll{ padding: 4px 10px calc(3px + env(safe-area-inset-bottom, 0px)); overflow-y: hidden; }
+    .usage-head{ margin: 0 8px 3px; }
+    .usage-head-copy{ display: block; min-width: 0; }
+    .usage-title{ overflow: hidden; font-size: 24px; margin-top: 0; text-overflow: ellipsis; white-space: nowrap; }
+    .usage-sync{ gap: 5px; margin-top: 4px; min-height: 0; white-space: nowrap; }
+    .usage-live-dot{ width: 6px; height: 6px; }
+    .usage-sync-label{ font-size: 9px; }
+    .usage-refresh{ border-radius: 10px; font-size: 11px; padding: 7px 9px; }
+    .usage-card{ padding: 8px 10px 10px; }
+    .usage-card-head{ gap: 7px; margin: 0 2px 4px; }
+    .usage-provider-logo{ width: 28px; height: 28px; border-radius: 8px; }
+    .usage-provider-logo img, .usage-provider-logo svg{ width: 18px; height: 18px; }
+    .usage-provider-name{ font-size: 13px; }
+    .usage-provider-plan{ font-size: 9px; margin-top: 1px; }
+    .usage-mascot-wrap{ width: 32px; height: 32px; }
+    .usage-token-dock{ width: 32px; height: 32px; }
+    .usage-mascot-wrap .usage-token{ width: 28px; height: 28px; }
+    .usage-limits{ grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 6px; }
+    .usage-limit{ height: clamp(144px, 47vh, 172px); min-height: 0; padding: 12px 14px 11px; }
+    .usage-limit.primary{ height: clamp(144px, 47vh, 172px); min-height: 0; padding: 12px 14px 11px; }
+    .usage-limit-label{ font-size: 8px; }
+    .usage-limit-value{ font-size: clamp(26px, 6.4vw, 36px); margin-top: 7px; }
+    .usage-limit.primary .usage-limit-value{ font-size: clamp(46px, 11vw, 64px); font-weight: 700; margin-top: 6px; }
+    .usage-limit:not(.primary) .usage-limit-value{ font-size: clamp(28px, 6.6vw, 38px); font-weight: 700; margin-top: 6px; }
+    .usage-limit-reset-label{ font-size: 8px; margin-top: auto; }
+    .usage-limit-reset-value{ font-size: clamp(18px, 4.2vw, 24px); margin-top: 2px; }
+    .usage-limit-meter{ height: 6px; margin-top: 3px; }
+    .usage-limit.primary .usage-limit-meter{ height: 7px; margin-top: 3px; }
+    .usage-limit .usage-provider-logo{ top: 6px; right: 8px; width: 24px; height: 24px; border-radius: 0; }
+    .usage-limit .usage-provider-logo svg{ width: 22px; height: 22px; }
+    .usage-trend{ margin-top: 0; padding: 14px 13px 11px; border-radius: 32px; }
+    .usage-trend-title{ font-size: 10px; }
+    .usage-trend-peak{ font-size: 9px; }
+    .usage-trend-bars{ height: clamp(34px, 12vh, 48px); margin-top: 4px; }
+    .usage-trend-axis{ margin-top: 3px; font-size: 8px; }
+    .usage-trend-note{ margin-top: 3px; font-size: 8px; }
+    .usage-provider-dots{ padding-top: 1px; padding-bottom: 0; }
+  }
+  @media (prefers-reduced-motion: reduce){ .usage-live-dot[data-state="online"]{ animation: none; } }
+  @media (prefers-reduced-motion: reduce){ .usage-loading-bar i{ width: 100%; transform: translateX(0); opacity: .5; animation: none; } }
+  @media (prefers-reduced-motion: reduce){ .usage-token-eyes i{ animation-duration: 7s; } }
+  @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap{ animation-duration: 8s; } }
+  @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap[data-activity="working"], .usage-mascot-wrap[data-activity="syncing"]{ animation-duration: 4.4s; } }
+  @media (prefers-reduced-motion: reduce){
+    .usage-mascot-wrap[data-reaction="chart"], .usage-mascot-wrap[data-reaction="chart"] .usage-token,
+    .usage-mascot-wrap[data-reaction="provider"], .usage-mascot-wrap[data-reaction="provider"] .usage-token{ animation: none; }
+  .usage-mascot-wrap[data-reaction="chart"] .usage-token-eyes i,
+    .usage-mascot-wrap[data-reaction="provider"] .usage-token-eyes i,
+    .usage-mascot-wrap[data-activity="working"] .usage-token-eyes i{ animation: none !important; }
+  }
+
+  /* Painel de Uso: composição do esboço com leitura radial e estados claros. */
+  .usage-scroll{
+    align-items: center;
+    padding: 14px 0 30px;
+  }
+  .usage-content{
+    width: min(100%, 350px); max-width: 350px; min-height: 100%; margin: 0 auto;
+    box-sizing: border-box; padding: 14px 0 0;
+    font-family: inherit;
+  }
+  .usage-content *{ font-family: inherit; }
+  .usage-content .usage-card.is-open .usage-gauge-copy .usage-limit-value,
+  .usage-content .usage-five-copy span,
+  .usage-content .usage-peek{ font-family: inherit; }
+  .usage-provider-slide{ padding: 0; }
+  /* O reset do slide acima vem depois das regras mobile; reaplica aqui a
+     folga do segundo slide para que a tendência não encoste no cabeçalho. */
+  .usage-trend-slide{ padding-top: 22px; }
+  .usage-stack{ margin: 22px 8px 0 0; }
+  .usage-provider-slider{ width: 100%; }
+  .usage-provider-track{ width: 100%; }
+  /* O portrait legado transforma o slide inteiro em uma coluna flexível.
+     No esboço, somente o conteúdo cresce; o card mantém sua altura natural. */
+  .usage-provider-slide .usage-card.is-open{
+    display: block; flex: 0 0 auto; width: auto;
+  }
+  .usage-provider-slide .usage-card.is-closed{
+    flex: 0 0 auto; width: auto;
+  }
+  .usage-card.is-closed{
+    display: flex; align-items: center; margin: 0; padding: 12px 14px; border: 1px solid rgba(255,255,255,.075);
+    border-radius: 20px; background: rgba(255,255,255,.05); box-shadow: none; cursor: pointer;
+  }
+  .usage-card.is-open{
+    margin: 0; padding: 16px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px;
+    background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.20);
+  }
+  .usage-card.is-open .usage-featured{ margin-top: 0; }
+  .usage-card.is-open .usage-featured{
+    display: block; flex: 0 0 auto; width: auto;
+  }
+  .usage-card.is-open .usage-limits{
+    display: flex; flex: 0 0 auto; flex-direction: column; gap: 0;
+    width: auto; min-height: 0; grid-template-rows: none;
+  }
+  .usage-card.is-open .usage-limit{
+    min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .usage-card.is-open .usage-limit.primary{
+    min-height: 138px; padding: 0; background: transparent;
+  }
+  .usage-card.is-closed:focus-visible{ outline: 2px solid var(--dokke-orange); outline-offset: 3px; }
+  .usage-metric-5h{ display: grid; grid-template-columns: 138px minmax(0, 1fr); align-items: center; gap: 6px 4px; min-height: 138px; }
+  .usage-gauge-wrap{ position: relative; display: grid; width: 138px; height: 138px; flex: 0 0 138px; place-items: center; }
+  .usage-gauge-wrap svg{ display: block; width: 100%; height: 100%; overflow: visible; }
+  .usage-gauge-copy{ position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .usage-gauge-copy .usage-limit-value{ pointer-events: auto; }
+  .usage-card.is-open .usage-gauge-copy .usage-limit-value{ margin: 0; color: var(--ink); font-family: "Bricolage Grotesque", sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -.08em; line-height: .9; }
+  .usage-card.is-open .usage-gauge-copy .usage-limit-unit{ margin-left: 1px; color: var(--ink-2); font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0; }
+  .usage-card.is-open .usage-gauge-caption{ display: none; }
+  .usage-gauge-caption{ margin-top: 5px; color: var(--ink-2); font-size: 9px; font-weight: 800; letter-spacing: .02em; text-transform: lowercase; }
+  .usage-five-copy{ display: flex; min-width: 0; flex-direction: column; gap: 0; padding-left: 4px; }
+  .usage-limit-label-row{ display: flex; align-items: center; min-width: 0; gap: 6px; }
+  .usage-five-copy .usage-limit-label{ display: block; min-width: 0; color: var(--usage-accent); font-size: 13px; }
+  .usage-five-copy .usage-limit-reset-label{ display: none; }
+  .usage-five-copy .usage-limit-reset-value{ margin-top: 6px; font-size: 28px; }
+  .usage-five-caption{ display: block; margin-top: 6px; color: var(--ink-3); font-size: 11px; font-weight: 700; }
+  .usage-metric-week{ display: flex; flex-direction: column; gap: 0; min-height: 57px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+  .usage-week-top{ display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .usage-week-value{ display: flex; align-items: baseline; gap: 5px; }
+  .usage-week-value .usage-limit-value{ margin: 0; color: var(--ink); font-size: 18px; font-weight: 800; }
+  .usage-card.is-open .usage-week-value .usage-limit-value{ margin: 0; color: var(--ink); font-size: 18px; font-weight: 800; }
+  .usage-week-caption{ display: none; color: var(--ink-3); font-size: 9px; font-weight: 800; text-transform: lowercase; }
+  .usage-week-row{ display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: 8px; }
+  .usage-week-bar{ position: relative; height: 6px; overflow: visible; border-radius: 99px; background: rgba(255,255,255,.1); }
+  .usage-week-bar i{ display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--usage-accent) 58%, transparent); box-shadow: inset 0 1px 0 rgba(255,255,255,.16); transition: width .32s ease, background-color .2s ease; }
+  .usage-week-pace-tick{
+    position: absolute; top: -3px; z-index: 1; width: 3px; height: 12px; transform: translateX(-1.5px);
+    border-radius: 99px; background: rgba(255,255,255,.58); box-shadow: 0 0 0 1px rgba(0,0,0,.18); pointer-events: none;
+  }
+  .usage-week-reset, .usage-limit-reset-label, .usage-limit-reset-value{
+    border: 0; background: transparent; color: inherit; cursor: default; font: inherit; padding: 0; text-align: inherit;
+  }
+  .usage-week-reset{ color: var(--ink-3); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .usage-limit-reset-label, .usage-limit-reset-value, .usage-week-reset{ outline: none; }
+  .usage-pace-warning{
+    position: relative; display: inline-flex; align-items: center; justify-content: flex-end; min-width: 0; max-width: 72%;
+    gap: 4px; margin-left: auto; color: var(--ink-3); cursor: help; font-size: 10px; font-weight: 600; line-height: 1; white-space: nowrap;
+  }
+  .usage-pace-warning::after{
+    position: absolute; z-index: 5; right: 0; bottom: calc(100% + 8px); width: max-content; max-width: 190px;
+    padding: 7px 9px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px;
+    background: rgba(22,22,24,.96); box-shadow: 0 8px 22px rgba(0,0,0,.38); color: var(--ink);
+    content: attr(data-tooltip); font-size: 11px; font-weight: 700; line-height: 1.2; opacity: 0;
+    pointer-events: none; transform: translateY(3px); transition: opacity .16s ease, transform .16s ease;
+  }
+  .usage-pace-warning:hover::after, .usage-pace-warning:focus-visible::after{ opacity: 1; transform: translateY(0); }
+  .usage-pace-flame{ display: block; width: 15px; height: 17px; flex: 0 0 15px; color: var(--red); }
+  .usage-pace-runout{ overflow: hidden; max-width: 100%; border: 0; background: transparent; color: var(--ink-3); cursor: default; font: inherit; padding: 0; text-overflow: ellipsis; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce){ .usage-pace-warning::after{ transition: none; } }
+  .usage-card.is-closed .usage-card-head{ width: 100%; margin: 0; }
+  .usage-card.is-closed .usage-provider-logo{ width: 24px; height: 24px; border-radius: 7px; }
+  .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 15px; height: 15px; }
+  .usage-card.is-open[data-status="attention"]{ --usage-accent: #ff8a38; }
+  .usage-card.is-closed .usage-provider-logo[data-provider="codex"]{ background: #111; border: 1px solid rgba(255,255,255,.12); }
+  .usage-title{ font-family: inherit; font-size: 36px; font-weight: 700; line-height: .95; letter-spacing: -.055em; }
+  .usage-head{ gap: 10px; margin-left: 0; margin-right: 8px; margin-bottom: 0; }
+  .usage-card.is-open .usage-card-head{ min-height: 28px; margin-bottom: 0; }
+  .usage-mascot-wrap[data-status="attention"]{ --usage-mascot-accent: #ff8a38; }
+  .usage-head-mascot{ min-height: 64px; }
+  .usage-head-mascot .usage-mascot-wrap{ width: 64px; height: 64px; }
+  .usage-head-mascot .usage-token-dock{ width: 64px; height: 64px; }
+  .usage-head-mascot .usage-mascot-wrap .usage-token{ width: 50px; height: 50px; }
+  .usage-provider-name{ font-weight: 700; }
+  .usage-provider-plan{ font-weight: 600; }
+  .usage-five-copy .usage-limit-label{ font-weight: 700; letter-spacing: .03em; }
+  .usage-limit-label-row .usage-limit-label{ flex: 0 0 auto; }
+  .usage-pace-warning{ flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .usage-five-copy .usage-limit-reset-value{ margin-top: 4px; font-weight: 600; }
+  .usage-five-caption{ margin-top: 5px; font-weight: 500; }
+  .usage-five-caption.usage-five-reset-exact{
+    display: block; width: 100%; overflow: hidden; border: 0; background: transparent; color: var(--ink-3);
+    cursor: default; font: inherit; font-size: 11px; font-weight: 500; line-height: 1.1; margin-top: 5px; padding: 0;
+    text-align: left; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .usage-week-top .usage-limit-label{ font-weight: 700; letter-spacing: .03em; }
+  .usage-week-value .usage-limit-value{ font-weight: 700; }
+  .usage-week-reset{ font-weight: 600; }
+  @media (max-height: 780px) and (orientation: portrait){
+    .usage-card.is-open{ padding: 12px; }
+    .usage-card.is-open .usage-limit.primary{ min-height: 128px; }
+    .usage-metric-5h{ grid-template-columns: 128px minmax(0, 1fr); min-height: 128px; }
+    .usage-gauge-wrap{ width: 128px; height: 128px; flex-basis: 128px; }
+    .usage-gauge-copy .usage-limit-value{ font-size: 28px; }
+  }
+  @media (max-width: 380px){
+    .usage-card.is-open{ padding: 12px; }
+    .usage-metric-5h{ grid-template-columns: 124px minmax(0, 1fr); gap: 4px; min-height: 124px; }
+    .usage-gauge-wrap{ width: 124px; height: 124px; flex-basis: 124px; }
+    .usage-gauge-copy .usage-limit-value{ font-size: 27px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px){
+    .usage-card.is-open{ padding: 10px; }
+    .usage-card.is-open .usage-limit.primary{ min-height: 0; }
+    .usage-metric-5h{ grid-template-columns: 120px minmax(0, 1fr); min-height: 120px; }
+    .usage-gauge-wrap{ width: 120px; height: 120px; flex-basis: 120px; }
+    .usage-gauge-copy .usage-limit-value{ font-size: 26px; }
+    .usage-gauge-caption{ margin-top: 4px; font-size: 8px; }
+  }
+  @media (max-width: 699px) and (orientation: portrait){
+    .usage-sync{ display: flex; gap: 6px; margin-top: 4px; min-height: 12px; }
+    .usage-live-dot{ width: 6px; height: 6px; }
+    .usage-sync-label{ font-size: 9px; }
+    .usage-provider-logo{ width: 24px; height: 24px; border-radius: 7px; }
+    .usage-provider-logo img, .usage-provider-logo svg{ width: 15px; height: 15px; }
+  }
+  .usage-scroll{ padding-top: 28px; }
+  .usage-head{ margin-bottom: 0; }
+  .usage-card.is-open{ padding: 16px 16px 14px; }
+  @media (orientation: portrait){
+    .usage-scroll{ padding: 14px 0 30px; }
+  }
+
+  /* Usage mobile horizontal: aproveita a largura da tela e separa a
+     leitura principal dos provedores secundários. */
+  @media (orientation: landscape) and (max-height: 760px) and (pointer: coarse),
+         (max-width: 699px) and (orientation: landscape){
+    .usage-scroll{
+      align-items: stretch;
+      overflow: hidden;
+      padding: 10px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .usage-content{
+      width: min(100%, 620px); max-width: 620px; min-height: 0; flex: 1 1 auto;
+      margin: 0 auto; padding: 0;
+    }
+    .usage-head{ min-height: 50px; margin: 0 8px 10px; align-items: center; }
+    .usage-title{ font-size: 30px; }
+    .usage-provider-slider{ width: 100%; min-height: 0; flex: 1 1 auto; }
+    .usage-provider-track{ width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
+    .usage-provider-slide{ display: block; width: 100%; height: 100%; min-height: 0; padding: 0; }
+    .usage-stack{
+      display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-rows: repeat(3, minmax(0,1fr));
+      gap: 8px 12px; width: 100%; height: 100%; min-height: 0; margin: 0;
+    }
+    .usage-card.is-open{
+      grid-column: 1; grid-row: 1 / span 3; height: 100%; min-height: 0; padding: 10px; border-radius: 32px;
+    }
+    .usage-card.is-closed{
+      grid-column: 2; height: auto; min-height: 0; margin: 0; padding: 10px 12px; border-radius: 20px;
+    }
+    .usage-card.is-closed .usage-card-head{ margin: 0; }
+    .usage-trend-slide{ display: flex; height: 100%; padding: 22px 0 0; }
+    .usage-trend-slide .usage-trend{ min-height: 0; flex: 1 1 auto; }
+    .usage-provider-dots{ flex: 0 0 auto; margin-top: 0; padding: 4px 0 2px; }
+  }
+
   /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
   @media (orientation: landscape){
     main{ padding: calc(env(safe-area-inset-top, 0px) + 6px) 0 0; }
@@ -502,6 +1168,9 @@
     }
     .dots{
       padding: 18px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .vdots{
+      right: calc(4px + env(safe-area-inset-right, 0px));
     }
   }
   /* Em touch landscape a régua de tamanho continua responsiva; o espaçamento
@@ -760,6 +1429,7 @@
       </div>
     </section>
     <section class="screen" id="screenRecents"></section>
+    <section class="screen" id="screenUsage"></section>
   </div>
 </main>
 
@@ -839,6 +1509,7 @@
       "login.tooMany": "Muitas tentativas — aguarde um pouco.", "login.wrongCode": "Código errado.",
       "dock.openApps": "Apps abertos", "dock.apps": "Apps", "dock.pinned": "Favoritos", "dock.tapToOpen": "Toque em um app para abrir",
       "recents.title": "Apps abertos", "recents.empty": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
+      "usage.title": "Uso", "usage.source": "Fonte: OpenUsage", "usage.localData": "Dados locais", "usage.updated": "atualizado", "usage.refresh": "Atualizar", "usage.loading": "Lendo limites...", "usage.primaryLimit": "Limite principal", "usage.focusHint": "Veja o uso atual e quando o limite reinicia.", "usage.providers": "Limites monitorados", "usage.unavailable": "OpenUsage indisponível", "usage.unavailableBody": "Inicie o OpenUsage no Mac para o Dokke ler os limites localmente. Nenhum número foi inventado.", "usage.noData": "Sem limite confiável", "usage.noDataBody": "Claude e Codex ainda não retornaram limites utilizáveis.", "usage.normal": "normal", "usage.attention": "atenção", "usage.exhausted": "esgotado", "usage.unknown": "sem dados", "usage.fiveHour": "Janela de 5 horas", "usage.session": "Sessão", "usage.weekly": "Semana", "usage.monthly": "Mês", "usage.credits": "Créditos", "usage.balance": "Saldo", "usage.reset": "reseta", "usage.resetUnknown": "reset desconhecido", "usage.used": "{value} usado", "usage.usedShort": "usado", "usage.remaining": "restante", "usage.available": "disponível", "usage.moreLimits": "Mais limites", "usage.hideLimits": "Ocultar limites", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token está tranquilo", "usage.pet.attentive": "Token está atento", "usage.pet.tired": "Token está cansado", "usage.pet.exhausted": "Token precisa recarregar", "usage.pet.neutral": "Token está aguardando dados", "usage.pet.greeting": "Opa! Sou o token", "usage.pet.refreshing": "Atualizando...", "usage.pet.updated": "Atualizado", "usage.pet.interact": "Interagir com o Token",
       "modal.pinTitle": "Fixar apps como favoritos",
       "dock.opened": "aberto", "dock.noOpenApps": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
       "dock.pinApps": "Fixar apps como favoritos", "dock.pinSubtitle": "Escolha os apps que aparecem no Launchpad.",
@@ -882,6 +1553,7 @@
       "login.tooMany": "Too many attempts — please wait a moment.", "login.wrongCode": "Wrong code.",
       "dock.openApps": "Open apps", "dock.apps": "Apps", "dock.pinned": "Favorites", "dock.tapToOpen": "Tap an app to open it",
       "recents.title": "Open apps", "recents.empty": "Nothing open yet — open an app on your Mac to see it here",
+      "usage.title": "Usage", "usage.source": "Source: OpenUsage", "usage.localData": "Local data", "usage.updated": "updated", "usage.refresh": "Refresh", "usage.loading": "Reading limits...", "usage.primaryLimit": "Primary limit", "usage.focusHint": "See current usage and when the limit resets.", "usage.providers": "Monitored limits", "usage.unavailable": "OpenUsage unavailable", "usage.unavailableBody": "Start OpenUsage on the Mac so Dokke can read the limits locally. No number was invented.", "usage.noData": "No reliable limit", "usage.noDataBody": "Claude and Codex have not returned usable limits yet.", "usage.normal": "normal", "usage.attention": "attention", "usage.exhausted": "exhausted", "usage.unknown": "no data", "usage.fiveHour": "5-hour window", "usage.session": "Session", "usage.weekly": "Weekly", "usage.monthly": "Monthly", "usage.credits": "Credits", "usage.balance": "Balance", "usage.reset": "resets", "usage.resetUnknown": "reset unknown", "usage.used": "{value} used", "usage.usedShort": "used", "usage.remaining": "remaining", "usage.available": "available", "usage.moreLimits": "More limits", "usage.hideLimits": "Hide limits", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token is calm", "usage.pet.attentive": "Token is paying attention", "usage.pet.tired": "Token is tired", "usage.pet.exhausted": "Token needs a recharge", "usage.pet.neutral": "Token is waiting for data", "usage.pet.greeting": "Oops! I'm the token", "usage.pet.refreshing": "Refreshing...", "usage.pet.updated": "Updated", "usage.pet.interact": "Interact with Token",
       "modal.pinTitle": "Pin apps as favorites",
       "dock.opened": "open", "dock.noOpenApps": "Nothing open yet — open an app on your Mac to see it here",
       "dock.pinApps": "Pin apps as favorites", "dock.pinSubtitle": "Choose the apps that appear in Launchpad.",
@@ -916,6 +1588,68 @@
       "update.close": "Close notice", "site": "site", "footer.brand": "Dokke by Felipe Natanael"
     }
   };
+  I18N["pt-BR"]["usage.title"] = "Uso";
+  I18N["pt-BR"]["usage.provider.claude"] = "Claude";
+  I18N["pt-BR"]["usage.updatedNow"] = "Atualizado agora";
+  I18N["pt-BR"]["usage.updatedMinutes"] = "Atualizado há {value} min";
+  I18N["pt-BR"]["usage.syncUnknown"] = "Sem horário de atualização";
+  I18N["pt-BR"]["usage.online"] = "Online";
+  I18N["pt-BR"]["usage.stale"] = "Desatualizado";
+  I18N["pt-BR"]["usage.offline"] = "Offline";
+  I18N["pt-BR"]["usage.fiveHourShort"] = "5 horas";
+  I18N["pt-BR"]["usage.weekShort"] = "semana";
+  I18N["pt-BR"]["usage.untilReset"] = "até resetar";
+  I18N["pt-BR"]["usage.overLimitAtReset"] = "acima do limite no reset";
+  I18N["pt-BR"]["usage.usedAtReset"] = "usado no reset";
+  I18N["pt-BR"]["usage.leftAtReset"] = "restante no reset";
+  I18N["pt-BR"]["usage.limitReached"] = "Limite atingido";
+  I18N["pt-BR"]["usage.limitIn"] = "limite em";
+  I18N["pt-BR"]["usage.limitAt"] = "limite";
+  I18N["pt-BR"]["usage.showExactReset"] = "Mostrar horário exato do reset";
+  I18N["pt-BR"]["usage.showResetCountdown"] = "Mostrar contagem regressiva do reset";
+  I18N["pt-BR"]["usage.showRemaining"] = "Mostrar restante";
+  I18N["pt-BR"]["usage.showUsed"] = "Mostrar usado";
+  I18N["pt-BR"]["usage.trend"] = "Tendência de uso";
+  I18N["pt-BR"]["usage.source"] = "Fonte: Dokke";
+  I18N["pt-BR"]["usage.unavailable"] = "Uso indisponível";
+  I18N["pt-BR"]["usage.unavailableBody"] = "Nenhuma fonte local retornou limites utilizáveis.";
+  I18N["pt-BR"]["usage.noDataBody"] = "Nenhum provedor retornou limites utilizáveis.";
+  I18N["pt-BR"]["usage.activityWorking"] = "Processando...";
+  I18N["pt-BR"]["usage.activitySyncing"] = "Atualizando limites";
+  I18N["pt-BR"]["usage.activityWaiting"] = "Aguardando ação";
+      I18N["pt-BR"]["usage.trendPeak"] = "{value}";
+  I18N["pt-BR"]["usage.trendBars"] = "{count} dias de uso";
+  I18N["en"]["usage.title"] = "Usage";
+  I18N["en"]["usage.provider.claude"] = "Claude";
+  I18N["en"]["usage.updatedNow"] = "Updated now";
+  I18N["en"]["usage.updatedMinutes"] = "Updated {value} min ago";
+  I18N["en"]["usage.syncUnknown"] = "Update time unavailable";
+  I18N["en"]["usage.online"] = "Online";
+  I18N["en"]["usage.stale"] = "Stale";
+  I18N["en"]["usage.offline"] = "Offline";
+  I18N["en"]["usage.fiveHourShort"] = "5 hours";
+  I18N["en"]["usage.weekShort"] = "week";
+  I18N["en"]["usage.untilReset"] = "until reset";
+  I18N["en"]["usage.overLimitAtReset"] = "over limit at reset";
+  I18N["en"]["usage.usedAtReset"] = "used at reset";
+  I18N["en"]["usage.leftAtReset"] = "left at reset";
+  I18N["en"]["usage.limitReached"] = "Limit reached";
+  I18N["en"]["usage.limitIn"] = "limit in";
+  I18N["en"]["usage.limitAt"] = "limit";
+  I18N["en"]["usage.showExactReset"] = "Show the exact reset time";
+  I18N["en"]["usage.showResetCountdown"] = "Show the reset countdown";
+  I18N["en"]["usage.showRemaining"] = "Show remaining";
+  I18N["en"]["usage.showUsed"] = "Show used";
+  I18N["en"]["usage.trend"] = "Usage Trend";
+  I18N["en"]["usage.source"] = "Source: Dokke";
+  I18N["en"]["usage.unavailable"] = "Usage unavailable";
+  I18N["en"]["usage.unavailableBody"] = "No local source returned usable limits.";
+  I18N["en"]["usage.noDataBody"] = "No provider returned usable limits yet.";
+  I18N["en"]["usage.activityWorking"] = "Processing...";
+  I18N["en"]["usage.activitySyncing"] = "Updating limits";
+  I18N["en"]["usage.activityWaiting"] = "Waiting for action";
+      I18N["en"]["usage.trendPeak"] = "{value}";
+  I18N["en"]["usage.trendBars"] = "{count} days of usage";
   function detectLanguage(language = navigator.language){
     if (typeof language !== "string" || !language.trim()) return "pt-BR";
     return language.toLowerCase().startsWith("pt") ? "pt-BR" : "en";
@@ -1101,6 +1835,119 @@
     }
   }
 
+  function normalizeUsageSettings(raw){
+    const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    return {
+      enabled: typeof source.enabled === "boolean" ? source.enabled : true,
+      display: source.display === "remaining" ? "remaining" : "used",
+      reset: source.reset === "countdown" ? "countdown" : "exact",
+    };
+  }
+
+  function normalizeUsageProviderId(raw){
+    if (typeof raw !== "string") return null;
+    const value = raw.trim().toLowerCase();
+    return /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(value) ? value : null;
+  }
+
+  function applyUsageProviderId(raw){
+    const next = normalizeUsageProviderId(raw);
+    if (state.usageProviderId === next) return false;
+    state.usageProviderId = next;
+    if (state.screen === "usage" && state.usage) renderUsage();
+    return true;
+  }
+
+  function persistUsageProviderId(providerId){
+    return req("/api/config/usage/provider", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: providerId }),
+      timeout: 4000,
+    }).then(function(result){
+      if (result && result.status === 200 && result.data && result.data.config){
+        applyUsageProviderId(result.data.config.usageProvider);
+      }
+      return result;
+    }).catch(function(){ return null; });
+  }
+
+  function applyUsageSettings(raw){
+    const next = normalizeUsageSettings(raw);
+    const changed = JSON.stringify(state.usageSettings) !== JSON.stringify(next);
+    state.usageSettings = next;
+    if (changed){
+      renderVDots();
+      syncVDots();
+      if (!state.usageSettings.enabled && state.screen === "usage") goScreen("recents");
+    }
+    return changed;
+  }
+
+  function persistUsageSettings(next){
+    void req("/api/config/usage", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: next }),
+      timeout: 4000,
+    }).catch(function(){});
+  }
+
+  function updateUsageSetting(key, value){
+    const next = Object.assign({}, state.usageSettings);
+    next[key] = value;
+    applyUsageSettings(next);
+    renderUsage();
+    persistUsageSettings(next);
+  }
+
+  function toggleUsageResetDisplay(){
+    updateUsageSetting("reset", state.usageSettings.reset === "exact" ? "countdown" : "exact");
+  }
+
+  function toggleUsageMeterDisplay(){
+    updateUsageSetting("display", state.usageSettings.display === "remaining" ? "used" : "remaining");
+  }
+
+  function usageMeterControl(control){
+    control.setAttribute("role", "button");
+    control.setAttribute("tabindex", "0");
+    control.title = state.usageSettings.display === "remaining" ? t("usage.showUsed") : t("usage.showRemaining");
+    control.setAttribute("aria-label", control.title);
+    control.addEventListener("click", toggleUsageMeterDisplay);
+    control.addEventListener("keydown", function(event){
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      toggleUsageMeterDisplay();
+    });
+    return control;
+  }
+
+  function usageResetLabel(className, text){
+    return usageTextNode("span", className, text);
+  }
+
+  function usageResetChartControl(chart, reset, providerId){
+    if (!reset || !Number.isFinite(reset.time)) return chart;
+    const action = state.usageSettings.reset === "exact" ? t("usage.showResetCountdown") : t("usage.showExactReset");
+    chart.setAttribute("role", "button");
+    chart.setAttribute("tabindex", "0");
+    chart.dataset.resetMode = state.usageSettings.reset;
+    chart.title = action;
+    chart.setAttribute("aria-label", (chart.getAttribute("aria-label") || "") + ". " + action);
+    const toggle = function(){
+      queueUsageMascotReaction(providerId, "chart");
+      toggleUsageResetDisplay();
+    };
+    chart.addEventListener("click", toggle);
+    chart.addEventListener("keydown", function(event){
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      toggle();
+    });
+    return chart;
+  }
+
   function pinnedLimitMessage(){
     return t("toast.pinnedLimit", { pages: state.maxPinnedPages });
   }
@@ -1148,6 +1995,8 @@
     installedReady: false,
     obs: { connected: false, error: false, scenes: [], scene: null, recording: false, streaming: false },
     obsTimer: null,
+    usage: null, usageActivity: null, usageError: null, usageLoading: false, usageOpenId: null, usageProviderId: null, usageMascotStates: {}, usageMascotAnimations: Object.create(null), usageMascotReaction: null,
+    usageSettings: { enabled: true, display: "used", reset: "exact" },
   };
 
   const isRunning = name => state.running.some(a => a.name === name);
@@ -1327,7 +2176,7 @@
 
   function applyConfigSnapshot(config){
     if (!config || !Array.isArray(config.pieces) || !Array.isArray(config.pinned)) return;
-    applyAppsPayload(config.pieces, config.pinned, state.running, config.limits, config.revision);
+    applyAppsPayload(config.pieces, config.pinned, state.running, config.limits, config.revision, config.usage, config.usageProvider);
   }
 
   let lastFocus = null;
@@ -1971,6 +2820,1525 @@
     bindDeckGestures();
   }
 
+  // ---------- tela 3: Usage ----------
+  const USAGE_PROVIDER_ORDER = ["claude", "codex", "antigravity", "grok"];
+  let usageT = null;
+  let usageActivityT = null;
+  let usageMascotReactionTimer = null;
+  let usageMascotReactionSerial = 0;
+
+  function queueUsageMascotReaction(providerId, type){
+    if (!providerId || !type) return;
+    const reaction = { providerId: providerId, type: type, serial: ++usageMascotReactionSerial };
+    state.usageMascotReaction = reaction;
+    if (usageMascotReactionTimer) clearTimeout(usageMascotReactionTimer);
+    usageMascotReactionTimer = setTimeout(function(){
+      if (state.usageMascotReaction !== reaction) return;
+      state.usageMascotReaction = null;
+      usageMascotReactionTimer = null;
+      renderUsage();
+    }, 900);
+  }
+
+  function usageProviderId(id){
+    return id === "anthropic" ? "claude" : String(id || "");
+  }
+
+  function usageProviderActivity(provider, id){
+    const live = state.usageActivity && state.usageActivity.providers && state.usageActivity.providers[id];
+    const attached = provider && provider.activity;
+    const value = live || attached;
+    return value && (value.state === "working" || value.state === "waiting" || value.state === "idle") ? value : null;
+  }
+
+  function usageActivitySignature(payload){
+    const providers = payload && payload.providers && typeof payload.providers === "object" ? payload.providers : {};
+    return JSON.stringify(Object.fromEntries(Object.entries(providers).map(function(entry){
+      const value = entry[1] || {};
+      return [entry[0], { state: value.state || "idle", since: value.since || null, detail: value.detail || null, sessions: value.sessions || 0 }];
+    })));
+  }
+
+  function usageProviderIds(snapshot){
+    const ids = USAGE_PROVIDER_ORDER.slice();
+    const providers = snapshot && snapshot.providers;
+    const sourceIds = Array.isArray(providers)
+      ? providers.map(function(provider){ return provider && provider.id; })
+      : Object.keys(providers || {});
+    sourceIds.forEach(function(rawId){
+      const id = usageProviderId(rawId);
+      if (id && ids.indexOf(id) === -1) ids.push(id);
+    });
+    return ids;
+  }
+
+  function usageProvider(snapshot, id){
+    if (!snapshot || !snapshot.providers) return null;
+    if (Array.isArray(snapshot.providers)){
+      return snapshot.providers.find(function(provider){ return provider && (provider.id === id || (id === "claude" && provider.id === "anthropic")); }) || null;
+    }
+    return snapshot.providers[id] || (id === "claude" ? snapshot.providers.anthropic : null) || null;
+  }
+
+  function usageTextNode(tag, className, text){
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    node.textContent = text == null ? "" : String(text);
+    return node;
+  }
+
+  const MASCOT_ASSET_VERSION = "?v=20260909-11";
+  const MASCOT_FRAME_DURATION = 180;
+  const MASCOT_FRAME_CROSSFADE_MS = 90;
+  const MASCOT_AMBIENT_PHASES = ["idlePrincipal", "idlePrincipal", "idleCoffee", "idlePrincipal", "idleOne", "idlePrincipal"];
+
+  function usageMascotFrames(duration){
+    return Array.from({ length: 16 }, function(_, index){
+      return { spriteIndex: index, duration: duration };
+    });
+  }
+
+  function usageMascotTrack(file, loop){
+    return {
+      asset: "/mascot/" + file + MASCOT_ASSET_VERSION,
+      frameCount: 16,
+      frames: usageMascotFrames(MASCOT_FRAME_DURATION),
+      loopStart: loop ? 0 : null,
+    };
+  }
+
+  const USAGE_MASCOT_TRACKS = {
+    working: {
+      start: usageMascotTrack("dokke-mascot-working-start-strip.webp", false),
+      loop: usageMascotTrack("dokke-mascot-working-loop-strip.webp", true),
+      end: usageMascotTrack("dokke-mascot-working-end-strip.webp", false),
+    },
+    thinking: {
+      start: usageMascotTrack("dokke-mascot-thinking-start-strip.webp", false),
+      loop: usageMascotTrack("dokke-mascot-thinking-loop-strip.webp", true),
+      end: usageMascotTrack("dokke-mascot-thinking-end-strip.webp", false),
+    },
+    idle: {
+      idlePrincipal: usageMascotTrack("dokke-mascot-idle-principal-strip.webp", false),
+      idleOne: usageMascotTrack("dokke-mascot-idle-one-strip.webp", false),
+      idleCoffee: usageMascotTrack("dokke-mascot-idle-coffee-strip.webp", false),
+    },
+  };
+
+  const usageMascotAssetCache = Object.create(null);
+
+  function usageMascotAssetReady(asset){
+    if (usageMascotAssetCache[asset]) return usageMascotAssetCache[asset];
+    if (typeof Image !== "function") return Promise.resolve();
+    usageMascotAssetCache[asset] = new Promise(function(resolve){
+      const image = new Image();
+      let settled = false;
+      const done = function(ready){
+        if (settled) return;
+        settled = true;
+        resolve(ready);
+      };
+      image.onload = function(){ done(true); };
+      image.onerror = function(){ done(false); };
+      image.decoding = "async";
+      image.src = asset;
+      if (typeof image.decode === "function") image.decode().then(function(){ done(true); }, function() {});
+    });
+    return usageMascotAssetCache[asset];
+  }
+
+  Object.keys(USAGE_MASCOT_TRACKS).forEach(function(activity){
+    Object.keys(USAGE_MASCOT_TRACKS[activity]).forEach(function(phase){
+      usageMascotAssetReady(USAGE_MASCOT_TRACKS[activity][phase].asset);
+    });
+  });
+
+  function usageMascotNow(){
+    return typeof performance === "object" && performance && typeof performance.now === "function"
+      ? performance.now() : Date.now();
+  }
+
+  function usageMascotReducedMotion(){
+    try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+    catch (e) { return false; }
+  }
+
+  function usageMascotFrameAtElapsed(animation, elapsedMs){
+    const frames = animation.frames;
+    if (!frames.length) return { spriteIndex: 0, delay: null };
+    if (frames.length === 1) return { spriteIndex: frames[0].spriteIndex, delay: null };
+    let elapsed = Math.max(0, elapsedMs);
+    const total = frames.reduce(function(sum, frame){ return sum + frame.duration; }, 0);
+    const loopStart = Number.isInteger(animation.loopStart) ? animation.loopStart : null;
+    if (loopStart != null && loopStart >= 0 && loopStart < frames.length){
+      const prefix = frames.slice(0, loopStart).reduce(function(sum, frame){ return sum + frame.duration; }, 0);
+      const loopDuration = total - prefix;
+      if (elapsed >= total && loopDuration > 0){
+        elapsed = prefix + (elapsed - prefix) % loopDuration;
+      }
+    } else if (elapsed >= total){
+      const finalFrame = frames[frames.length - 1];
+      return { spriteIndex: finalFrame.spriteIndex, delay: null };
+    }
+    for (let i = 0; i < frames.length; i++){
+      const duration = Math.max(1, frames[i].duration);
+      if (elapsed < duration){
+        return {
+          spriteIndex: frames[i].spriteIndex,
+          delay: duration - elapsed,
+        };
+      }
+      elapsed -= duration;
+    }
+    return { spriteIndex: frames[frames.length - 1].spriteIndex, delay: null };
+  }
+
+  function usageMascotRequestFrame(callback){
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(callback);
+    else setTimeout(function(){ callback(usageMascotNow()); }, 16);
+  }
+
+  function usageMascotAnimationRate(){
+    // Movimento reduzido desacelera o mascote, mas não o congela no primeiro frame.
+    return usageMascotReducedMotion() ? 0.5 : 1;
+  }
+
+  function usageMascotLayers(sprite){
+    return Array.from(sprite.children).filter(function(layer){
+      return layer.classList.contains("usage-mascot-sprite-layer") || layer.classList.contains("usage-mascot-idle-layer");
+    }).slice(0, 2);
+  }
+
+  function usageMascotActiveLayer(sprite){
+    const layers = usageMascotLayers(sprite);
+    const index = Number(sprite.dataset.activeLayer);
+    return layers[Number.isInteger(index) ? index : 0] || layers[0] || null;
+  }
+
+  function usageMascotPreparePhase(sprite, animation, preserveVisible){
+    const layers = usageMascotLayers(sprite);
+    if (layers.length < 2) return;
+    const activeIndex = Number(sprite.dataset.activeLayer);
+    const currentIndex = Number.isInteger(activeIndex) && activeIndex >= 0 && activeIndex < layers.length ? activeIndex : 0;
+    const active = layers[currentIndex];
+    const incoming = layers[1 - currentIndex];
+    const configure = function(layer){
+      layer.style.width = animation.frameCount * 100 + "%";
+      layer.style.backgroundImage = "url(\"" + animation.asset + "\")";
+      layer.dataset.frameCount = String(animation.frameCount);
+      layer.dataset.phase = sprite.dataset.phase || "";
+      layer.dataset.asset = animation.asset;
+    };
+    if (!preserveVisible){
+      layers.forEach(function(layer, index){
+        configure(layer);
+        layer.dataset.frame = index === currentIndex ? "" : "";
+        layer.dataset.active = index === currentIndex ? "true" : "false";
+        layer.style.transition = "none";
+        layer.style.transform = "translate3d(0, 0, 0)";
+        layer.style.opacity = index === currentIndex ? "1" : "0";
+      });
+      sprite.dataset.activeLayer = String(currentIndex);
+      return;
+    }
+    configure(incoming);
+    incoming.dataset.frame = "";
+    incoming.dataset.active = "false";
+    incoming.style.transition = "none";
+    incoming.style.transform = "translate3d(0, 0, 0)";
+    incoming.style.opacity = "0";
+    active.dataset.active = "true";
+  }
+
+  function usageMascotPaintFrame(sprite, layer, animation, startedAt, now){
+    const rate = usageMascotAnimationRate();
+    const frame = usageMascotFrameAtElapsed(animation, (now - startedAt) * rate);
+    const frameKey = String(frame.spriteIndex);
+    const active = usageMascotActiveLayer(sprite) || layer;
+    const assetChanged = active.dataset.asset !== animation.asset;
+    if (active.dataset.frame !== frameKey || assetChanged){
+      if (!assetChanged){
+        active.dataset.frame = frameKey;
+        active.style.transform = "translate3d(-" + (frame.spriteIndex * 100 / animation.frameCount).toFixed(4) + "%, 0, 0)";
+        return frame.delay == null ? null : frame.delay / rate;
+      }
+      const layers = usageMascotLayers(sprite);
+      const activeIndex = layers.indexOf(active) >= 0 ? layers.indexOf(active) : 0;
+      const incoming = layers.length > 1 ? layers[1 - activeIndex] : active;
+      const offset = frame.spriteIndex * 100 / animation.frameCount;
+      const position = offset === 0 ? "0" : offset.toFixed(4);
+      incoming.style.transition = "none";
+      incoming.style.width = animation.frameCount * 100 + "%";
+      incoming.style.backgroundImage = "url(\"" + animation.asset + "\")";
+      incoming.dataset.frameCount = String(animation.frameCount);
+      incoming.dataset.phase = animation.asset;
+      incoming.dataset.asset = animation.asset;
+      incoming.dataset.frame = frameKey;
+      incoming.style.transform = "translate3d(-" + position + "%, 0, 0)";
+      incoming.style.opacity = "0";
+      void incoming.offsetWidth;
+      incoming.style.transition = "opacity " + MASCOT_FRAME_CROSSFADE_MS + "ms linear";
+      active.style.transition = "opacity " + MASCOT_FRAME_CROSSFADE_MS + "ms linear";
+      incoming.style.opacity = "1";
+      active.style.opacity = "0";
+      active.dataset.active = "false";
+      incoming.dataset.active = "true";
+      sprite.dataset.activeLayer = String(layers.indexOf(incoming));
+    }
+    return frame.delay == null ? null : frame.delay / rate;
+  }
+
+  function usageMascotComplete(sprite, onComplete){
+    if (typeof onComplete !== "function") return;
+    if (sprite.isConnected){
+      onComplete();
+      return;
+    }
+    // usageMascotNode starts the clock before renderUsage appends the node.
+    // Defer only the disconnected case so an already-finished finite track
+    // cannot lose its start/end transition during that same render turn.
+    const complete = function(){ if (sprite.isConnected) onComplete(); };
+    if (typeof queueMicrotask === "function") queueMicrotask(complete);
+    else Promise.resolve().then(complete);
+  }
+
+  function usageMascotRun(sprite, layer, animation, startedAt, onComplete){
+    function schedule(delay){
+      if (delay == null){
+        usageMascotComplete(sprite, onComplete);
+        return;
+      }
+      setTimeout(function(){
+        if (!sprite.isConnected || state.screen !== "usage") return;
+        usageMascotRequestFrame(function(now){
+          if (state.screen !== "usage") return;
+          const nextDelay = usageMascotPaintFrame(sprite, layer, animation, startedAt, now);
+          schedule(nextDelay);
+        });
+      }, Math.max(1, Math.ceil(delay)));
+    }
+    usageMascotAssetReady(animation.asset).then(function(ready){
+      if (!sprite.isConnected || state.screen !== "usage") return;
+      const token = sprite.parentElement;
+      if (!ready){
+        if (token) token.dataset.assetError = "true";
+        return;
+      }
+      const delay = usageMascotPaintFrame(sprite, layer, animation, startedAt, usageMascotNow());
+      schedule(delay);
+    });
+  }
+
+  function usageMascotActivityType(activity){
+    if (activity === "working" || activity === "syncing") return "working";
+    if (activity === "waiting") return "thinking";
+    return "idle";
+  }
+
+  function usageMascotTrackFor(controller){
+    const group = USAGE_MASCOT_TRACKS[controller.activity] || USAGE_MASCOT_TRACKS.idle;
+    return group[controller.phase] || group.loop || group.idlePrincipal || group.idleOne;
+  }
+
+  function usageMascotNextIdlePhase(controller){
+    const index = controller.ambientIndex % MASCOT_AMBIENT_PHASES.length;
+    controller.ambientIndex = (index + 1) % MASCOT_AMBIENT_PHASES.length;
+    return MASCOT_AMBIENT_PHASES[index];
+  }
+
+  function usageMascotStartPhase(controller, activity){
+    return activity === "idle" ? usageMascotNextIdlePhase(controller) : "start";
+  }
+
+  function usageMascotAdvance(providerId, controller, token, sprite){
+    const current = state.usageMascotAnimations && state.usageMascotAnimations[providerId];
+    if (current !== controller || current.token !== token) return;
+    const now = usageMascotNow();
+    if (controller.phase === "start"){
+      controller.phase = "loop";
+    } else if (controller.phase === "end"){
+      controller.activity = controller.targetActivity;
+      controller.phase = usageMascotStartPhase(controller, controller.activity);
+    } else {
+      controller.phase = usageMascotStartPhase(controller, controller.activity);
+    }
+    controller.startedAt = now;
+    controller.token += 1;
+    if (!sprite || !sprite.isConnected){
+      if (state.screen === "usage" && state.usage) renderUsage();
+      return;
+    }
+    const idle = controller.activity === "idle";
+    const animation = usageMascotTrackFor(controller);
+    const layer = usageMascotActiveLayer(sprite);
+    if (!layer) return;
+    const spriteClass = idle ? "usage-mascot-idle usage-mascot-phase" : "usage-mascot-sprite usage-mascot-phase";
+    const layerClass = idle ? "usage-mascot-idle-layer" : "usage-mascot-sprite-layer";
+    sprite.className = spriteClass;
+    Array.from(sprite.children).forEach(function(child){ child.className = layerClass; });
+    sprite.dataset.phase = controller.phase;
+    sprite.dataset.activity = controller.activity;
+    usageMascotPreparePhase(sprite, animation, true);
+    usageMascotRun(sprite, layer, animation, controller.startedAt, function(){
+      usageMascotAdvance(providerId, controller, controller.token, sprite);
+    });
+  }
+
+  function usageMascotEnsureAnimation(providerId, requestedActivity){
+    if (!state.usageMascotAnimations || typeof state.usageMascotAnimations !== "object") state.usageMascotAnimations = Object.create(null);
+    const now = usageMascotNow();
+    const hasController = Object.prototype.hasOwnProperty.call(state.usageMascotAnimations, providerId);
+    let controller = hasController ? state.usageMascotAnimations[providerId] : null;
+    if (!controller){
+      controller = {
+        activity: requestedActivity,
+        targetActivity: requestedActivity,
+        phase: usageMascotStartPhase({ ambientIndex: 0 }, requestedActivity),
+        ambientIndex: requestedActivity === "idle" ? 1 : 0,
+        startedAt: now,
+        token: 0,
+      };
+      state.usageMascotAnimations[providerId] = controller;
+      return controller;
+    }
+    if (controller.targetActivity === requestedActivity) return controller;
+    controller.targetActivity = requestedActivity;
+    if (controller.phase === "end") return controller;
+    if (controller.activity !== "idle"){
+      controller.phase = "end";
+      controller.startedAt = now;
+      controller.token += 1;
+      return controller;
+    }
+    controller.activity = requestedActivity;
+    controller.phase = usageMascotStartPhase(controller, requestedActivity);
+    controller.startedAt = now;
+    controller.token += 1;
+    return controller;
+  }
+
+  function usageMascotNode(providerId, controller){
+    const idle = controller.activity === "idle";
+    const className = idle ? "usage-mascot-idle usage-mascot-phase" : "usage-mascot-sprite usage-mascot-phase";
+    const layerClassName = idle ? "usage-mascot-idle-layer" : "usage-mascot-sprite-layer";
+    const animation = usageMascotTrackFor(controller);
+    const token = controller.token;
+    const sprite = usageTextNode("span", className, "");
+    sprite.setAttribute("aria-hidden", "true");
+    sprite.dataset.phase = controller.phase;
+    sprite.dataset.activity = controller.activity;
+    const firstLayer = usageTextNode("span", layerClassName, "");
+    const secondLayer = usageTextNode("span", layerClassName, "");
+    sprite.appendChild(firstLayer);
+    sprite.appendChild(secondLayer);
+    usageMascotPreparePhase(sprite, animation, false);
+    usageMascotRun(sprite, firstLayer, animation, controller.startedAt, function(){
+      usageMascotAdvance(providerId, controller, token, sprite);
+    });
+    return sprite;
+  }
+
+  function usageResourceLabel(id, resource){
+    const normalizedId = String(id || "").toLowerCase();
+    const labels = {
+      session: "usage.session", weekly: "usage.weekly", monthly: "usage.monthly",
+      credits: "usage.credits", premiumCredits: "usage.credits",
+      balance: "usage.balance", extraUsageBalance: "usage.balance"
+    };
+    if (normalizedId.endsWith("weekly") || normalizedId === "week") return t("usage.weekShort");
+    return labels[id] ? t(labels[id]) : String(resource && resource.label || id || "Limit");
+  }
+
+  function usageFormatValue(value, unit){
+    if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+    if (unit === "usd") return "$" + value.toFixed(2);
+    if (unit === "percent") return Math.round(value) + "%";
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+
+  function usageStatusLabel(status){
+    const key = status === "exhausted" ? "usage.exhausted"
+      : status === "attention" ? "usage.attention"
+      : status === "normal" ? "usage.normal" : "usage.unknown";
+    return t(key);
+  }
+
+  function usageMascotLabel(mascot){
+    const key = mascot === "energized" ? "usage.pet.energized"
+      : mascot === "attentive" ? "usage.pet.attentive"
+      : mascot === "tired" ? "usage.pet.tired"
+      : mascot === "exhausted" ? "usage.pet.exhausted" : "usage.pet.neutral";
+    return t(key);
+  }
+
+  function usageResetText(value){
+    if (!value) return t("usage.resetUnknown");
+    const time = Date.parse(value);
+    if (!Number.isFinite(time)) return t("usage.resetUnknown");
+    try {
+      const formatted = new Intl.RelativeTimeFormat(currentLanguage === "pt-BR" ? "pt-BR" : "en", { numeric: "auto" });
+      const hours = Math.round((time - Date.now()) / 3600000);
+      if (Math.abs(hours) < 24) return t("usage.reset") + " " + formatted.format(hours, "hour");
+      return t("usage.reset") + " " + formatted.format(Math.round(hours / 24), "day");
+    } catch (e) {
+      return t("usage.reset");
+    }
+  }
+
+  function usageResources(provider){
+    return Object.entries(provider && provider.resources || {}).map(function(entry){
+      return { id: entry[0], resource: entry[1] || {} };
+    });
+  }
+
+  function usageProviderHasData(provider){
+    return usageResources(provider).some(function(entry){
+      const resource = entry.resource || {};
+      return ["used", "limit", "remaining", "available", "utilization"].some(function(key){
+        return typeof resource[key] === "number" && Number.isFinite(resource[key]);
+      });
+    });
+  }
+
+  function usageFiveHour(provider){
+    const ids = ["session", "fivehour", "five_hour", "5h", "fivehours"];
+    return usageResources(provider).find(function(entry){
+      return ids.indexOf(String(entry.id).toLowerCase()) !== -1 && entry.resource.kind === "consumption";
+    }) || null;
+  }
+
+  function usageWeekly(provider){
+    const ids = ["weekly", "week"];
+    return usageResources(provider).find(function(entry){
+      const normalizedId = String(entry.id).toLowerCase();
+      return (ids.indexOf(normalizedId) !== -1 || normalizedId.endsWith("weekly")) && entry.resource.kind === "consumption";
+    }) || null;
+  }
+
+  function usagePrimary(provider){
+    const resources = usageResources(provider);
+    return usageFiveHour(provider) || usageWeekly(provider)
+      || resources.find(function(entry){ return entry.resource.kind === "consumption"; }) || resources[0] || null;
+  }
+
+
+  function usagePercent(entry){
+    const value = entry && entry.resource && entry.resource.utilization;
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    const fraction = state.usageSettings.display === "remaining" ? 1 - value : value;
+    return Math.max(0, Math.min(fraction, 1));
+  }
+
+  function usagePercentLabel(){
+    return state.usageSettings.display === "remaining" ? t("usage.remaining") : t("usage.usedShort");
+  }
+
+  // Port of OpenUsage's Pace.evaluate. A reset timestamp alone is not enough;
+  // without the window duration we stay silent instead of fabricating a forecast.
+  function usagePace(entry){
+    const resource = entry && entry.resource || {};
+    const limit = typeof resource.limit === "number" && Number.isFinite(resource.limit) ? resource.limit : null;
+    const utilization = typeof resource.utilization === "number" && Number.isFinite(resource.utilization)
+      ? resource.utilization : null;
+    const usedValue = typeof resource.used === "number" && Number.isFinite(resource.used)
+      ? resource.used : limit !== null && utilization !== null ? limit * utilization : null;
+    const resetTime = Date.parse(resource.resetsAt || "");
+    const periodMs = typeof resource.periodDurationMs === "number" && Number.isFinite(resource.periodDurationMs)
+      ? resource.periodDurationMs : null;
+    if (limit === null || limit <= 0 || usedValue === null || !Number.isFinite(resetTime) ||
+        periodMs === null || periodMs <= 0) return null;
+
+    const used = Math.max(0, usedValue);
+    if (used >= limit || (typeof resource.remaining === "number" && resource.remaining <= 0)){
+      return { status: "spent", projectedFraction: used / limit, tooltip: t("usage.limitReached") };
+    }
+
+    const now = Date.now();
+    const elapsed = now - (resetTime - periodMs);
+    const minimumElapsed = Math.max(60000, periodMs * 0.01);
+    if (elapsed < minimumElapsed || now >= resetTime) return null;
+    if (used <= 0) return { status: "ahead", projectedFraction: 0, tooltip: "~100% " + t("usage.leftAtReset") };
+
+    const projectedFraction = (used / elapsed * periodMs) / limit;
+    let status = "behind";
+    if (projectedFraction <= 0.9) status = "ahead";
+    else if (projectedFraction <= 1) status = "onTrack";
+
+    // OpenUsage distrusts an apparent blow-out while more than 95% remains;
+    // whole-percent payloads can create a false alarm at the start of a window.
+    if (status === "behind" && used / limit < 0.05) return null;
+
+    let tooltip = null;
+    let runoutAt = null;
+    if (status === "ahead"){
+      tooltip = "~" + Math.max(0, Math.round((1 - projectedFraction) * 100)) + "% " + t("usage.leftAtReset");
+    } else if (status === "onTrack"){
+      tooltip = "~" + Math.round(projectedFraction * 100) + "% " + t("usage.usedAtReset");
+    } else {
+      const over = Math.max(1, Math.round((projectedFraction - 1) * 100));
+      tooltip = "~" + over + "% " + t("usage.overLimitAtReset");
+      const burnRate = used / elapsed;
+      const etaMs = (limit - used) / burnRate;
+      if (Number.isFinite(etaMs) && etaMs > 0 && etaMs < resetTime - now) runoutAt = now + etaMs;
+    }
+    return { status, projectedFraction, tooltip, runoutAt };
+  }
+
+  function usagePaceTick(entry, pace){
+    if (!pace || pace.status !== "behind") return null;
+    const resource = entry && entry.resource || {};
+    const resetTime = Date.parse(resource.resetsAt || "");
+    const periodMs = typeof resource.periodDurationMs === "number" && Number.isFinite(resource.periodDurationMs)
+      ? resource.periodDurationMs : null;
+    if (!Number.isFinite(resetTime) || periodMs === null || periodMs <= 0) return null;
+    const now = Date.now();
+    const elapsed = now - (resetTime - periodMs);
+    const minimumElapsed = Math.max(60000, periodMs * 0.01);
+    if (elapsed < minimumElapsed || now >= resetTime) return null;
+    const elapsedFraction = Math.min(Math.max(elapsed / periodMs, 0), 1);
+    return state.usageSettings.display === "remaining" ? 1 - elapsedFraction : elapsedFraction;
+  }
+
+  function usagePaceNode(pace){
+    if (!pace || (pace.status !== "behind" && pace.status !== "spent")) return null;
+    const warning = usageTextNode("span", "usage-pace-warning", "");
+    warning.dataset.pace = pace.status;
+    warning.dataset.tooltip = pace.tooltip;
+    warning.setAttribute("role", "group");
+    warning.setAttribute("aria-label", pace.tooltip);
+    warning.title = pace.tooltip;
+    const flame = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    flame.classList.add("usage-pace-flame");
+    flame.setAttribute("viewBox", "0 0 24 24");
+    flame.setAttribute("fill", "currentColor");
+    flame.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M12 23c-4.97 0-8-3.21-8-7.5 0-3.43 2.04-5.77 4.33-8.1.47 1.75 1.62 2.78 2.73 3.5-.15-2.45.91-5.36 3.73-8.9.12 3.18 1.44 4.77 2.58 6.24 1.18 1.52 2.31 2.97 2.31 5.76C19.68 19.77 16.68 23 12 23Z");
+    flame.appendChild(path);
+    warning.appendChild(flame);
+    if (pace.status === "spent") {
+      warning.appendChild(usageTextNode("span", "usage-pace-runout", t("usage.limitReached")));
+    } else if (Number.isFinite(pace.runoutAt)) {
+      const runout = usageResetParts(new Date(pace.runoutAt).toISOString());
+      const text = state.usageSettings.reset === "exact"
+        ? t("usage.limitAt") + " " + runout.date
+        : t("usage.limitIn") + " " + runout.countdown;
+      warning.appendChild(usageResetLabel("usage-pace-runout", text));
+    }
+    return warning;
+  }
+
+  function usagePrimaryValue(entry){
+    if (!entry) return { value: "—", caption: "" };
+    const resource = entry.resource || {};
+    if (typeof resource.remaining === "number") return { value: usageFormatValue(resource.remaining, resource.unit), caption: t("usage.remaining", { value: "" }).trim() };
+    if (typeof resource.available === "number") return { value: usageFormatValue(resource.available, resource.unit), caption: t("usage.available", { value: "" }).trim() };
+    if (typeof resource.utilization === "number") return { value: Math.round(resource.utilization * 100) + "%", caption: "" };
+    return { value: "—", caption: "" };
+  }
+
+  function renderUsageLegacy(){
+    const root = $("screenUsage");
+    if (!root) return;
+    const scroll = document.createElement("div");
+    scroll.className = "usage-scroll";
+    const content = document.createElement("div");
+    content.className = "usage-content";
+    scroll.appendChild(content);
+
+    const head = document.createElement("div");
+    head.className = "usage-head";
+    const copy = document.createElement("div");
+    copy.appendChild(usageTextNode("div", "usage-kicker", t("usage.source")));
+    copy.appendChild(usageTextNode("h1", "usage-title", t("usage.title")));
+    copy.appendChild(usageTextNode("div", "usage-source", state.usage && state.usage.updatedAt ? t("usage.source") : t("usage.loading")));
+    head.appendChild(copy);
+    const refresh = usageTextNode("button", "usage-refresh", state.usageLoading ? "…" : "↻ " + t("usage.refresh"));
+    refresh.disabled = state.usageLoading;
+    refresh.addEventListener("click", function(){ loadUsage(true); });
+    head.appendChild(refresh);
+    content.appendChild(head);
+
+    if (state.usageError){
+      content.appendChild(usageTextNode("div", "usage-error", state.usageError));
+    }
+    if (state.usageLoading && !state.usage){
+      content.appendChild(usageTextNode("div", "usage-empty", t("usage.loading")));
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const snapshot = state.usage;
+    if (!snapshot || (snapshot.sourceState !== "available" && snapshot.sourceState !== "partial")){
+      const empty = document.createElement("div");
+      empty.className = "usage-empty";
+      empty.appendChild(usageTextNode("strong", "", t("usage.unavailable")));
+      empty.appendChild(usageTextNode("span", "", t("usage.unavailableBody")));
+      content.appendChild(empty);
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const providers = usageProviderIds(snapshot).map(function(id){
+      return { id: id, provider: usageProvider(snapshot, id) };
+    }).filter(function(item){ return item.provider; });
+    if (!providers.length){
+      const empty = document.createElement("div");
+      empty.className = "usage-empty";
+      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
+      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
+      content.appendChild(empty);
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const listHead = document.createElement("div");
+    listHead.className = "usage-list-head";
+    listHead.appendChild(usageTextNode("span", "usage-list-title", t("usage.providers")));
+    listHead.appendChild(usageTextNode("span", "usage-list-count", providers.length + "/" + usageProviderIds(snapshot).length));
+    content.appendChild(listHead);
+
+    providers.forEach(function(item){
+      const provider = item.provider;
+      const status = provider.status || "unknown";
+      const resources = usageResources(provider);
+      const primary = usagePrimary(provider);
+      const primaryValue = usagePrimaryValue(primary);
+      const card = document.createElement("article");
+      card.className = "usage-card";
+      card.dataset.status = status;
+
+      const cardHead = document.createElement("div");
+      cardHead.className = "usage-card-head";
+      cardHead.appendChild(usageProviderLogo(item.id));
+      const providerName = document.createElement("div");
+      providerName.className = "usage-provider-name";
+      providerName.appendChild(document.createTextNode(item.id === "claude" ? "Claude Code" : "Codex"));
+      if (provider.plan) providerName.appendChild(usageTextNode("div", "usage-provider-plan", provider.plan));
+      cardHead.appendChild(providerName);
+      const statusNode = usageTextNode("div", "usage-status", usageStatusLabel(status));
+      statusNode.dataset.status = status;
+      cardHead.appendChild(statusNode);
+      card.appendChild(cardHead);
+
+      const island = document.createElement("div");
+      island.className = "usage-island";
+      island.dataset.status = status;
+      const islandTop = document.createElement("div");
+      islandTop.className = "usage-island-top";
+      islandTop.appendChild(usageTextNode("span", "usage-focus-label", t("usage.focus")));
+      islandTop.appendChild(usageTextNode("span", "usage-legacy-source", t("usage.source")));
+      island.appendChild(islandTop);
+
+      const islandMain = document.createElement("div");
+      islandMain.className = "usage-island-main";
+      const tokenDock = document.createElement("div");
+      tokenDock.className = "usage-token-dock";
+      const token = usageTextNode("div", "usage-token", "");
+      token.dataset.mascot = provider.mascot || "neutral";
+      token.dataset.mascotSprite = "true";
+      token.setAttribute("role", "img");
+      token.setAttribute("aria-label", usageMascotLabel(provider.mascot));
+      token.appendChild(usageMascotNode(item.id, usageMascotEnsureAnimation(item.id, "idle")));
+      tokenDock.appendChild(token);
+      islandMain.appendChild(tokenDock);
+      const islandCopy = document.createElement("div");
+      islandCopy.className = "usage-island-copy";
+      islandCopy.appendChild(usageTextNode("div", "usage-island-provider", item.id === "claude" ? "Claude" : "Codex"));
+      islandCopy.appendChild(usageTextNode("div", "usage-island-context", usageMascotLabel(provider.mascot)));
+      islandCopy.appendChild(usageTextNode("div", "usage-island-status", usageStatusLabel(status)));
+      islandMain.appendChild(islandCopy);
+      const metric = document.createElement("div");
+      metric.className = "usage-island-metric";
+      const value = usageTextNode("strong", "usage-island-value", primaryValue.value);
+      value.dataset.empty = primaryValue.value === "—" ? "true" : "false";
+      metric.appendChild(value);
+      if (primaryValue.caption) metric.appendChild(usageTextNode("span", "usage-island-value-caption", primaryValue.caption));
+      islandMain.appendChild(metric);
+      island.appendChild(islandMain);
+
+      const meter = document.createElement("div");
+      meter.className = "usage-island-meter";
+      const meterFill = document.createElement("i");
+      const fraction = typeof primary?.resource?.utilization === "number" ? Math.max(0, Math.min(primary.resource.utilization, 1)) : null;
+      if (fraction != null) meterFill.style.width = Math.round(fraction * 100) + "%";
+      meter.appendChild(meterFill);
+      island.appendChild(meter);
+      const footer = document.createElement("div");
+      footer.className = "usage-island-footer";
+      footer.appendChild(usageTextNode("span", "usage-island-reset", primary ? usageResetText(primary.resource.resetsAt) : t("usage.resetUnknown")));
+      const used = primary && typeof primary.resource.used === "number" && typeof primary.resource.limit === "number"
+        ? t("usage.used", { value: usageFormatValue(primary.resource.used, primary.resource.unit) }) + " / " + usageFormatValue(primary.resource.limit, primary.resource.unit)
+        : "";
+      footer.appendChild(usageTextNode("span", "usage-island-meta", used));
+      island.appendChild(footer);
+      card.appendChild(island);
+
+      resources.forEach(function(entry){
+        const resource = entry.resource || {};
+        const row = document.createElement("div");
+        row.className = "usage-resource";
+        row.dataset.status = status;
+        const top = document.createElement("div");
+        top.className = "usage-resource-top";
+        top.appendChild(usageTextNode("span", "usage-resource-label", usageResourceLabel(entry.id, resource)));
+        const valueText = typeof resource.remaining === "number" ? usageFormatValue(resource.remaining, resource.unit)
+          : typeof resource.available === "number" ? usageFormatValue(resource.available, resource.unit)
+          : typeof resource.utilization === "number" ? Math.round(resource.utilization * 100) + "%" : "—";
+        top.appendChild(usageTextNode("strong", "usage-resource-value", valueText));
+        row.appendChild(top);
+        const bottom = document.createElement("div");
+        bottom.className = "usage-resource-bottom";
+        const resourceUsed = typeof resource.used === "number" && typeof resource.limit === "number"
+          ? t("usage.used", { value: usageFormatValue(resource.used, resource.unit) }) + " / " + usageFormatValue(resource.limit, resource.unit) : "";
+        bottom.appendChild(usageTextNode("span", "", resourceUsed));
+        bottom.appendChild(usageTextNode("span", "", usageResetText(resource.resetsAt)));
+        row.appendChild(bottom);
+        if (typeof resource.utilization === "number"){
+          const resourceMeter = document.createElement("div");
+          resourceMeter.className = "usage-resource-meter";
+          const resourceFill = document.createElement("i");
+          resourceFill.style.width = Math.round(Math.max(0, Math.min(resource.utilization, 1)) * 100) + "%";
+          resourceMeter.appendChild(resourceFill);
+          row.appendChild(resourceMeter);
+        }
+        card.appendChild(row);
+      });
+      content.appendChild(card);
+    });
+    root.replaceChildren(scroll);
+  }
+
+  function usageChartNode(entry, title, primary){
+    const chart = document.createElement("div");
+    chart.className = "usage-chart" + (primary ? " primary" : "");
+    const ring = document.createElement("div");
+    ring.className = "usage-ring" + (primary ? " primary" : "");
+    const fraction = usagePercent(entry);
+    if (fraction != null) ring.style.setProperty("--usage-progress", String(Math.round(fraction * 100)));
+    else ring.dataset.empty = "true";
+    const core = document.createElement("div");
+    core.className = "usage-ring-core";
+    core.appendChild(usageTextNode("strong", "usage-ring-value", fraction == null ? "—" : Math.round(fraction * 100) + "%"));
+    core.appendChild(usageTextNode("span", "usage-ring-caption", usagePercentLabel()));
+    ring.appendChild(core);
+    ring.setAttribute("role", "img");
+    ring.setAttribute("aria-label", title + ", " + (fraction == null ? "—" : Math.round(fraction * 100) + "%") + " " + usagePercentLabel());
+    chart.appendChild(ring);
+    chart.appendChild(usageTextNode("strong", "usage-chart-title", title));
+    chart.appendChild(usageTextNode("span", "usage-chart-reset", entry ? usageResetText(entry.resource.resetsAt) : t("usage.resetUnknown")));
+    return chart;
+  }
+
+  function usageFeaturedDetail(entry){
+    if (!entry) return t("usage.noData");
+    const resource = entry.resource || {};
+    if (typeof resource.remaining === "number") return usageFormatValue(resource.remaining, resource.unit) + " " + t("usage.remaining");
+    if (typeof resource.available === "number") return usageFormatValue(resource.available, resource.unit) + " " + t("usage.available");
+    return t("usage.noData");
+  }
+
+  const OPENAI_LOGO_PATH = "M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 5.98 5.98 0 0 0 .7427 7.0966 5.9847 5.9847 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.989 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zM9.4035 10.497l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974-1.4997-2.6067-1.4997Z";
+
+  const USAGE_PROVIDER_ICON_PATHS = {
+    antigravity: "/provider-icons/antigravity.svg?v=1",
+    grok: "/provider-icons/grok.svg?v=1",
+  };
+
+  function usageProviderLogo(id){
+    const logo = document.createElement("span");
+    logo.className = "usage-provider-logo";
+    logo.dataset.provider = id;
+    logo.setAttribute("role", "img");
+    logo.setAttribute("aria-label", id === "codex" ? "OpenAI" : id === "claude" ? "Anthropic" : id);
+    if (id === "codex"){
+      const image = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      image.setAttribute("width", "18");
+      image.setAttribute("height", "18");
+      image.setAttribute("viewBox", "0 0 24 24");
+      image.setAttribute("fill", "currentColor");
+      image.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      image.setAttribute("fill-rule", "evenodd");
+      image.setAttribute("aria-hidden", "true");
+      image.setAttribute("focusable", "false");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("fill", "currentColor");
+      path.setAttribute("fill-rule", "evenodd");
+      path.setAttribute("clip-rule", "evenodd");
+      path.setAttribute("d", OPENAI_LOGO_PATH);
+      image.appendChild(path);
+      logo.appendChild(image);
+      return logo;
+    }
+    const providerIconPath = USAGE_PROVIDER_ICON_PATHS[id];
+    if (providerIconPath){
+      const image = document.createElement("img");
+      image.src = providerIconPath;
+      image.alt = "";
+      image.setAttribute("aria-hidden", "true");
+      logo.appendChild(image);
+      return logo;
+    }
+    if (id !== "claude"){
+      const fallback = usageTextNode("span", "usage-provider-logo-fallback", id.slice(0, 1).toUpperCase());
+      fallback.setAttribute("aria-hidden", "true");
+      logo.appendChild(fallback);
+      return logo;
+    }
+    const image = document.createElement("img");
+    image.src = "/claude.svg?v=1";
+    image.alt = "";
+    image.setAttribute("aria-hidden", "true");
+    logo.appendChild(image);
+    return logo;
+  }
+
+  function usageSyncState(snapshot){
+    if (!snapshot || (snapshot.sourceState !== "available" && snapshot.sourceState !== "partial")) return "offline";
+    const updated = Date.parse(snapshot.updatedAt || "");
+    const age = Date.now() - updated;
+    const providerEntries = Array.isArray(snapshot.providers) ? snapshot.providers : Object.values(snapshot.providers || {});
+    const staleProvider = providerEntries.some(function(provider){ return provider && provider.stale === true; });
+    if (!Number.isFinite(updated) || age < -60000 || age > 120000 || staleProvider) return "stale";
+    return "online";
+  }
+
+  function usageSyncLabel(snapshot){
+    const state = usageSyncState(snapshot);
+    if (state === "offline") return t("usage.offline");
+    if (state === "stale"){
+      const updated = Date.parse(snapshot && snapshot.updatedAt || "");
+      if (!Number.isFinite(updated)) return t("usage.syncUnknown");
+      const minutes = Math.max(1, Math.round((Date.now() - updated) / 60000));
+      return t("usage.updatedMinutes", { value: minutes });
+    }
+    const updated = Date.parse(snapshot.updatedAt || "");
+    const minutes = Math.max(0, Math.round((Date.now() - updated) / 60000));
+    return minutes < 1 ? t("usage.updatedNow") : t("usage.updatedMinutes", { value: minutes });
+  }
+
+  function usageResetParts(value){
+    const time = Date.parse(value || "");
+    if (!Number.isFinite(time)) return { date: t("usage.resetUnknown"), countdown: "—", time: null };
+    const remaining = Math.max(0, time - Date.now());
+    const totalMinutes = Math.round(remaining / 60000);
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+    const countdown = days > 0 ? days + "d " + hours + "h" : hours + "h " + minutes + "m";
+    let date = "";
+    try {
+      const locale = currentLanguage === "pt-BR" ? "pt-BR" : "en";
+      const nowDate = new Date();
+      const targetDate = new Date(time);
+      const todayStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
+      const targetStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+      const dayOffset = Math.round((targetStart - todayStart) / 86400000);
+      const timeText = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(targetDate);
+      if (currentLanguage === "pt-BR") {
+        if (dayOffset === 0) date = "hoje às " + timeText;
+        else if (dayOffset === 1) date = "amanhã às " + timeText;
+        else if (dayOffset === -1) date = "ontem às " + timeText;
+        else {
+          const dayMonth = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(targetDate);
+          date = dayMonth + " às " + timeText;
+        }
+      } else if (dayOffset === 0) date = "today at " + timeText;
+      else if (dayOffset === 1) date = "tomorrow at " + timeText;
+      else if (dayOffset === -1) date = "yesterday at " + timeText;
+      else {
+        const dayMonth = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(targetDate);
+        date = dayMonth + " at " + timeText;
+      }
+    } catch (e) {
+      date = new Date(time).toLocaleTimeString();
+    }
+    return { date: date, countdown: countdown, time: time };
+  }
+
+  function usageLimitLabel(entry){
+    const id = String(entry && entry.id || "").toLowerCase();
+    if (["session", "fivehour", "five_hour", "5h", "fivehours"].indexOf(id) !== -1) return t("usage.fiveHourShort");
+    if (["weekly", "week"].indexOf(id) !== -1 || id.endsWith("weekly")) return t("usage.weekShort");
+    return usageResourceLabel(entry.id, entry.resource).toUpperCase();
+  }
+
+  let usageGaugeId = 0;
+  function usageGaugeColor(status){
+    if (status === "attention") return "#ff8a38";
+    if (status === "exhausted") return "#ff453a";
+    return "#30d158";
+  }
+
+  function usagePaintGauge(svg, remainingPct, color){
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const bounded = Number.isFinite(remainingPct) ? Math.max(0, Math.min(100, remainingPct)) : null;
+    const ticks = 30;
+    const lit = bounded == null ? 0 : Math.round((bounded / 100) * ticks);
+    const accent = color || usageGaugeColor("normal");
+    const glowId = "usage-gauge-glow-" + (++usageGaugeId);
+    if (lit > 0){
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+      filter.setAttribute("id", glowId);
+      filter.setAttribute("x", "-40%");
+      filter.setAttribute("y", "-40%");
+      filter.setAttribute("width", "180%");
+      filter.setAttribute("height", "180%");
+      const blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blur.setAttribute("stdDeviation", "1.8");
+      blur.setAttribute("result", "blur");
+      const merge = document.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+      const blurNode = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      blurNode.setAttribute("in", "blur");
+      const sourceNode = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      sourceNode.setAttribute("in", "SourceGraphic");
+      merge.appendChild(blurNode);
+      merge.appendChild(sourceNode);
+      filter.appendChild(blur);
+      filter.appendChild(merge);
+      defs.appendChild(filter);
+      svg.appendChild(defs);
+    }
+    const point = function(angle, radius){
+      const radians = (angle - 90) * Math.PI / 180;
+      return { x: 50 + radius * Math.cos(radians), y: 52 + radius * Math.sin(radians) };
+    };
+    for (let index = 0; index < ticks; index++){
+      const angle = 218 + (index / (ticks - 1)) * 284;
+      const outer = point(angle, 46);
+      const inner = point(angle, 34);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", inner.x.toFixed(2));
+      line.setAttribute("y1", inner.y.toFixed(2));
+      line.setAttribute("x2", outer.x.toFixed(2));
+      line.setAttribute("y2", outer.y.toFixed(2));
+      line.setAttribute("stroke", index < lit ? accent : "rgba(255,255,255,.16)");
+      line.setAttribute("stroke-width", "3.1");
+      line.setAttribute("stroke-linecap", "round");
+      if (lit > 0 && index === lit - 1) line.setAttribute("filter", "url(#" + glowId + ")");
+      svg.appendChild(line);
+    }
+  }
+
+  function usageLimitNode(entry, status, primary, providerId){
+    const limit = document.createElement("section");
+    limit.className = "usage-limit" + (primary ? " primary" : "");
+    const pace = usagePace(entry);
+    const limitStatus = pace && pace.status === "behind" ? "exhausted"
+      : pace && pace.status === "onTrack" ? "attention" : status;
+    limit.dataset.status = limitStatus;
+    if (pace) limit.dataset.pace = pace.status;
+    const fraction = usagePercent(entry);
+    const reset = usageResetParts(entry && entry.resource && entry.resource.resetsAt);
+    const resetValue = reset.countdown;
+    const percent = fraction == null ? "—" : Math.round(fraction * 100) + "%";
+    if (primary){
+      const metric = document.createElement("div");
+      metric.className = "usage-metric-5h";
+      const gauge = document.createElement("div");
+      gauge.className = "usage-gauge-wrap";
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 100 100");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel());
+      usagePaintGauge(svg, fraction == null ? null : fraction * 100, usageGaugeColor(limitStatus));
+      usageResetChartControl(svg, reset, providerId);
+      gauge.appendChild(svg);
+      const gaugeCopy = document.createElement("div");
+      gaugeCopy.className = "usage-gauge-copy";
+      const gaugeValue = document.createElement("strong");
+      gaugeValue.className = "usage-limit-value";
+      if (percent.endsWith("%")){
+        gaugeValue.appendChild(document.createTextNode(percent.slice(0, -1)));
+        gaugeValue.appendChild(usageTextNode("small", "usage-limit-unit", "%"));
+      }
+      else {
+        gaugeValue.textContent = percent;
+      }
+      usageMeterControl(gaugeValue);
+      gaugeCopy.appendChild(gaugeValue);
+      gaugeCopy.appendChild(usageTextNode("small", "usage-gauge-caption", usagePercentLabel()));
+      gauge.appendChild(gaugeCopy);
+      metric.appendChild(gauge);
+      const fiveCopy = document.createElement("div");
+      fiveCopy.className = "usage-five-copy";
+      const labelRow = document.createElement("div");
+      labelRow.className = "usage-limit-label-row";
+      labelRow.appendChild(usageTextNode("b", "usage-limit-label", usageLimitLabel(entry)));
+      const paceWarning = usagePaceNode(pace);
+      if (paceWarning) labelRow.appendChild(paceWarning);
+      fiveCopy.appendChild(labelRow);
+      if (state.usageSettings.reset === "exact"){
+        fiveCopy.appendChild(usageTextNode("small", "usage-limit-reset-label", ""));
+      } else {
+        fiveCopy.appendChild(usageResetLabel("usage-limit-reset-label", reset.date));
+      }
+      fiveCopy.appendChild(usageResetLabel("usage-limit-reset-value", resetValue));
+      const resetCaption = state.usageSettings.reset === "exact"
+        ? usageResetLabel("usage-five-caption usage-five-reset-exact", reset.date)
+        : usageTextNode("small", "usage-five-caption", t("usage.untilReset"));
+      fiveCopy.appendChild(resetCaption);
+      metric.appendChild(fiveCopy);
+      limit.appendChild(metric);
+    } else {
+      const metric = document.createElement("div");
+      metric.className = "usage-metric-week";
+      const top = document.createElement("div");
+      top.className = "usage-week-top";
+      const weekLabel = document.createElement("div");
+      weekLabel.className = "usage-limit-label-row";
+      weekLabel.appendChild(usageTextNode("b", "usage-limit-label", usageLimitLabel(entry)));
+      const paceWarning = usagePaceNode(pace);
+      if (paceWarning) weekLabel.appendChild(paceWarning);
+      top.appendChild(weekLabel);
+      const value = document.createElement("div");
+      value.className = "usage-week-value";
+      value.appendChild(usageMeterControl(usageTextNode("strong", "usage-limit-value", percent)));
+      value.appendChild(usageTextNode("small", "usage-week-caption", usagePercentLabel()));
+      top.appendChild(value);
+      metric.appendChild(top);
+      const meter = document.createElement("div");
+      meter.className = "usage-week-bar";
+      meter.setAttribute("role", "img");
+      meter.setAttribute("aria-label", usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel());
+      const meterFill = document.createElement("i");
+      meterFill.style.width = fraction == null ? "0%" : Math.round(fraction * 100) + "%";
+      meter.appendChild(meterFill);
+      const paceTick = usagePaceTick(entry, pace);
+      if (paceTick !== null){
+        const tick = document.createElement("b");
+        tick.className = "usage-week-pace-tick";
+        tick.dataset.pace = pace.status;
+        tick.style.left = (Math.round(paceTick * 1000) / 10) + "%";
+        tick.setAttribute("aria-hidden", "true");
+        meter.appendChild(tick);
+      }
+      const weekRow = document.createElement("div");
+      weekRow.className = "usage-week-row";
+      weekRow.appendChild(meter);
+      const shortReset = reset.countdown.indexOf("d ") !== -1 ? reset.countdown.split("d ")[0] + "d" : reset.countdown;
+      weekRow.appendChild(usageResetLabel("usage-week-reset", state.usageSettings.reset === "exact" ? reset.date : shortReset));
+      metric.appendChild(weekRow);
+      limit.appendChild(metric);
+    }
+    limit.setAttribute("role", "group");
+    limit.setAttribute("aria-label", usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel() + ", " + resetValue + (pace && pace.tooltip ? ", " + pace.tooltip : ""));
+    return limit;
+  }
+
+  function usageTrendNode(provider){
+    const trend = provider && provider.trend;
+    const points = trend && Array.isArray(trend.points) ? trend.points : [];
+    if (!points.length) return null;
+    const peak = points.reduce(function(best, point){ return !best || point.value > best.value ? point : best; }, null);
+    const maxValue = Math.max(1, ...points.map(function(point){ return point.value; }));
+    const trendNode = document.createElement("section");
+    trendNode.className = "usage-trend";
+    trendNode.setAttribute("aria-label", t("usage.trend") + ", " + (peak && (peak.valueLabel || usageTrendValue(peak.value))));
+    const head = document.createElement("div");
+    head.className = "usage-trend-head";
+    head.appendChild(usageTextNode("strong", "usage-trend-title", t("usage.trend")));
+    head.appendChild(usageTextNode("span", "usage-trend-peak", peak ? t("usage.trendPeak", { value: peak.valueLabel || usageTrendValue(peak.value) }) : ""));
+    trendNode.appendChild(head);
+    const bars = document.createElement("div");
+    bars.className = "usage-trend-bars";
+    bars.setAttribute("role", "img");
+    bars.setAttribute("aria-label", t("usage.trendBars", { count: points.length }));
+    points.forEach(function(point){
+      const bar = document.createElement("i");
+      bar.className = "usage-trend-bar";
+      const value = Number(point.value);
+      bar.dataset.level = value > 0 ? "used" : "empty";
+      bar.dataset.peak = peak === point ? "true" : "false";
+      bar.style.setProperty("--trend-height", Math.max(5, Math.round((value / maxValue) * 100)) + "%");
+      bar.title = point.label + " · " + (point.valueLabel || usageTrendValue(point.value));
+      bars.appendChild(bar);
+    });
+    trendNode.appendChild(bars);
+    const axis = document.createElement("div");
+    axis.className = "usage-trend-axis";
+    const middleIndex = Math.floor((points.length - 1) / 2);
+    [0, middleIndex, points.length - 1].filter(function(index, position, indexes){
+      return indexes.indexOf(index) === position;
+    }).forEach(function(index){
+      const label = usageTextNode("span", "usage-trend-axis-label", points[index].label);
+      label.dataset.position = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
+      axis.appendChild(label);
+    });
+    trendNode.appendChild(axis);
+    if (trend.note) trendNode.appendChild(usageTextNode("small", "usage-trend-note", trend.note));
+    return trendNode;
+  }
+
+  function usageTrendValue(value){
+    if (value >= 1000000000) return (value / 1000000000).toFixed(1).replace(/\.0$/, "") + "B tokens";
+    if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, "") + "M tokens";
+    if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + "K tokens";
+    return Math.round(value) + " tokens";
+  }
+
+  function usageLoadingNode(){
+    const loading = document.createElement("div");
+    loading.className = "usage-loading";
+    loading.setAttribute("role", "status");
+    loading.setAttribute("aria-live", "polite");
+    const bar = document.createElement("span");
+    bar.className = "usage-loading-bar";
+    bar.setAttribute("aria-hidden", "true");
+    bar.appendChild(document.createElement("i"));
+    loading.appendChild(bar);
+    loading.appendChild(usageTextNode("span", "usage-loading-copy", t("usage.loading")));
+    return loading;
+  }
+
+  function animateUsageProviderPromotion(root, previousRects){
+    if (!root || !previousRects || !previousRects.size) return;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const stack = root.querySelector(".usage-stack");
+    if (!stack) return;
+    const moved = [];
+    root.querySelectorAll(".usage-card").forEach(function(card){
+      const previous = previousRects.get(card.dataset.provider);
+      if (!previous) return;
+      const current = card.getBoundingClientRect();
+      const dx = previous.left - current.left;
+      const dy = previous.top - current.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      card.style.willChange = "transform";
+      card.style.transition = "none";
+      card.style.transform = "translate3d(" + Math.round(dx) + "px, " + Math.round(dy) + "px, 0)";
+      moved.push(card);
+    });
+    if (!moved.length) return;
+    stack.classList.add("is-reordering");
+    const cleanup = function(){
+      moved.forEach(function(card){
+        card.style.willChange = "";
+        card.style.transition = "";
+        card.style.transform = "";
+      });
+      stack.classList.remove("is-reordering");
+    };
+    requestAnimationFrame(function(){
+      moved.forEach(function(card){
+        card.style.transition = "transform .42s cubic-bezier(.22,.61,.36,1)";
+        card.style.transform = "translate3d(0, 0, 0)";
+      });
+      setTimeout(cleanup, 470);
+    });
+  }
+
+  function renderUsage(){
+    const root = $("screenUsage");
+    if (!root) return;
+    const previousScrollTop = root.querySelector(".usage-scroll")?.scrollTop || 0;
+    const scroll = document.createElement("div");
+    scroll.className = "usage-scroll";
+    const content = document.createElement("div");
+    content.className = "usage-content";
+    scroll.appendChild(content);
+
+    const head = document.createElement("div");
+    head.className = "usage-head";
+    const copy = document.createElement("div");
+    copy.className = "usage-head-copy";
+    copy.appendChild(usageTextNode("h1", "usage-title", t("usage.title")));
+    const sync = document.createElement("div");
+    sync.className = "usage-sync";
+    const liveDot = usageTextNode("span", "usage-live-dot", "");
+    liveDot.dataset.state = usageSyncState(state.usage);
+    liveDot.setAttribute("aria-hidden", "true");
+    sync.appendChild(liveDot);
+    sync.appendChild(usageTextNode("span", "usage-sync-label", usageSyncLabel(state.usage)));
+    copy.appendChild(sync);
+    head.appendChild(copy);
+    const headMascot = document.createElement("div");
+    headMascot.className = "usage-head-mascot";
+    head.appendChild(headMascot);
+    content.appendChild(head);
+
+    if (state.usageError) content.appendChild(usageTextNode("div", "usage-error", state.usageError));
+    if (state.usageLoading && !state.usage){
+      content.appendChild(usageLoadingNode());
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const snapshot = state.usage;
+    if (!snapshot || (snapshot.sourceState !== "available" && snapshot.sourceState !== "partial")){
+      const empty = document.createElement("div");
+      empty.className = "usage-empty";
+      empty.appendChild(usageTextNode("strong", "", t("usage.unavailable")));
+      empty.appendChild(usageTextNode("span", "", t("usage.unavailableBody")));
+      content.appendChild(empty);
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const providers = usageProviderIds(snapshot).map(function(id){
+      return { id: id, provider: usageProvider(snapshot, id) };
+    }).filter(function(item){ return item.provider; });
+    if (!providers.length){
+      const empty = document.createElement("div");
+      empty.className = "usage-empty";
+      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
+      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
+      content.appendChild(empty);
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const usableProviders = providers.filter(function(item){ return usageProviderHasData(item.provider); });
+    if (!usableProviders.length){
+      const empty = document.createElement("div");
+      empty.className = "usage-empty";
+      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
+      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
+      content.appendChild(empty);
+      root.replaceChildren(scroll);
+      return;
+    }
+
+    const preferredId = state.usageProviderId || state.usageOpenId;
+    const preferredItem = providers.find(function(item){
+      return item.id === preferredId && usageProviderHasData(item.provider);
+    });
+    const openItem = preferredItem || usableProviders[0];
+    state.usageOpenId = openItem.id;
+    const ordered = [openItem].concat(providers.filter(function(item){ return item !== openItem; }));
+
+    function attachMascot(item, status){
+      const provider = item.provider;
+      const activity = usageProviderActivity(provider, item.id);
+      const activityState = activity && activity.state;
+      const manualSyncing = state.usageLoading;
+      const visibleActivity = manualSyncing ? "syncing" : (activityState || "idle");
+      const mascotActivity = usageMascotActivityType(visibleActivity);
+      const mascotState = status + ":" + (provider.mascot || "neutral") + ":" + visibleActivity;
+      const previousMascotState = state.usageMascotStates[item.id];
+      const mascotChanged = previousMascotState !== undefined && previousMascotState !== mascotState;
+      state.usageMascotStates[item.id] = mascotState;
+      const mascotAnimation = usageMascotEnsureAnimation(item.id, mascotActivity);
+      const tokenDock = document.createElement("div");
+      tokenDock.className = "usage-token-dock";
+      const token = usageTextNode("div", "usage-token", "");
+      token.dataset.mascot = provider.mascot || "neutral";
+      token.setAttribute("role", "img");
+      token.setAttribute("aria-label", usageMascotLabel(provider.mascot) + ". " +
+        (visibleActivity === "syncing" ? t("usage.activitySyncing") :
+          visibleActivity === "working" ? t("usage.activityWorking") :
+          visibleActivity === "waiting" ? t("usage.activityWaiting") : ""));
+      token.dataset.mascotSprite = "true";
+      token.appendChild(usageMascotNode(item.id, mascotAnimation));
+      tokenDock.appendChild(token);
+      const mascotWrap = document.createElement("div");
+      mascotWrap.className = "usage-mascot-wrap";
+      mascotWrap.dataset.mascot = provider.mascot || "neutral";
+      mascotWrap.dataset.status = status;
+      mascotWrap.dataset.activity = visibleActivity;
+      mascotWrap.dataset.provider = item.id;
+      mascotWrap.appendChild(tokenDock);
+      if (mascotChanged){
+        mascotWrap.classList.add("is-status-changing");
+        setTimeout(function(){
+          if (mascotWrap.isConnected) mascotWrap.classList.remove("is-status-changing");
+        }, 1100);
+      }
+      const mascotReaction = state.usageMascotReaction && state.usageMascotReaction.providerId === item.id
+        ? state.usageMascotReaction : null;
+      if (mascotReaction){
+        mascotWrap.dataset.reaction = mascotReaction.type;
+        mascotWrap.classList.add("is-reacting");
+      }
+      token.dataset.activity = visibleActivity;
+      const statusText = visibleActivity === "syncing" ? t("usage.activitySyncing")
+        : visibleActivity === "working" ? t("usage.activityWorking")
+        : visibleActivity === "waiting" ? t("usage.activityWaiting")
+        : usageStatusLabel(status);
+      const statusNode = usageTextNode("div", "usage-mood-bubble", statusText);
+      statusNode.dataset.status = status;
+      statusNode.setAttribute("role", "status");
+      statusNode.setAttribute("aria-live", "polite");
+      mascotWrap.appendChild(statusNode);
+      return mascotWrap;
+    }
+
+    const slider = document.createElement("div");
+    slider.className = "usage-provider-slider";
+    const track = document.createElement("div");
+    track.className = "usage-provider-track";
+    track.setAttribute("role", "region");
+    track.setAttribute("aria-label", t("usage.title"));
+    const providerSlide = document.createElement("div");
+    providerSlide.className = "usage-provider-slide";
+    const stack = document.createElement("div");
+    stack.className = "usage-stack";
+    ordered.forEach(function(item){
+      const provider = item.provider;
+      const status = provider.status || "unknown";
+      const primary = usagePrimary(provider);
+      const weekly = usageWeekly(provider);
+      const isOpen = item === openItem;
+      const card = document.createElement("article");
+      card.className = "usage-card " + (isOpen ? "is-open" : "is-closed");
+      card.dataset.status = status;
+      card.dataset.provider = item.id;
+
+      const cardHead = document.createElement("div");
+      cardHead.className = "usage-card-head";
+      cardHead.appendChild(usageProviderLogo(item.id));
+      const providerName = document.createElement("div");
+      providerName.className = "usage-provider-name";
+      if (item.id === "claude") providerName.appendChild(document.createTextNode("Claude"));
+      else providerName.appendChild(document.createTextNode(item.provider.name || item.id));
+      if (provider.plan) providerName.appendChild(usageTextNode("span", "usage-provider-plan", provider.plan));
+      cardHead.appendChild(providerName);
+      const peekFraction = usagePercent(primary);
+      const peek = usageTextNode("b", "usage-peek", peekFraction == null ? "—" : Math.round(peekFraction * 100) + "%");
+      cardHead.appendChild(peek);
+      card.appendChild(cardHead);
+
+      const featured = document.createElement("div");
+      featured.className = "usage-featured";
+      const limits = document.createElement("div");
+      limits.className = "usage-limits";
+      const primaryLimit = primary ? usageLimitNode(primary, status, true, item.id) : null;
+      if (primaryLimit){
+        limits.appendChild(primaryLimit);
+      }
+      const weeklyLimit = weekly && weekly.id !== primary?.id ? usageLimitNode(weekly, status, false, item.id) : null;
+      if (weeklyLimit){
+        limits.appendChild(weeklyLimit);
+      }
+      featured.appendChild(limits);
+      card.appendChild(featured);
+      if (isOpen){
+        const mascotWrap = attachMascot(item, status);
+        headMascot.appendChild(mascotWrap);
+      }
+      else if (usageProviderHasData(provider)) {
+        card.setAttribute("role", "button");
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("aria-expanded", "false");
+        card.setAttribute("aria-label", (provider.name || item.id) + ", " + peek.textContent);
+        const promote = function(){
+          const previousRects = new Map();
+          const usageRoot = $("screenUsage");
+          if (usageRoot){
+            usageRoot.querySelectorAll(".usage-card").forEach(function(previousCard){
+              previousRects.set(previousCard.dataset.provider, previousCard.getBoundingClientRect());
+            });
+          }
+          state.usageOpenId = item.id;
+          state.usageProviderId = item.id;
+          void persistUsageProviderId(item.id);
+          queueUsageMascotReaction(item.id, "provider");
+          renderUsage();
+          animateUsageProviderPromotion(usageRoot, previousRects);
+        };
+        card.addEventListener("click", promote);
+        card.addEventListener("keydown", function(event){
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          promote();
+        });
+      }
+      stack.appendChild(card);
+    });
+    providerSlide.appendChild(stack);
+    track.appendChild(providerSlide);
+    const trendItem = ordered.find(function(item){
+      const points = item.provider && item.provider.trend && item.provider.trend.points;
+      return Array.isArray(points) && points.length > 0;
+    });
+    if (trendItem){
+      const trendSlide = document.createElement("div");
+      trendSlide.className = "usage-provider-slide usage-trend-slide";
+      const trend = usageTrendNode(trendItem.provider);
+      if (trend) trendSlide.appendChild(trend);
+      track.appendChild(trendSlide);
+    }
+    slider.appendChild(track);
+    if (trendItem){
+      const dots = document.createElement("div");
+      dots.className = "usage-provider-dots";
+      const slideCount = 2;
+      for (let index = 0; index < slideCount; index++){
+        const dot = usageTextNode("button", "usage-provider-dot", "");
+        dot.type = "button";
+        dot.setAttribute("aria-label", index === 0 ? t("usage.providers") : t("usage.trend"));
+        dot.setAttribute("aria-current", index === 0 ? "true" : "false");
+        dot.addEventListener("click", function(){
+          dots.querySelectorAll(".usage-provider-dot").forEach(function(otherDot, dotIndex){
+            otherDot.setAttribute("aria-current", dotIndex === index ? "true" : "false");
+          });
+          const left = index * track.clientWidth;
+          if (typeof track.scrollTo === "function") track.scrollTo({ left: left, behavior: "smooth" });
+          else track.scrollLeft = left;
+        });
+        dots.appendChild(dot);
+      }
+      track.addEventListener("scroll", function(){
+        const index = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
+        dots.querySelectorAll(".usage-provider-dot").forEach(function(dot, dotIndex){
+          dot.setAttribute("aria-current", dotIndex === index ? "true" : "false");
+        });
+      }, { passive: true });
+      slider.appendChild(dots);
+    }
+    content.appendChild(slider);
+    root.replaceChildren(scroll);
+    scroll.scrollTop = previousScrollTop;
+  }
+
+  async function loadUsage(force){
+    if (state.usageLoading) return;
+    if (!force && (state.screen !== "usage" || pageHidden())){
+      usageT = setTimeout(function(){ loadUsage(false); }, 30000);
+      return;
+    }
+    if (usageT){ clearTimeout(usageT); usageT = null; }
+    state.usageLoading = true;
+    renderUsage();
+    try {
+      const result = await req("/api/usage", { timeout: 4000 });
+      if (result && result.status === 200 && result.data && result.data.ok === true){
+        state.usage = result.data;
+        state.usageError = null;
+      } else {
+        state.usageError = t("usage.unavailable");
+      }
+    } catch (e) {
+      state.usageError = t("usage.unavailable");
+    } finally {
+      state.usageLoading = false;
+      renderUsage();
+      usageT = setTimeout(function(){ loadUsage(false); }, 30000);
+    }
+  }
+
+  function stopUsageActivityPolling(){
+    if (usageActivityT){ clearTimeout(usageActivityT); usageActivityT = null; }
+  }
+
+  async function loadUsageActivity(){
+    stopUsageActivityPolling();
+    if (state.screen !== "usage" || pageHidden()) return;
+    try {
+      const result = await req("/api/usage/activity", { timeout: 2500 });
+      if (result && result.status === 200 && result.data && result.data.ok === true){
+        const previous = usageActivitySignature(state.usageActivity);
+        const next = usageActivitySignature(result.data);
+        state.usageActivity = result.data;
+        if (previous !== next && state.usage) renderUsage();
+      }
+    } catch (e) { /* atividade é auxiliar; a quota continua renderizando */ }
+    if (state.screen === "usage" && !pageHidden()){
+      usageActivityT = setTimeout(function(){ void loadUsageActivity(); }, 1000);
+    }
+  }
+
   // ---------- pin sheet ----------
   function openPinSheet(){
     const kids = [];
@@ -2299,12 +4667,14 @@
     launchpadRenderPending = false;
     renderLaunchpad(true);
   }
-  function applyAppsPayload(pieces, pinned, running, limits, revision){
+  function applyAppsPayload(pieces, pinned, running, limits, revision, usage, usageProvider){
     if (!Array.isArray(pieces) || !Array.isArray(pinned) || !Array.isArray(running)) return false;
     const nextPieces = pieces.length && typeof pieces[0] === "object"
       ? pieces
       : pinned.map(function(name){ return { id: "app:" + name, type: "app", name: name }; });
     applyPinnedLimits(limits);
+    if (usage !== undefined) applyUsageSettings(usage);
+    if (usageProvider !== undefined) applyUsageProviderId(usageProvider);
     const nextSig = nextPieces.map(function(piece){ return piece.id; }).join("\u0000");
     const pinnedChanged = nextSig !== pinnedSig;
     pinnedSig = nextSig;
@@ -2359,7 +4729,7 @@
       } else if (m.type === "apps"){
         state.online = true;
         maybeReloadForUi(m.v);
-        applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision);
+        applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision, m.usage, m.usageProvider);
       }
     };
     ws.onclose = function(){
@@ -2395,7 +4765,7 @@
         if (Array.isArray(r.data && (r.data.pieces || r.data.pinned)) && Array.isArray(r.data && r.data.running)){
           ok = true;
           maybeReloadForUi(r.data.v);
-          applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision);
+          applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision, r.data.usage, r.data.usageProvider);
         }
       }
     } catch (e) { /* offline: keep last view */ }
@@ -2405,7 +4775,14 @@
   }
   if (typeof document.addEventListener === "function"){
     document.addEventListener("visibilitychange", function(){
-      if (!pageHidden()){ loadHealth(); connectStatusWs(); loadApps(); }
+      if (!pageHidden()){
+        loadHealth();
+        connectStatusWs();
+        loadApps();
+        if (state.screen === "usage") void loadUsageActivity();
+      } else {
+        stopUsageActivityPolling();
+      }
     });
   }
 
@@ -2449,85 +4826,109 @@
   });
 
   // ---------- telas (swipe vertical) ----------
+  const SCREEN_NAMES = ["apps", "recents", "usage"];
+  const SCREEN_STORAGE_KEY = "dokke.lastScreen";
+  function screenNames(){
+    return state.usageSettings.enabled ? SCREEN_NAMES : SCREEN_NAMES.slice(0, 2);
+  }
+  function readPersistedScreen(){
+    try {
+      const saved = localStorage.getItem(SCREEN_STORAGE_KEY);
+      return SCREEN_NAMES.indexOf(saved) >= 0 ? saved : "apps";
+    } catch (e) {
+      return "apps";
+    }
+  }
+  function persistScreen(name){
+    if (SCREEN_NAMES.indexOf(name) < 0) return;
+    try { localStorage.setItem(SCREEN_STORAGE_KEY, name); } catch (e) {}
+  }
   function renderVDots(){
     const v = $("vdots");
-    if (v.firstChild) return; // já renderizado
-    for (let i = 0; i < 2; i++){
+    if (!v) return;
+    const names = screenNames();
+    v.replaceChildren();
+    names.forEach(function(name, i){
       const d = document.createElement("span");
       d.className = "d" + (i === 0 ? " on" : "");
       v.appendChild(d);
-    }
+      d.dataset.screen = name;
+    });
   }
 
   function syncVDots(){
     const ds = $("vdots").querySelectorAll(".d");
-    if (ds[0]) ds[0].classList.toggle("on", state.screen === "apps");
-    if (ds[1]) ds[1].classList.toggle("on", state.screen === "recents");
+    const names = screenNames();
+    ds.forEach(function(dot, index){ dot.classList.toggle("on", names[index] === state.screen); });
   }
 
   function goScreen(name){
+    const names = screenNames();
+    if (name === "usage" && !state.usageSettings.enabled) name = "recents";
+    if (names.indexOf(name) < 0) name = names[names.length - 1] || "apps";
     if (name === state.screen) return;
     state.screen = name;
+    persistScreen(name);
     document.body.classList.toggle("is-recents", name === "recents");
+    document.body.classList.toggle("is-usage", name === "usage");
     syncVDots();
+    if (name === "usage"){
+      loadUsage(false);
+      void loadUsageActivity();
+    } else {
+      stopUsageActivityPolling();
+    }
   }
 
     const screensEl = $("screens");
   if (screensEl){
     const screenApps = $("screenApps");
     const screenRecents = $("screenRecents");
+    const screenUsage = $("screenUsage");
+    const screenElements = [screenApps, screenRecents, screenUsage];
+    const screenIndex = name => Math.max(0, screenNames().indexOf(name));
     const DRAG = 4;
     const AXIS_RATIO = 1.2;
     const VEL_INST = 0.3;
     const VEL_AVG = 0.45;
     const FLICK_MIN = 16;
     const RUBBER = 28;
-    const COOLDOWN_MS = 80;
     let sx = 0, sy = 0, t0 = 0, moving = false, pid = null;
-    let coolUntil = 0;
+    let usageScrollEl = null;
+    let nativeUsageGesture = false;
     let wheelDelta = 0;
     let wheelT = null;
     let wheelRaf = null;
     let settleT = null;
     let settling = false;
+    let settleTarget = null;
     let lastY = 0, lastT = 0, instVel = 0;
 
     function h(){ return Math.max(screensEl.offsetHeight, 1); }
     function commitPx(){ return Math.max(34, Math.round(h() * 0.06)); }
     function wheelCommitPx(){ return Math.max(70, Math.round(h() * 0.14)); }
-    function activeEl(){ return state.screen === "apps" ? screenApps : screenRecents; }
+    function activeEl(){ return screenElements[screenIndex(state.screen)] || screenApps; }
     function rubberDy(dy){
       const height = h();
-      if (state.screen === "apps"){
-        // apps -> recentes: acompanha o dedo por toda a viewport; o limite
-        // curto só vale para o overscroll na direção sem próxima tela.
-        if (dy < 0) return Math.max(dy, -height - RUBBER);
-        return Math.min(dy, RUBBER);
-      }
-      // recentes -> apps: antes ficava preso em 28px e saltava no release.
-      if (dy > 0) return Math.min(dy, height + RUBBER);
-      return Math.max(dy, -RUBBER);
+      const atTop = state.screen === "apps" && dy > 0;
+      const atBottom = state.screen === "usage" && dy < 0;
+      if (atTop || atBottom) return Math.sign(dy) * Math.min(Math.abs(dy), RUBBER);
+      return Math.max(-height - RUBBER, Math.min(height + RUBBER, dy));
     }
     function applyDrag(dy){
       const d = rubberDy(dy);
-      if (state.screen === "apps"){
-        if (screenApps) screenApps.style.transform = "translate3d(0, " + d + "px, 0)";
-        if (screenRecents) screenRecents.style.transform = "translate3d(0, " + (d + h()) + "px, 0)";
-      } else {
-        if (screenRecents) screenRecents.style.transform = "translate3d(0, " + d + "px, 0)";
-        if (screenApps) screenApps.style.transform = "translate3d(0, " + (d - h()) + "px, 0)";
-      }
+      const current = screenIndex(state.screen);
+      screenElements.forEach(function(el, index){
+        if (el) el.style.transform = "translate3d(0, " + ((index - current) * h() + d) + "px, 0)";
+      });
     }
     function clearDrag(){
-      const recentsActive = document.body.classList.contains("is-recents");
-      if (screenApps){
-        screenApps.style.transform = recentsActive ? "translate3d(0, -100%, 0)" : "translate3d(0, 0, 0)";
-        screenApps.style.transition = "";
-      }
-      if (screenRecents){
-        screenRecents.style.transform = recentsActive ? "translate3d(0, 0, 0)" : "translate3d(0, 100%, 0)";
-        screenRecents.style.transition = "";
-      }
+      const current = screenIndex(state.screen);
+      screenElements.forEach(function(el, index){
+        if (!el) return;
+        el.style.transform = "translate3d(0, " + ((index - current) * 100) + "%, 0)";
+        el.style.transition = "";
+      });
     }
     let swipeClearRaf = null;
     function setLayer(on, axis){
@@ -2537,7 +4938,7 @@
       }
       try {
         const g = "transform";
-        for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
+        for (const el of screenElements){ if (el) el.style.willChange = g; }
       } catch (err) {}
       if (on){
         try { document.body.classList.add("swiping"); } catch (err) {}
@@ -2567,7 +4968,7 @@
     let hGest = false, hOriginInLaunchpad = false, hOriginInDeck = false;
     let nativeDeckGesture = false;
     let hStart = 0, hStartPage = 0, hVel = 0, hLastX = 0;
-    let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null;
+    let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null, hSnapTargetPage = null;
     const HV_FLICK = 0.32;
     const H_FLICK_MIN = 14;
     const HPAGE_RATIO = 0.18;
@@ -2613,14 +5014,17 @@
       if (hSnapT){ clearTimeout(hSnapT); hSnapT = null; }
       if (launchpadTrack) launchpadTrack.style.transition = "";
       if (launchpad){
+        if (hSnapTargetPage != null) launchpad.scrollLeft = hSnapTargetPage * Math.max(launchpad.clientWidth, 1);
         launchpad.style.scrollSnapType = "";
         launchpad.style.scrollBehavior = "";
       }
+      hSnapTargetPage = null;
     }
     function finishHorizontalSnap(target){
       hSnapRaf = null;
       if (hSnapT){ clearTimeout(hSnapT); hSnapT = null; }
       launchpad.scrollLeft = target;
+      hSnapTargetPage = null;
       launchpad.style.scrollSnapType = "";
       launchpad.style.scrollBehavior = "";
     }
@@ -2661,19 +5065,19 @@
       launchpad.style.scrollBehavior = "auto";
       const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
       const duration = reduced ? 1 : H_SNAP_DURATION;
+      hSnapTargetPage = t;
       animateHorizontalSnap(t * pw, duration);
-      coolUntil = Date.now() + COOLDOWN_MS;
     }
 
     function finishSettle(nextName){
       settling = false;
+      settleTarget = null;
       setLayer(false);
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
       if (nextName) goScreen(nextName);
       clearDrag();
       flushPendingRecents();
-      coolUntil = Date.now() + COOLDOWN_MS;
       if (typeof layoutDockScale === "function"){
         requestAnimationFrame(function(){ try{ layoutDockScale(); }catch(e){} });
       }
@@ -2685,10 +5089,15 @@
       finishSettle(next);
     }
     function settleTo(nextName){
+      const names = screenNames();
+      if (names.indexOf(nextName) < 0 || nextName === state.screen) return;
       settling = true;
+      settleTarget = nextName;
       setLayer(true, "vertical");
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
+      const movingDown = screenIndex(nextName) > screenIndex(state.screen);
+      const movement = Math.max(1, Math.abs(screenIndex(nextName) - screenIndex(state.screen)));
       const hasPendingRecents = nextName === "recents" && recentsRenderPending;
       const hasPendingLaunchpad = nextName === "apps" && launchpadRenderPending;
       if (hasPendingRecents || hasPendingLaunchpad){
@@ -2701,15 +5110,8 @@
             const ease = IS_ANDROID_WEBVIEW
               ? "transform .20s cubic-bezier(.22,.61,.36,1)"
               : "transform .22s cubic-bezier(.22,.61,.36,1)";
-            if (nextName === "recents"){
-              if (screenApps) screenApps.style.transition = ease;
-              if (screenRecents) screenRecents.style.transition = ease;
-              applyDrag(-h());
-            } else {
-              if (screenApps) screenApps.style.transition = ease;
-              if (screenRecents) screenRecents.style.transition = ease;
-              applyDrag(h());
-            }
+            screenElements.forEach(function(el){ if (el) el.style.transition = ease; });
+            applyDrag((movingDown ? -1 : 1) * h() * movement);
             screensEl._nextScreen = nextName || null;
             screensEl.addEventListener("transitionend", onSettleEnd);
             settleT = setTimeout(function(){
@@ -2735,15 +5137,8 @@
         const ease = IS_ANDROID_WEBVIEW
           ? "transform .20s cubic-bezier(.22,.61,.36,1)"
           : "transform .22s cubic-bezier(.22,.61,.36,1)";
-        if (nextName === "recents"){
-          if (screenApps) screenApps.style.transition = ease;
-          if (screenRecents) screenRecents.style.transition = ease;
-          applyDrag(-h());
-        } else {
-          if (screenApps) screenApps.style.transition = ease;
-          if (screenRecents) screenRecents.style.transition = ease;
-          applyDrag(h());
-        }
+        screenElements.forEach(function(el){ if (el) el.style.transition = ease; });
+        applyDrag((movingDown ? -1 : 1) * h() * movement);
         // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
         // e de pointer-events acontece em finishSettle, depois do último frame.
         screensEl._nextScreen = nextName || null;
@@ -2756,13 +5151,10 @@
       });
     }
     function settleAndCommit(dir){
-      if (Date.now() < coolUntil && dir){
-        setLayer(false);
-        clearDrag();
-        return;
-      }
-      if (dir === "up" && state.screen === "apps") settleTo("recents");
-      else if (dir === "down" && state.screen === "recents") settleTo("apps");
+      const current = screenIndex(state.screen);
+      const names = screenNames();
+      if (dir === "up" && current < names.length - 1) settleTo(names[current + 1]);
+      else if (dir === "down" && current > 0) settleTo(names[current - 1]);
       else { setLayer(false); clearDrag(); }
     }
     function releasePointer(){
@@ -2770,6 +5162,8 @@
         try { screensEl.releasePointerCapture(pid); } catch (err) {}
       }
       pid = null;
+      nativeUsageGesture = false;
+      usageScrollEl = null;
     }
     function decideDir(dy, dt){
       const need = commitPx();
@@ -2778,11 +5172,9 @@
       const flick =
         (iv >= VEL_INST && Math.abs(dy) >= FLICK_MIN) ||
         (avg >= VEL_AVG && Math.abs(dy) >= FLICK_MIN);
-      if (state.screen === "apps"){
-        if (dy <= -need || (flick && dy < 0)) return "up";
-      } else {
-        if (dy >= need || (flick && dy > 0)) return "down";
-      }
+      const current = screenIndex(state.screen);
+      if (dy < 0 && current < screenNames().length - 1 && (dy <= -need || flick)) return "up";
+      if (dy > 0 && current > 0 && (dy >= need || flick)) return "down";
       return null;
     }
 
@@ -2790,10 +5182,13 @@
       if (e.pointerType === "mouse" && e.button !== 0) return;
       stopHorizontalSnap();
       if (settling){
+        const interruptedTarget = settleTarget || screensEl._nextScreen || null;
         if (settleT){ clearTimeout(settleT); settleT = null; }
         screensEl.removeEventListener("transitionend", onSettleEnd);
         screensEl._nextScreen = null;
         settling = false;
+        settleTarget = null;
+        if (interruptedTarget) goScreen(interruptedTarget);
         clearDrag();
       }
       sx = e.clientX; sy = e.clientY; t0 = e.timeStamp;
@@ -2804,9 +5199,11 @@
       hOriginInLaunchpad = !!(e.target && e.target.closest && e.target.closest(".launchpad"));
       hOriginInDeck = !!(e.target && e.target.closest && e.target.closest(".deck"));
       nativeDeckGesture = hOriginInDeck;
+      usageScrollEl = e.target && e.target.closest ? e.target.closest(".usage-scroll") : null;
+      nativeUsageGesture = state.screen === "usage" && !!usageScrollEl;
       moving = false;
       pid = e.pointerId;
-      if (screensEl.setPointerCapture && !nativeDeckGesture){
+      if (screensEl.setPointerCapture && !nativeDeckGesture && !nativeUsageGesture){
         try { screensEl.setPointerCapture(pid); } catch (err) {}
       }
     });
@@ -2825,9 +5222,20 @@
       lastY = e.clientY;
       hLastX = e.clientX;
       lastT = e.timeStamp;
+      if (nativeUsageGesture){
+        if (Math.abs(dy) < DRAG) return;
+        const maxScroll = Math.max(usageScrollEl.scrollHeight - usageScrollEl.clientHeight, 0);
+        const atTop = usageScrollEl.scrollTop <= 0.5;
+        const atBottom = usageScrollEl.scrollTop >= maxScroll - 0.5;
+        const canScroll = dy < 0 ? !atBottom : !atTop;
+        if (canScroll) return;
+        nativeUsageGesture = false;
+        if (screensEl.setPointerCapture){
+          try { screensEl.setPointerCapture(pid); } catch (err) {}
+        }
+      }
       if (!moving){
         if (Math.abs(dy) < DRAG && Math.abs(dx) < DRAG) return;
-        if (Date.now() < coolUntil) return;
         if (Math.abs(dx) > Math.abs(dy) * AXIS_RATIO){
           // Depois do setPointerCapture, o target passa a ser #screens. Use a
           // origem do toque, não o target capturado.
@@ -2860,6 +5268,10 @@
       if (nativeDeckGesture){
         nativeDeckGesture = false;
         deckPid = null;
+        releasePointer();
+        return;
+      }
+      if (nativeUsageGesture){
         releasePointer();
         return;
       }
@@ -2915,6 +5327,10 @@
         releasePointer();
         return;
       }
+      if (nativeUsageGesture){
+        releasePointer();
+        return;
+      }
       dragFlush();
       hFlush();
       if (hGest){
@@ -2937,9 +5353,16 @@
     screensEl.addEventListener("wheel", function(e){
       if (e.ctrlKey) return;
       if (settling) return;
+      const usageScroll = e.target && e.target.closest ? e.target.closest(".usage-scroll") : null;
       const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
       if (adx >= ady * AXIS_RATIO) return;
-      if (Date.now() < coolUntil){ e.preventDefault(); return; }
+      if (state.screen === "usage" && usageScroll){
+        const maxScroll = Math.max(usageScroll.scrollHeight - usageScroll.clientHeight, 0);
+        const atTop = usageScroll.scrollTop <= 0.5;
+        const atBottom = usageScroll.scrollTop >= maxScroll - 0.5;
+        const canScroll = e.deltaY > 0 ? !atBottom : !atTop;
+        if (canScroll) return;
+      }
       e.preventDefault();
       let d = e.deltaY;
       if (e.deltaMode === 1) d *= 18;
@@ -2962,9 +5385,10 @@
         const dd = wheelDelta;
         wheelDelta = 0;
         const need = wheelCommitPx();
+        const names = screenNames();
         let dir = null;
-        if (state.screen === "apps" && dd <= -need) dir = "up";
-        else if (state.screen === "recents" && dd >= need) dir = "down";
+        if (dd <= -need && screenIndex(state.screen) < names.length - 1) dir = "up";
+        else if (dd >= need && screenIndex(state.screen) > 0) dir = "down";
         settleAndCommit(dir);
       }, 140);
     }, { passive: false });
@@ -2980,17 +5404,16 @@
         }
         if (i < 0){
           const r = vdots.getBoundingClientRect();
-          i = (e.clientY - r.top) < r.height / 2 ? 0 : 1;
+          i = Math.min(screenNames().length - 1, Math.floor(((e.clientY - r.top) / Math.max(r.height, 1)) * screenNames().length));
         }
-        if (i === 0 && state.screen !== "apps") settleAndCommit("down");
-        else if (i === 1 && state.screen !== "recents") settleAndCommit("up");
+        const names = screenNames();
+        if (i >= 0 && i < names.length && names[i] !== state.screen) settleTo(names[i]);
       });
     }
 
     function reAnchor(){
       if (!moving && !settling){
         clearDrag();
-        coolUntil = Date.now() + COOLDOWN_MS;
       }
     }
     window.addEventListener("resize", function(){
@@ -3003,7 +5426,9 @@
     }
   }
 
+  const initialScreen = readPersistedScreen();
   renderVDots();
+  if (initialScreen !== "apps") goScreen(initialScreen);
 
   // orientation change
   checkOrientation();
@@ -3106,7 +5531,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v24").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v28").catch(function() {});
   }
 })();</script>
 </body>

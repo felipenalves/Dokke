@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { startServer } from "../server.js";
 import { MAX_PINNED_APPS, pinnedLimits } from "../config.js";
 
+const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact" };
+
 async function startTemp(extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), "j5api-"));
   const { port, close } = await startServer({
@@ -26,8 +28,85 @@ test("GET /api/config vazio retorna pinned vazio", async () => {
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), {
       ok: true,
-      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits() },
+      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits(), usage: DEFAULT_USAGE },
     });
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("PUT /api/config/usage salva preferências e expõe no /api/apps", async () => {
+  const s = await startTemp();
+  try {
+    const r = await fetch(`${base(s)}/api/config/usage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: { enabled: false, display: "remaining", reset: "exact" } }),
+    });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.pushed, true);
+    assert.deepEqual(body.config.usage, { enabled: false, display: "remaining", reset: "exact" });
+
+    const apps = await fetch(`${base(s)}/api/apps`);
+    assert.deepEqual((await apps.json()).usage, { enabled: false, display: "remaining", reset: "exact" });
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("PUT /api/config/usage rejeita preferência inválida sem alterar a atual", async () => {
+  const s = await startTemp();
+  try {
+    for (const usage of [
+      { enabled: "no", display: "used", reset: "countdown" },
+      { enabled: true, display: "invalid", reset: "countdown" },
+      { enabled: true, display: "used", reset: "invalid" },
+      { enabled: true, display: "used" },
+    ]) {
+      const r = await fetch(`${base(s)}/api/config/usage`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usage }),
+      });
+      assert.equal(r.status, 400, JSON.stringify(usage));
+      assert.equal((await r.json()).ok, false);
+    }
+    const current = await fetch(`${base(s)}/api/config`);
+    assert.deepEqual((await current.json()).config.usage, DEFAULT_USAGE);
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("PUT /api/config/usage idempotente não incrementa revisão", async () => {
+  const s = await startTemp();
+  try {
+    const r = await fetch(`${base(s)}/api/config/usage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: DEFAULT_USAGE }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).config.revision, 0);
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("PUT /api/config/usage/provider compartilha a última IA selecionada", async () => {
+  const s = await startTemp();
+  try {
+    const r = await fetch(`${base(s)}/api/config/usage/provider`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "Codex" }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).config.usageProvider, "codex");
+
+    const config = await fetch(`${base(s)}/api/config`);
+    assert.equal((await config.json()).config.usageProvider, "codex");
+
+    const invalid = await fetch(`${base(s)}/api/config/usage/provider`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "not a provider" }),
+    });
+    assert.equal(invalid.status, 400);
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
@@ -59,7 +138,13 @@ test("PUT /api/config/pinned substitui lista inteira", async () => {
 });
 
 test("GET /api/status retorna devices e pinned", async () => {
-  const s = await startTemp();
+  const s = await startTemp({
+    configFile: null,
+    config: {
+      usage: { enabled: false, display: "remaining", reset: "exact" },
+      usageProvider: "codex",
+    },
+  });
   try {
     await fetch(`${base(s)}/api/config/pinned`, { method: "POST", body: JSON.stringify({ app: "Notes" }) });
     const r = await fetch(`${base(s)}/api/status`);
@@ -69,6 +154,8 @@ test("GET /api/status retorna devices e pinned", async () => {
     assert.equal(typeof j.devices, "number");
     assert.equal(j.pinned, 1);
     assert.deepEqual(j.config.pinned, ["Notes"]);
+    assert.deepEqual(j.config.usage, { enabled: false, display: "remaining", reset: "exact" });
+    assert.equal(j.config.usageProvider, "codex");
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 

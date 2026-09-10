@@ -8,7 +8,9 @@
     "start": "node server.js",
     "test": "node --test",
     "mac:install": "cd mac && ./install.sh",
-    "mac:open": "cd mac && ./install.sh --open"
+    "mac:open": "cd mac && ./install.sh --open",
+    "mac:dev": "bash mac/dev.sh",
+    "mac:hooks:install": "node usage/install-mascot-hooks.js"
   },
   "engines": {
     "node": ">=20"

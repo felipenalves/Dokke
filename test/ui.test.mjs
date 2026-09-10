@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startServer } from "../server.js";
 
-test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
+test("GET / serve as 3 telas (apps + apps abertos + usage) liquid glass", async () => {
   const { port, close } = await startServer(0);
   try {
     const r = await fetch(`http://127.0.0.1:${port}/`);
@@ -11,9 +11,10 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(r.headers.get("content-type") || "", /text\/html/);
     const html = await r.text();
     assert.match(html, /id="dokke"/, "html deve marcar a raiz da tela");
-    assert.match(html, /id="screens"/, "html deve ter o wrapper das 2 telas");
+    assert.match(html, /id="screens"/, "html deve ter o wrapper das 3 telas");
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
+    assert.match(html, /id="screenUsage"/, "html deve ter a tela Usage");
     assert.match(html, /<title>Dokke<\/title>/, "o título visível do PWA deve usar a marca correta");
     assert.match(
       html,
@@ -58,7 +59,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /body\.is-recents/, "troca de tela por classe opacity (não empilha telas)");
     assert.match(html, /#screenRecents\{[\s\S]*transform: translate3d\(0, 100%, 0\)/, "tela 2 deve começar fora da viewport");
     assert.match(html, /body\.is-recents #screenApps\{[\s\S]*transform: translate3d\(0, -100%, 0\)/, "tela 1 deve permanecer fora quando tela 2 estiver ativa");
-    assert.match(html, /function clearDrag\(\)[\s\S]*is-recents[\s\S]*translate3d\(0, -100%, 0\)/, "limpeza do gesto não pode trazer a tela inativa de volta");
+    assert.match(html, /function clearDrag\(\)[\s\S]*screenElements\.forEach[\s\S]*translate3d\(0, /, "limpeza do gesto deve reancorar todas as telas");
     assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
     assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
     assert.match(html, /\.page-grid\{[\s\S]*grid-gap: clamp\(20px, 3vw, 32px\);[\s\S]*justify-content: center;/, "a grade deve preservar o gutter normal entre os apps");
@@ -74,7 +75,9 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /--tile-in: 0\.84;/, "ícones devem ficar um pouco menores dentro do card");
     assert.match(html, /\.atile \.aglass\{[\s\S]*width: 100%; height: 100%;/, "o Card Glass deve continuar preenchendo o slot");
     assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;/, "somente o ícone da tela 1 deve diminuir");
-    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 92%; height: 92%;/, "ícones da tela 2 não devem ser alterados");
+    assert.match(html, /\.dcard\{[\s\S]*container-type: inline-size;/, "cards da tela 2 devem usar a mesma régua de container da tela 1");
+    assert.match(html, /\.dcard \.aglass\{[\s\S]*border-radius: 29%;/, "glass da tela 2 deve usar o mesmo raio da tela 1");
+    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;[\s\S]*border-radius: 18%;/, "ícones da tela 2 devem usar a mesma escala da tela 1");
     assert.match(html, /--tile-r: 0\.29;/, "cards glass devem ter um raio ligeiramente menor");
     assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 29%;/, "fallback deve aplicar o mesmo raio menor aos cards");
     assert.match(html, /\.atile \.aglass::before\{ border-radius: 29%; \}/, "o highlight deve acompanhar a nova curva do card");
@@ -126,7 +129,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.doesNotMatch(deckPointerDown[0], /classList\.add\("swiping"\)/, "toque simples no deck não deve escurecer todos os cards");
     assert.match(deckGesture, /pointermove[\s\S]*classList\.add\("swiping"\)/, "somente o arraste real deve ativar o modo swiping");
     assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
-    assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
+    assert.doesNotMatch(html, /COOLDOWN_MS|coolUntil/, "gestos válidos não devem ser descartados por cooldown temporal");
     assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
     assert.match(html, /const duration = reduced \? 1 : H_SNAP_DURATION/, "todos os clientes devem compartilhar a duração do encaixe");
     assert.match(html, /transform: rotate\(var\(--icon-turn\)\);/, "ícones não devem ganhar uma textura GPU extra");
@@ -189,6 +192,990 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
   } finally { await close(); }
 });
 
+test("ícones da tela 2 usam o mesmo enquadramento visual da tela 1", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: [],
+    },
+    appTools: {
+      listAppProcesses: async () => [{ name: "Terminal", pid: 7, type: "Foreground" }],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".atile .aglass", { timeout: 15000 });
+    await page.waitForSelector(".dcard .aglass", { timeout: 15000 });
+    const metrics = await page.evaluate(() => {
+      const read = selector => {
+        const root = document.querySelector(selector);
+        const glass = root.querySelector(".aglass");
+        const icon = root.querySelector(".aglass img.aicon, .aglass .gicon");
+        const glassStyle = getComputedStyle(glass);
+        const iconStyle = getComputedStyle(icon);
+        return {
+          glassRadius: glassStyle.borderRadius,
+          iconRadius: iconStyle.borderRadius,
+          iconWidth: icon.getBoundingClientRect().width,
+          iconHeight: icon.getBoundingClientRect().height,
+        };
+      };
+      return { first: read(".atile"), second: read(".dcard") };
+    });
+    assert.equal(metrics.second.glassRadius, metrics.first.glassRadius, "raio externo deve ser igual nas duas telas");
+    assert.equal(metrics.second.iconRadius, metrics.first.iconRadius, "raio do ícone deve ser igual nas duas telas");
+    assert.ok(Math.abs(metrics.second.iconWidth - metrics.first.iconWidth) < 0.1, "largura do ícone deve ser igual nas duas telas");
+    assert.ok(Math.abs(metrics.second.iconHeight - metrics.first.iconHeight) < 0.1, "altura do ícone deve ser igual nas duas telas");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("swipes verticais rápidos encadeiam as telas sem repetir a tela anterior", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+
+    const currentScreen = () => page.evaluate(() =>
+      document.body.classList.contains("is-usage")
+        ? "usage"
+        : document.body.classList.contains("is-recents")
+          ? "recents"
+          : "apps"
+    );
+    const swipe = async (direction, pauseAfter = 50) => {
+      const box = await page.locator("#screens").boundingBox();
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const sign = direction === "up" ? -1 : 1;
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(cx, cy + sign * 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(pauseAfter);
+    };
+
+    await swipe("up");
+    await swipe("up", 500);
+    assert.equal(await currentScreen(), "usage", "o segundo swipe rápido deve avançar de recents para usage");
+
+    await swipe("down");
+    await swipe("down", 500);
+    assert.equal(await currentScreen(), "apps", "o segundo swipe rápido deve voltar de recents para apps");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("swipe vertical imediato após o settle não é descartado pelo cooldown", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const result = await page.evaluate(async () => {
+      const screens = document.querySelector("#screens");
+      const event = (type, y, pointerId) => screens.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId, pointerType: "touch", isPrimary: true,
+        clientX: 195, clientY: y,
+      }));
+      const swipeUp = pointerId => {
+        event("pointerdown", 700, pointerId);
+        for (let i = 1; i <= 6; i++) event("pointermove", 700 - 100 * i, pointerId);
+        event("pointerup", 100, pointerId);
+      };
+      const second = new Promise(resolve => {
+        const observer = new MutationObserver(() => {
+          if (!document.body.classList.contains("is-recents")) return;
+          observer.disconnect();
+          swipeUp(2);
+          setTimeout(() => resolve(document.body.classList.contains("is-usage") ? "usage" : "recents"), 500);
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+      });
+      swipeUp(1);
+      return await second;
+    });
+    assert.equal(result, "usage", "um swipe iniciado logo após o settle deve avançar para Usage");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("swipes horizontais rápidos encadeiam páginas do Launchpad", async () => {
+  const pieces = Array.from({ length: 24 }, (_, index) => ({
+    id: `website:https://fast-page-${index + 1}.example.com`,
+    type: "website",
+    title: `Fast page ${index + 1}`,
+    url: `https://fast-page-${index + 1}.example.com`,
+    position: index,
+  }));
+  const { port, close } = await startServer({ port: 0, obs: null, config: { schemaVersion: 2, revision: 0, pieces, pinned: [] } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelectorAll(".dots .d").length >= 3, { timeout: 15000 });
+    const result = await page.evaluate(async () => {
+      const launchpad = document.querySelector("#launchpad");
+      const event = (type, x, pointerId) => launchpad.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId, pointerType: "touch", isPrimary: true,
+        clientX: x, clientY: 400,
+      }));
+      const swipeLeft = pointerId => {
+        const rect = launchpad.getBoundingClientRect();
+        const start = rect.left + rect.width / 2;
+        event("pointerdown", start, pointerId);
+        for (let i = 1; i <= 6; i++) event("pointermove", start - 90 * i, pointerId);
+        event("pointerup", start - 540, pointerId);
+      };
+      swipeLeft(1);
+      swipeLeft(2);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const dots = [...document.querySelectorAll(".dots .d")];
+      return dots.findIndex(dot => dot.classList.contains("on"));
+    });
+    assert.equal(result, 2, "dois swipes rápidos devem chegar à terceira página");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+function overflowingUsagePayload() {
+  const resources = {
+    session: { kind: "consumption", unit: "requests", used: 5, limit: 20, remaining: 15, utilization: 0.25, resetsAt: "2026-09-01T10:00:00.000Z" },
+    weekly: { kind: "consumption", unit: "requests", used: 10, limit: 100, remaining: 90, utilization: 0.1, resetsAt: "2026-09-07T10:00:00.000Z" },
+  };
+  for (let index = 1; index <= 10; index++) {
+    resources[`extra${index}`] = { kind: "consumption", unit: "requests", used: index, limit: 100, remaining: 100 - index, utilization: index / 100, resetsAt: "2026-09-07T10:00:00.000Z" };
+  }
+  return {
+    ok: true,
+    source: "openusage",
+    sourceState: "available",
+    updatedAt: "2026-08-31T13:00:00.000Z",
+    providers: {
+      codex: {
+        id: "codex",
+        name: "Codex",
+        plan: "Plus",
+        status: "normal",
+        mascot: "energized",
+        resources,
+        trend: {
+          points: Array.from({ length: 31 }, (_, index) => ({ label: `day-${index + 1}`, value: index + 1, valueLabel: `${index + 1} tokens` })),
+          note: "Long trend fixture for the internal vertical-scroll contract. ".repeat(18),
+        },
+      },
+      antigravity: {
+        id: "antigravity",
+        name: "Antigravity",
+        status: "normal",
+        resources: {
+          weekly: { kind: "consumption", unit: "percent", remaining: 45, utilization: 0.45 },
+        },
+      },
+      grok: {
+        id: "grok",
+        name: "Grok",
+        status: "normal",
+        resources: {
+          weekly: { kind: "consumption", unit: "percent", remaining: 28, utilization: 0.28 },
+        },
+      },
+    },
+    errors: [],
+  };
+}
+
+async function openOverflowingUsagePage(port, browser, beforeNavigate) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 480 }, hasTouch: true });
+  await page.route("**/api/usage", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(overflowingUsagePayload()),
+  }));
+  if (beforeNavigate) await beforeNavigate(page);
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+  const swipeUp = async () => {
+    const box = await page.locator("#screens").boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) {
+      await page.mouse.move(x, y - 55 * i, { steps: 1 });
+      await page.waitForTimeout(4);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+  };
+  await swipeUp();
+  await swipeUp();
+  await page.waitForSelector(".usage-scroll", { timeout: 5000 });
+  return page;
+}
+
+test("Usage mostra outros provedores abaixo e promove o card clicado", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "openusage",
+        sourceState: "available",
+        updatedAt: "2026-08-31T13:00:00.000Z",
+        providers: {
+          claude: {
+            id: "claude",
+            name: "Claude",
+            plan: "Pro",
+            status: "attention",
+            resources: {
+              session: { kind: "consumption", unit: "percent", remaining: 32, utilization: 0.32 },
+              weekly: { kind: "consumption", unit: "percent", remaining: 61, utilization: 0.61 },
+            },
+          },
+          codex: {
+            id: "codex",
+            name: "Codex",
+            plan: "Plus",
+            status: "normal",
+            resources: { session: { kind: "consumption", unit: "percent", remaining: 84, utilization: 0.84 } },
+          },
+          antigravity: {
+            id: "antigravity",
+            name: "Antigravity",
+            status: "normal",
+            resources: { geminiWeekly: { kind: "consumption", unit: "percent", remaining: 45, utilization: 0.45 } },
+          },
+          grok: {
+            id: "grok",
+            name: "Grok",
+            status: "normal",
+            resources: { weekly: { kind: "consumption", unit: "percent", remaining: 28, utilization: 0.28 } },
+          },
+        },
+        errors: [],
+      }),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    await page.waitForSelector(".usage-card");
+
+    const initialIds = await page.locator(".usage-card").evaluateAll(cards => cards.map(card => card.dataset.provider));
+    assert.deepEqual(initialIds, ["claude", "codex", "antigravity", "grok"], "todos os provedores devem aparecer na pilha");
+    assert.match(await page.locator('[data-provider="antigravity"] .usage-provider-name').textContent(), /Antigravity/);
+    assert.match(await page.locator('[data-provider="grok"] .usage-provider-name').textContent(), /Grok/);
+    assert.match(await page.locator('[data-provider="antigravity"] .usage-provider-logo img').getAttribute("src") || "", /provider-icons\/antigravity\.svg/);
+    assert.match(await page.locator('[data-provider="grok"] .usage-provider-logo img').getAttribute("src") || "", /provider-icons\/grok\.svg/);
+    assert.equal(await page.locator('[data-provider="antigravity"] .usage-limit-label').first().textContent(), "semana");
+    const weeklyBarColor = await page.locator(".usage-card.is-open .usage-week-bar i").evaluate(fill => getComputedStyle(fill).backgroundColor);
+    assert.notEqual(weeklyBarColor, "rgba(255, 255, 255, 0.42)", "a barra semanal deve acompanhar o status, não usar branco fixo");
+
+    await page.locator('article[data-provider="antigravity"]').click();
+    await page.waitForSelector(".usage-stack.is-reordering", { timeout: 1000 });
+    await page.waitForFunction(() => {
+      const card = document.querySelector('.usage-stack.is-reordering article[data-provider="antigravity"]');
+      return card && card.style.transition.includes("transform");
+    });
+    await page.waitForFunction(() => document.querySelector(".usage-card.is-open")?.dataset.provider === "antigravity");
+    const promotedIds = await page.locator(".usage-card").evaluateAll(cards => cards.map(card => card.dataset.provider));
+    assert.deepEqual(promotedIds, ["antigravity", "claude", "codex", "grok"], "o provedor clicado deve subir para o topo");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage não promove a IA preferida quando ela está sem dados utilizáveis", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usageProvider: "claude" },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "dokke",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: {
+          claude: { id: "claude", name: "Claude", resources: {} },
+          codex: {
+            id: "codex",
+            name: "Codex",
+            resources: {
+              session: { kind: "consumption", unit: "percent", used: 55, limit: 100, remaining: 45, utilization: 0.55 },
+            },
+          },
+        },
+        errors: [],
+      }),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    await page.waitForSelector('.usage-card.is-open[data-provider="codex"]');
+    assert.equal(await page.locator('.usage-card[data-provider="claude"]').getAttribute("role"), null, "provider sem dados não deve ser promovível");
+    assert.equal(await page.locator(".usage-card").count(), 2, "provider sem dados ainda deve aparecer abaixo");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    await page.evaluate(() => {
+      const root = document.querySelector("#screenUsage");
+      const added = [];
+      const observer = new MutationObserver(records => {
+        records.forEach(record => record.addedNodes.forEach(node => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          node.querySelectorAll?.(".usage-mood-bubble").forEach(bubble => added.push(bubble.textContent));
+          if (node.matches?.(".usage-mood-bubble")) added.push(node.textContent);
+        }));
+      });
+      observer.observe(root, { childList: true, subtree: true });
+      window.__usageMascotTrace = { added, observer };
+      document.querySelector(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
+    const trace = await page.evaluate(() => {
+      window.__usageMascotTrace.observer.disconnect();
+      return window.__usageMascotTrace.added;
+    });
+    assert.equal(trace.filter(text => text === "Atualizando...").length, 0, "o gráfico não deve disparar refresh da cota");
+    assert.equal(trace.filter(text => text === "Atualizado").length, 0, "o gráfico não deve criar confirmação duplicada");
+
+    await page.locator(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent("click");
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
+
+    await page.locator('article[data-provider="antigravity"]').dispatchEvent("click");
+    await page.waitForSelector('.usage-mascot-wrap[data-reaction="provider"]', { timeout: 1000 });
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage deixa o mascote em modo de escrita enquanto o modelo atualiza", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          source: "dokke",
+          sourceState: "available",
+          updatedAt: new Date().toISOString(),
+          providers: { codex: { state: "working", since: new Date().toISOString(), detail: "processando", sessions: 1 } },
+          errors: [],
+        }),
+      });
+      });
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-activity="working"]', { timeout: 5000 });
+    const writingState = await page.locator('.usage-mascot-wrap[data-activity="working"]').evaluate(wrap => ({
+      sprite: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).animationName : null,
+      frame: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame,
+      transform: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.style.transform,
+      image: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).backgroundImage : null,
+      oldOverlay: wrap.querySelector(".usage-writing-tool, .usage-writing-line")
+    }));
+    assert.equal(writingState.sprite, "none");
+    assert.match(writingState.frame, /^\d+$/);
+    assert.match(writingState.transform, /translate3d\(/);
+    assert.match(writingState.image, /dokke-mascot-working-(start|loop|end)-strip\.webp/);
+    assert.equal(await page.locator('.usage-mascot-wrap[data-activity="working"] .usage-mascot-sprite').getAttribute("data-phase"), "start");
+    assert.equal(writingState.oldOverlay, null);
+    const workingFrames = await page.evaluate(async () => {
+      const read = () => document.querySelector('.usage-mascot-wrap[data-activity="working"] .usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame;
+      const initial = read();
+      const deadline = performance.now() + 1200;
+      let later = initial;
+      while (performance.now() < deadline && later === initial) {
+        await new Promise(resolve => setTimeout(resolve, 80));
+        later = read();
+      }
+      return { initial, later };
+    });
+    assert.notEqual(workingFrames.initial, workingFrames.later, "o working deve avançar as poses enquanto o modelo atualiza");
+    assert.equal(await page.locator('.usage-mascot-wrap[data-activity="working"]').count(), 1);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage encadeia start, loop e end ao trocar entre working e thinking", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  let activityState = "working";
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", route => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          source: "dokke",
+          sourceState: "available",
+          updatedAt: new Date().toISOString(),
+          providers: { codex: { state: activityState, since: new Date().toISOString(), detail: activityState, sessions: 1 } },
+          errors: [],
+        }),
+      }));
+    });
+    const mascot = page.locator('.usage-mascot-wrap[data-provider="codex"]');
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="loop"]', { timeout: 5000 });
+    assert.match(await mascot.locator('.usage-mascot-sprite-layer[data-active="true"]').evaluate(layer => getComputedStyle(layer).backgroundImage), /working-loop-strip/);
+
+    activityState = "waiting";
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="end"]', { timeout: 5000 });
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"] .usage-mascot-sprite[data-phase="start"]', { timeout: 5000 });
+    await page.waitForFunction(() => {
+      const wrap = document.querySelector('.usage-mascot-wrap[data-provider="codex"]');
+      const sprite = wrap?.querySelector(".usage-mascot-sprite");
+      return wrap?.dataset.activity === "waiting" && sprite?.dataset.activity === "thinking";
+    }, null, { timeout: 5000 });
+    assert.match(await mascot.locator('.usage-mascot-sprite-layer[data-active="true"]').evaluate(layer => getComputedStyle(layer).backgroundImage), /thinking-(start|loop)-strip/);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o loop do mascote no WebView com movimento reduzido", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.route("**/api/usage/activity", route => route.abort());
+    });
+    const frames = await page.evaluate(async () => {
+      const read = () => document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]')?.dataset.frame || null;
+      const initial = read();
+      await new Promise(resolve => setTimeout(resolve, 1400));
+      return { initial, later: read(), reduced: matchMedia("(prefers-reduced-motion: reduce)").matches };
+    });
+    assert.equal(frames.reduced, true, "o teste deve estar no modo de movimento reduzido");
+    assert.match(frames.initial || "", /^\d+$/, "o frame inicial deve existir");
+    assert.match(frames.later || "", /^\d+$/, "o frame posterior deve existir");
+    assert.notEqual(frames.initial, frames.later, "o mascote deve continuar em loop, mesmo em movimento reduzido");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o loop de standby quando o modelo está idle", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    await page.waitForSelector('.usage-mascot-wrap[data-activity="idle"]', { timeout: 5000 });
+    const standbyState = await page.locator('.usage-mascot-wrap[data-activity="idle"]').evaluate(wrap => {
+      const idle = wrap.querySelector(".usage-mascot-idle");
+      const layer = idle?.querySelector('.usage-mascot-idle-layer[data-active="true"]');
+      const style = layer ? getComputedStyle(layer) : null;
+      return {
+        animation: style?.animationName,
+        frame: layer?.dataset.frame,
+        image: style?.backgroundImage,
+        oldEyes: wrap.querySelector(".usage-token-eyes"),
+      };
+    });
+    assert.equal(standbyState.animation, "none");
+    assert.match(standbyState.frame, /^\d+$/);
+    assert.match(standbyState.image, /dokke-mascot-idle-(principal|one|coffee)-strip\.webp/);
+    assert.equal(standbyState.oldEyes, null);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage avança os frames do idle e entra na pausa de cafe", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    const snapshots = await page.evaluate(async () => {
+      const read = () => {
+        const layer = document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]');
+        return { frame: Number(layer?.dataset.frame), transform: layer?.style.transform, phase: layer?.dataset.phase, image: layer ? getComputedStyle(layer).backgroundImage : "" };
+      };
+      const initial = read();
+      await new Promise(resolve => setTimeout(resolve, 900));
+      const moving = read();
+      const deadline = performance.now() + 9000;
+      let coffee = read();
+      while (performance.now() < deadline && coffee.phase !== "idleCoffee") {
+        await new Promise(resolve => setTimeout(resolve, 180));
+        coffee = read();
+      }
+      return { initial, moving, coffee };
+    });
+    assert.notEqual(snapshots.initial.frame, snapshots.moving.frame, "o idle deve trocar de pose com o tempo");
+    assert.notEqual(snapshots.initial.transform, snapshots.moving.transform, "o renderer deve mover o strip por transform");
+    assert.equal(snapshots.coffee.phase, "idleCoffee", "o idle deve entrar no track de cafe");
+    assert.match(snapshots.coffee.image, /dokke-mascot-idle-coffee-strip\.webp/);
+    assert.match(String(snapshots.coffee.frame), /^\d+$/);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage volta ao idle comum depois da pausa de cafe", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            source: "dokke",
+            sourceState: "available",
+            updatedAt: new Date().toISOString(),
+            providers: { codex: { state: "idle", since: new Date().toISOString(), detail: "parado", sessions: 0 } },
+            errors: [],
+          }),
+        });
+      });
+    });
+    const gesture = await page.evaluate(async () => {
+      const read = () => {
+        const layer = document.querySelector('.usage-mascot-wrap[data-activity="idle"] .usage-mascot-idle-layer[data-active="true"]');
+        return {
+          layer,
+          frame: Number(layer?.dataset.frame),
+          image: layer ? getComputedStyle(layer).backgroundImage : "",
+        };
+      };
+      const deadline = performance.now() + 12000;
+      let snapshot = read();
+      let frame = snapshot.frame;
+      while (performance.now() < deadline && snapshot.image.includes("idle-coffee")) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        snapshot = read();
+        frame = snapshot.frame;
+      }
+      return {
+        frame,
+        image: snapshot.image,
+      };
+    });
+    assert.notEqual(gesture.image.includes("idle-coffee"), true, "o idle deve sair da pausa de cafe");
+    assert.match(gesture.image, /dokke-mascot-idle-(principal|one)-strip\.webp/);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage reage ao estado real de atividade retornado pelo backend", async () => {
+  const { port, close } = await startServer({ port: 0, config: { usageProvider: "codex" } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 480 }, hasTouch: true });
+    await page.route("**/api/usage/activity", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "dokke",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: { codex: { state: "working", since: new Date().toISOString(), detail: "processando", sessions: 1 } },
+        errors: [],
+      }),
+    }));
+    const pagePayload = overflowingUsagePayload();
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(pagePayload),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    await page.waitForSelector('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]', { timeout: 4000 });
+    const writingState = await page.locator('.usage-mascot-wrap[data-provider="codex"][data-activity="working"]').evaluate(wrap => ({
+      sprite: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]') ? getComputedStyle(wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')).animationName : null,
+      frame: wrap.querySelector('.usage-mascot-sprite-layer[data-active="true"]')?.dataset.frame,
+      tokenBackground: getComputedStyle(wrap.querySelector(".usage-token")).backgroundImage,
+      oldOverlay: wrap.querySelector(".usage-writing-tool, .usage-writing-line")
+    }));
+    assert.equal(writingState.sprite, "none");
+    assert.match(writingState.frame, /^\d+$/);
+    assert.equal(writingState.tokenBackground, "none");
+    assert.equal(writingState.oldOverlay, null);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mostra projeção acima do limite e alterna o formato do reset ao clicar", async () => {
+  const resetAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usage: { enabled: true, display: "used", reset: "countdown" } },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/usage", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        source: "openusage",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: {
+          codex: {
+            id: "codex",
+            name: "Codex",
+            plan: "Plus",
+            status: "normal",
+            resources: {
+              session: {
+                kind: "consumption",
+                unit: "percent",
+                used: 84,
+                limit: 100,
+                remaining: 16,
+                utilization: 0.84,
+                resetsAt: resetAt,
+                periodDurationMs: 10 * 60 * 60 * 1000,
+              },
+              weekly: {
+                kind: "consumption",
+                unit: "percent",
+                used: 84,
+                limit: 100,
+                remaining: 16,
+                utilization: 0.84,
+                resetsAt: resetAt,
+                periodDurationMs: 10 * 60 * 60 * 1000,
+              },
+            },
+          },
+        },
+        errors: [],
+      }),
+    }));
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const swipeUp = async () => {
+      const box = await page.locator("#screens").boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(x, y - 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+    };
+    await swipeUp();
+    await swipeUp();
+    const primary = page.locator(".usage-card.is-open .usage-limit.primary");
+    await primary.waitFor({ state: "visible" });
+    assert.equal(await primary.getAttribute("data-pace"), "behind");
+    assert.equal(await primary.locator(".usage-pace-warning").getAttribute("data-pace"), "behind");
+    assert.equal(await primary.locator(".usage-pace-flame").count(), 1);
+    assert.match(await primary.locator(".usage-pace-warning").textContent() || "", /limite/);
+    const weekly = page.locator(".usage-card.is-open .usage-limit:not(.primary)");
+    assert.equal(await weekly.locator(".usage-limit-label").textContent(), "semana");
+    assert.equal(await weekly.locator(".usage-pace-flame").count(), 1, "a semana deve mostrar o fogo quando a projeção passa do limite");
+    const weeklyPaceTick = weekly.locator(".usage-week-pace-tick");
+    assert.equal(await weeklyPaceTick.count(), 1, "a semana deve mostrar o risquinho do ritmo quando a projeção passa do limite");
+    assert.equal(await weeklyPaceTick.getAttribute("data-pace"), "behind");
+    assert.match(await weeklyPaceTick.getAttribute("style") || "", /left:/, "o risquinho deve ser posicionado na régua");
+
+    const percentage = primary.locator(".usage-gauge-copy .usage-limit-value");
+    assert.equal(await percentage.textContent(), "84%");
+    await percentage.click();
+    await page.waitForFunction(() => document.querySelector(".usage-gauge-copy .usage-limit-value")?.textContent === "16%");
+
+    const reset = primary.locator(".usage-limit-reset-value");
+    const countdown = await reset.textContent();
+    assert.equal(await reset.evaluate(node => node.tagName), "SPAN", "o countdown não deve ser um controle clicável");
+    await reset.click();
+    await page.waitForTimeout(100);
+    assert.equal(await reset.textContent(), countdown, "clicar no countdown não deve alternar o reset");
+    const gaugeChart = primary.locator(".usage-gauge-wrap svg");
+    await gaugeChart.click({ position: { x: 10, y: 10 } });
+    await page.waitForFunction(() => !!document.querySelector(".usage-five-reset-exact"));
+    assert.match(await reset.textContent() || "", /^\d+h \d+m$/, "o countdown grande deve permanecer compacto");
+    const exactCaption = primary.locator(".usage-five-reset-exact");
+    assert.equal(await exactCaption.evaluate(node => node.tagName), "SPAN", "a data exata também não deve ser um controle clicável");
+    assert.match(await exactCaption.textContent() || "", /hoje|amanhã|ontem/);
+    assert.equal(await exactCaption.evaluate(node => getComputedStyle(node).fontSize), "11px");
+    await exactCaption.click();
+    await page.waitForTimeout(100);
+    assert.ok(await exactCaption.isVisible(), "a data exata deve continuar visível após o clique");
+    await gaugeChart.click({ position: { x: 10, y: 10 } });
+    await page.waitForFunction(() => !document.querySelector(".usage-five-reset-exact"));
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage não exibe o sidecar Mais limites mesmo com recursos extras", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    assert.equal(await page.locator(".usage-more").count(), 0, "o botão Mais limites não deve existir");
+    assert.equal(await page.locator(".usage-more-panel").count(), 0, "o painel lateral de limites não deve existir");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage permite scroll vertical nativo sem trocar de tela", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    const before = await page.evaluate(() => {
+      const scroll = document.querySelector(".usage-scroll");
+      return { clientHeight: scroll.clientHeight, scrollHeight: scroll.scrollHeight, scrollTop: scroll.scrollTop };
+    });
+    await page.mouse.move(195, 420);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(220);
+    const after = await page.evaluate(() => ({
+      screen: document.body.classList.contains("is-usage") ? "usage" : "other",
+      scrollTop: document.querySelector(".usage-scroll").scrollTop,
+    }));
+    assert.ok(before.scrollHeight > before.clientHeight, "o cenário precisa ter conteúdo além da viewport");
+    assert.equal(after.screen, "usage", "scroll interno não deve navegar para outra tela");
+    assert.ok(after.scrollTop > 0, "scroll interno deve avançar");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage navega para a tendência no segundo slide", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    await page.waitForSelector(".usage-provider-dot");
+    assert.equal(await page.locator(".usage-provider-slide").count(), 2, "o segundo slide deve ser reservado para a tendência");
+    await page.locator(".usage-provider-dot").nth(1).click();
+    await page.waitForFunction(() => {
+      const track = document.querySelector(".usage-provider-track");
+      return track.scrollLeft >= track.clientWidth - 1 && document.querySelectorAll(".usage-provider-dot")[1]?.getAttribute("aria-current") === "true";
+    });
+    assert.ok(await page.evaluate(() => document.querySelector(".usage-provider-track").scrollLeft > 0), "o track deve avançar para o segundo slide");
+    assert.equal(await page.locator(".usage-provider-dot").nth(1).getAttribute("aria-current"), "true");
+    assert.ok(await page.locator(".usage-trend-slide .usage-trend").isVisible(), "a tendência deve aparecer no segundo slide");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o card compacto no portrait estreito do A02", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    const metrics = await page.evaluate(() => {
+      const card = document.querySelector(".usage-card.is-open");
+      const featured = card?.querySelector(".usage-featured");
+      const scroll = document.querySelector(".usage-scroll");
+      return {
+        cardHeight: card?.getBoundingClientRect().height || 0,
+        featuredHeight: featured?.getBoundingClientRect().height || 0,
+        viewportHeight: scroll?.clientHeight || 0,
+      };
+    });
+    assert.ok(metrics.cardHeight < 360, `card aberto não deve preencher o A02: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.featuredHeight < 320, `conteúdo do card não deve herdar flex expansível: ${JSON.stringify(metrics)}`);
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage usa a régua da página sem cartão externo e a fonte padrão do app", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser);
+    const metrics = await page.evaluate(() => {
+      const frame = document.querySelector(".usage-content");
+      const openCard = document.querySelector(".usage-card.is-open");
+      const sideDots = document.querySelector("#vdots");
+      const bodyFont = getComputedStyle(document.body).fontFamily;
+      const textSelectors = [
+        ".usage-title",
+        ".usage-five-copy .usage-limit-label",
+        ".usage-five-copy .usage-limit-reset-value",
+        ".usage-five-caption",
+        ".usage-week-top b",
+        ".usage-week-value .usage-limit-value",
+        ".usage-week-reset",
+      ];
+      return {
+        frameWidth: frame?.getBoundingClientRect().width || 0,
+        frameLeft: frame?.getBoundingClientRect().left || 0,
+        cardLeft: openCard?.getBoundingClientRect().left || 0,
+        cardWidth: openCard?.getBoundingClientRect().width || 0,
+        cardRight: openCard?.getBoundingClientRect().right || 0,
+        dotsLeft: sideDots?.getBoundingClientRect().left || 0,
+        frameBackground: getComputedStyle(frame).backgroundImage,
+        frameBorder: getComputedStyle(frame).borderStyle,
+        bodyFont,
+        interLoaded: document.fonts.check("16px Inter"),
+        textFonts: textSelectors.map(selector => getComputedStyle(document.querySelector(selector)).fontFamily),
+      };
+    });
+    assert.equal(metrics.frameWidth, 350, `o frame da Usage deve seguir a régua ampliada do esboço: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 0, `o card deve alinhar na borda do frame: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardWidth), 342, `o card deve ocupar o frame com a folga mínima dos dots: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.cardRight < metrics.dotsLeft - 8, `o card não pode encostar nos dots laterais: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.frameBackground, "none", "a Usage não deve criar um cartão de fundo externo");
+    assert.equal(metrics.frameBorder, "none", "a Usage não deve criar uma borda externa nova");
+    assert.equal(metrics.interLoaded, true, "a fonte padrão do app deve estar disponível sem rede");
+    assert.deepEqual(metrics.textFonts, metrics.textFonts.map(() => metrics.bodyFont), "os textos da Usage devem usar a fonte padrão do app");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
 test("long press de website pede confirmação antes de remover o fixo", async () => {
   const { port, close } = await startServer({
     port: 0,
@@ -214,6 +1201,165 @@ test("long press de website pede confirmação antes de remover o fixo", async (
     assert.match(favLong, /unpinPiece\(piece\.id\)/);
     assert.match(favLong, /\}, "confirm"\);/);
   } finally {
+    await close();
+  }
+});
+
+test("Usage usa o título curto do esboço e um cabeçalho de sincronização útil", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    assert.match(html, /I18N\["pt-BR"\]\["usage\.title"\] = "Uso"/, "a página deve usar o título curto do esboço");
+    assert.match(html, /usage-live-dot/, "o cabeçalho deve ter o indicador de estado");
+    assert.match(html, /@keyframes usagePulse/, "o estado online deve ter pulso próprio");
+    assert.match(html, /usage-provider-logo/, "o provedor deve ter uma marca visual dedicada");
+    assert.match(html, /OpenAI/, "o cabeçalho deve carregar a identidade OpenAI do Codex");
+    assert.match(html, /Claude/, "o cabeçalho deve identificar Claude");
+    assert.match(html, /usage-sync-label/, "o cabeçalho deve informar a sincronização");
+    const renderStart = html.indexOf("function renderUsage()");
+    const renderEnd = html.indexOf("function usageRefresh", renderStart);
+    const renderSource = html.slice(renderStart, renderEnd > renderStart ? renderEnd : renderStart + 24000);
+    assert.doesNotMatch(renderSource, /t\("usage\.localData"\)|t\("usage\.source"\)/, "o hero não deve expor origem técnica ou dados locais");
+  } finally {
+    await close();
+  }
+});
+
+test("marcas do Painel de Uso são servidas como SVG local", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    for (const asset of ["openai.svg", "anthropic.svg", "claude.svg"]) {
+      const response = await fetch(`http://127.0.0.1:${port}/${asset}`);
+      assert.equal(response.status, 200, `${asset} deve estar disponível no servidor local`);
+      assert.match(response.headers.get("content-type") || "", /image\/svg\+xml/, `${asset} deve ter MIME SVG`);
+      const svg = await response.text();
+      assert.doesNotMatch(svg, /currentColor/, `${asset} precisa de uma cor própria quando usado como img`);
+    }
+  } finally {
+    await close();
+  }
+});
+
+test("gauge radial e barra semanal aparecem dentro dos limites", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    const nodeStart = html.indexOf("function usageLimitNode");
+    const nodeEnd = html.indexOf("function renderUsage", nodeStart);
+    const nodeSource = html.slice(nodeStart, nodeEnd);
+    assert.ok(nodeStart >= 0 && nodeEnd > nodeStart, "o renderizador do limite deve existir");
+    assert.match(nodeSource, /usagePaintGauge\(svg,/, "o limite principal deve pintar o gauge radial");
+    assert.match(nodeSource, /usage-week-bar/, "o limite semanal deve ter uma barra segmentada");
+  } finally {
+    await close();
+  }
+});
+
+test("Painel de Uso empilha limites no retrato e não repete um card externo", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    const portraitStart = html.indexOf("@media (max-width: 699px)");
+    const portraitEnd = html.indexOf("}", portraitStart);
+    const portraitCss = html.slice(portraitStart, portraitEnd > portraitStart ? portraitEnd + 1 : portraitStart + 500);
+
+    assert.match(portraitCss, /\.usage-limits\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/, "os limites devem ocupar a largura inteira no celular");
+    assert.match(html, /\.usage-card\.is-open\{[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.84\), rgba\(12,14,16,\.89\)\)/, "o provedor aberto deve usar a moldura grafite translúcida do esboço");
+  } finally {
+    await close();
+  }
+});
+
+test("Painel de Uso promove o card fechado para o topo", async () => {
+  const { port, close } = await startServer(0);
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    const renderStart = html.indexOf("function renderUsage()");
+    const renderEnd = html.indexOf("async function loadUsage", renderStart);
+    const renderSource = html.slice(renderStart, renderEnd);
+
+    assert.match(html, /usage-stack/, "os provedores devem empilhar");
+    assert.match(renderSource, /is-open/, "o provedor crítico deve abrir no topo");
+    assert.match(renderSource, /is-closed/, "os demais provedores devem ficar fechados");
+    assert.match(renderSource, /state\.usageOpenId = item\.id/, "o toque no card fechado deve promovê-lo");
+    assert.match(html, /usage-peek/, "o card fechado deve mostrar o percentual");
+  } finally {
+    await close();
+  }
+});
+
+test("PWA oculta a tela de Uso e reduz os dots quando a preferência está desligada", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: { usage: { enabled: false, display: "used", reset: "countdown" } },
+    appTools: { listAppProcesses: async () => [], listInstalledApps: async () => [] },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.querySelectorAll("#vdots .d").length === 2);
+    assert.equal(await page.locator("#vdots .d").count(), 2);
+    await page.locator("#vdots .d").nth(1).click();
+    await page.waitForFunction(() => document.body.classList.contains("is-recents"));
+    assert.equal(await page.locator("#screenUsage").evaluate(el => getComputedStyle(el).pointerEvents), "none");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("PWA usa restante e data exata vindos das preferências compartilhadas", async () => {
+  const resetAt = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: { usage: { enabled: true, display: "remaining", reset: "exact" } },
+    usage: {
+      getUsage: async () => ({
+        ok: true,
+        source: "openusage",
+        sourceState: "available",
+        updatedAt: new Date().toISOString(),
+        providers: {
+          codex: {
+            status: "normal",
+            resources: {
+              session: { kind: "consumption", unit: "percent", utilization: 0.25, resetsAt: resetAt },
+              weekly: { kind: "consumption", unit: "percent", utilization: 0.4, resetsAt: resetAt },
+            },
+          },
+        },
+        errors: [],
+      }),
+    },
+    appTools: { listAppProcesses: async () => [], listInstalledApps: async () => [] },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.querySelectorAll("#vdots .d").length === 3);
+    const swipeUp = async pointerId => {
+      const screens = page.locator("#screens");
+      await screens.dispatchEvent("pointerdown", { pointerId, pointerType: "touch", clientX: 195, clientY: 700 });
+      for (let i = 1; i <= 6; i++) {
+        await screens.dispatchEvent("pointermove", { pointerId, pointerType: "touch", clientX: 195, clientY: 700 - 100 * i });
+      }
+      await screens.dispatchEvent("pointerup", { pointerId, pointerType: "touch", clientX: 195, clientY: 100 });
+    };
+    await swipeUp(1);
+    await page.waitForFunction(() => document.body.classList.contains("is-recents"));
+    await swipeUp(2);
+    await page.waitForFunction(() => document.body.classList.contains("is-usage"));
+    await page.waitForSelector(".usage-limit.primary");
+    assert.equal(await page.locator(".usage-limit.primary .usage-limit-value").textContent(), "75%");
+    const exactReset = await page.locator(".usage-limit.primary .usage-five-reset-exact").textContent();
+    assert.doesNotMatch(exactReset, /RESET/);
+    assert.match(exactReset, /hoje|amanhã|ontem/);
+  } finally {
+    await browser.close();
     await close();
   }
 });
@@ -448,7 +1594,7 @@ test("falha ao ler versão do Android não cai no banner do Mac", async () => {
   }
 });
 
-test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
+test("gesto vertical percorre as três telas e limita overscroll nas bordas", async () => {
   const { port, close } = await startServer(0);
   try {
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
@@ -457,8 +1603,10 @@ test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
     const rubberDy = new Function("dy", "state", "h", "RUBBER", match[1]);
     assert.equal(rubberDy(200, { screen: "recents" }, () => 800, 28), 200,
       "o retorno deve seguir o dedo, não ficar preso no rubber band");
-    assert.equal(rubberDy(-200, { screen: "recents" }, () => 800, 28), -28,
-      "o overscroll para cima continua limitado");
+    assert.equal(rubberDy(-200, { screen: "recents" }, () => 800, 28), -200,
+      "a tela 2 deve acompanhar o avanço para Usage");
+    assert.equal(rubberDy(-200, { screen: "usage" }, () => 800, 28), -28,
+      "o overscroll acima da última tela continua limitado");
   } finally { await close(); }
 });
 
@@ -483,7 +1631,10 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v24/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v28/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-mascot-working-loop-strip\.webp\?v=20260909-11/, "sprites do mascote devem entrar no precache offline");
+    assert.match(js, /dokke-mascot-idle-principal-strip\.webp\?v=20260909-11/, "o idle principal deve entrar no precache offline");
+    assert.doesNotMatch(js, /dokke-mascot-idle-two-strip/, "o idleTwo removido não deve voltar ao precache");
     assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");

@@ -193,7 +193,7 @@ test("PWA detecta o idioma do dispositivo sem preferência manual", () => {
   assert.equal(makeInitialLanguage(null)(), "pt-BR");
 
   assert.doesNotMatch(html, /function setLanguage/);
-  assert.doesNotMatch(html, /localStorage\.(getItem|setItem)/);
+  assert.doesNotMatch(html, /localStorage\.(getItem|setItem)\(\s*["']dokke_(?:lang|language)["']/i);
 });
 
 test("PWA não expõe seletor manual de idioma", () => {

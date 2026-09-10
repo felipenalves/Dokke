@@ -1,8 +1,24 @@
-const CACHE = "dokke-v24";
-const PRECACHE = ["/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest"];
+const CACHE = "dokke-v28";
+const PRECACHE = [
+  "/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest",
+  "/mascot/dokke-mascot-working-start-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-working-loop-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-working-end-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-thinking-start-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-thinking-loop-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-thinking-end-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-idle-principal-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-idle-one-strip.webp?v=20260909-11",
+  "/mascot/dokke-mascot-idle-coffee-strip.webp?v=20260909-11"
+];
 
 self.addEventListener("install", function(e) {
-  e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(PRECACHE); }).then(function() { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function(c) {
+    // Um asset opcional ausente não pode impedir a atualização do app inteiro.
+    return Promise.all(PRECACHE.map(function(url) {
+      return c.add(url).catch(function() { return null; });
+    });
+  }).then(function() { return self.skipWaiting(); }));
 });
 
 self.addEventListener("activate", function(e) {
