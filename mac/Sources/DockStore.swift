@@ -47,6 +47,7 @@ final class DockStore: ObservableObject {
 
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
+  private var usageProviderUpdateTail: Task<Bool, Never>?
   private var iconCache: [String: Image] = [:]
   private var nativeIconCache: [String: NSImage] = [:]
   private var iconAppearanceObservers: [NSObjectProtocol] = []
@@ -86,6 +87,7 @@ final class DockStore: ObservableObject {
 
   deinit {
     timer?.invalidate()
+    usageProviderUpdateTail?.cancel()
     for observer in iconAppearanceObservers {
       NSWorkspace.shared.notificationCenter.removeObserver(observer)
     }
@@ -318,6 +320,17 @@ final class DockStore: ObservableObject {
   /// Persiste a IA que o usuário deixou no topo do painel de Uso.
   @discardableResult
   func updateUsageProvider(_ providerId: String) async -> Bool {
+    let previous = usageProviderUpdateTail
+    let update: Task<Bool, Never> = Task { @MainActor [weak self] in
+      _ = await previous?.value
+      guard let self, !Task.isCancelled else { return false }
+      return await self.performUsageProviderUpdate(providerId)
+    }
+    usageProviderUpdateTail = update
+    return await update.value
+  }
+
+  private func performUsageProviderUpdate(_ providerId: String) async -> Bool {
     guard let url = URL(string: baseURL + "/api/config/usage/provider") else { return false }
     var req = URLRequest(url: url)
     req.httpMethod = "PUT"

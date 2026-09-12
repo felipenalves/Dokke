@@ -12,6 +12,8 @@ private enum UsageConnectionState {
 enum UsageProviderOrder: String, CaseIterable {
   case claude
   case codex
+  case antigravity
+  case grok
 }
 
 private struct VisibleUsageProvider: Identifiable {
@@ -21,11 +23,20 @@ private struct VisibleUsageProvider: Identifiable {
   var id: String { kind.rawValue }
 }
 
+private func usageProviderDisplayName(for item: VisibleUsageProvider, language: DokkeLanguage) -> String {
+  if let name = item.provider.name, !name.isEmpty {
+    return name
+  }
+  return I18n.text("usage.provider.\(item.kind.rawValue)", language: language)
+}
+
 struct UsageView: View {
   @ObservedObject var store: DockStore
   @EnvironmentObject private var languageStore: LanguageStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var selectedProviderIndex = 0
+  @State private var providerSelectionTask: Task<Void, Never>?
+  @State private var showingSettings = false
 
   private var language: DokkeLanguage { languageStore.selected }
 
@@ -39,18 +50,28 @@ struct UsageView: View {
 
   private var visibleProviders: [VisibleUsageProvider] {
     guard let snapshot = store.usage else { return [] }
-    return UsageProviderOrder.allCases.compactMap { kind in
+    return orderedProviderKinds.compactMap { kind in
+      guard store.usageSettings.isProviderEnabled(kind.rawValue) else { return nil }
       let provider: UsageProvider?
       switch kind {
       case .claude:
         provider = snapshot.providers["claude"] ?? snapshot.providers["anthropic"]
       case .codex:
         provider = snapshot.providers["codex"]
+      case .antigravity, .grok:
+        provider = snapshot.providers[kind.rawValue]
       }
       guard let provider else { return nil }
       guard provider.hasUsableUsageData else { return nil }
       return VisibleUsageProvider(kind: kind, provider: provider)
     }
+  }
+
+  private var orderedProviderKinds: [UsageProviderOrder] {
+    let fallback = UsageProviderOrder.allCases
+    let preferredIDs = store.usageSettings.providerOrder ?? []
+    let preferred = preferredIDs.compactMap(UsageProviderOrder.init(rawValue:))
+    return preferred + fallback.filter { !preferred.contains($0) }
   }
 
   var body: some View {
@@ -61,19 +82,24 @@ struct UsageView: View {
         if store.usageLoading && store.usage == nil {
           loadingState
         } else if let snapshot = store.usage, (snapshot.sourceState == "available" || snapshot.sourceState == "partial"), !visibleProviders.isEmpty {
-          UsageProviderPager(
-            providers: visibleProviders,
-            activity: store.usageActivity?.providers ?? [:],
-            loading: store.usageLoading,
-            language: language,
-            reduceMotion: reduceMotion,
-            selection: $selectedProviderIndex,
-            onSelectionChange: { index in
-              guard visibleProviders.indices.contains(index) else { return }
-              let providerId = visibleProviders[index].id
-              Task { await store.updateUsageProvider(providerId) }
-            }
-          )
+          VStack(alignment: .leading, spacing: 14) {
+            UsageProviderSelector(
+              providers: visibleProviders,
+              selection: $selectedProviderIndex,
+              language: language,
+              reduceMotion: reduceMotion,
+              onSelectionChange: selectProvider
+            )
+            UsageProviderPager(
+              providers: visibleProviders,
+              activity: store.usageActivity?.providers ?? [:],
+              loading: store.usageLoading,
+              language: language,
+              reduceMotion: reduceMotion,
+              selection: $selectedProviderIndex,
+              onSelectionChange: selectProvider
+            )
+          }
         } else if let snapshot = store.usage, (snapshot.sourceState == "available" || snapshot.sourceState == "partial") {
           emptyState(
             icon: "chart.bar.xaxis",
@@ -107,6 +133,16 @@ struct UsageView: View {
     .onChange(of: store.usage) { _, _ in
       synchronizeSelection()
     }
+    .onChange(of: store.usageSettings) { _, _ in
+      synchronizeSelection()
+    }
+    .onDisappear {
+      providerSelectionTask?.cancel()
+    }
+    .sheet(isPresented: $showingSettings) {
+      UsageSettingsView(store: store)
+        .frame(minWidth: 520, minHeight: 520)
+    }
   }
 
   private func synchronizeSelection() {
@@ -117,9 +153,17 @@ struct UsageView: View {
     if let providerId = store.usageProviderId,
        let preferredIndex = visibleProviders.firstIndex(where: { $0.id == providerId }) {
       selectedProviderIndex = preferredIndex
-    } else if !visibleProviders.indices.contains(selectedProviderIndex) {
+    } else if !visibleProviders.indices.contains(selectedProviderIndex) || store.usageProviderId != nil {
       selectedProviderIndex = 0
     }
+  }
+
+  private func selectProvider(_ index: Int) {
+    guard visibleProviders.indices.contains(index) else { return }
+    selectedProviderIndex = index
+    let providerId = visibleProviders[index].id
+    providerSelectionTask?.cancel()
+    providerSelectionTask = Task { await store.updateUsageProvider(providerId) }
   }
 
   private var header: some View {
@@ -136,24 +180,38 @@ struct UsageView: View {
         }
       }
       Spacer(minLength: 12)
-      Button {
-        Task { await store.loadUsage(force: true) }
-      } label: {
-        Group {
-          if store.usageLoading {
-            ProgressView()
-              .controlSize(.small)
-          } else {
-            Image(systemName: "arrow.clockwise")
-          }
+      HStack(spacing: 8) {
+        Button {
+          showingSettings = true
+        } label: {
+          Image(systemName: "gearshape")
+            .frame(width: 30, height: 30)
+            .contentShape(Rectangle())
         }
-        .frame(width: 30, height: 30)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.62))
+        .accessibilityLabel(I18n.text("usage.settingsTitle", language: language))
+        .help(I18n.text("usage.settingsTitle", language: language))
+
+        Button {
+          Task { await store.loadUsage(force: true) }
+        } label: {
+          Group {
+            if store.usageLoading {
+              ProgressView()
+                .controlSize(.small)
+            } else {
+              Image(systemName: "arrow.clockwise")
+            }
+          }
+          .frame(width: 30, height: 30)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.72))
+        .help(I18n.text("usage.refresh", language: language))
+        .disabled(store.usageLoading)
       }
-      .buttonStyle(.plain)
-      .foregroundStyle(.white.opacity(0.72))
-      .help(I18n.text("usage.refresh", language: language))
-      .disabled(store.usageLoading)
     }
   }
 
@@ -259,7 +317,7 @@ private struct UsageProviderPager: View {
       Spacer(minLength: 0)
 
       UsageProviderDots(
-        count: providers.count,
+        providers: providers,
         selection: $selection,
         language: language,
         onSelectionChange: select
@@ -269,15 +327,99 @@ private struct UsageProviderPager: View {
   }
 }
 
+private struct UsageProviderSelector: View {
+  let providers: [VisibleUsageProvider]
+  @Binding var selection: Int
+  let language: DokkeLanguage
+  let reduceMotion: Bool
+  let onSelectionChange: (Int) -> Void
+
+  private func providerButton(index: Int, item: VisibleUsageProvider) -> some View {
+    Button {
+      if reduceMotion {
+        select(index)
+      } else {
+        withAnimation(.smooth(duration: 0.24)) {
+          select(index)
+        }
+      }
+    } label: {
+      HStack(spacing: 8) {
+        ProviderGlyphView(glyph: item.kind.providerGlyph, size: 26)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(usageProviderDisplayName(for: item, language: language))
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+          if let plan = item.provider.plan, !plan.isEmpty {
+            Text(plan)
+              .font(.system(size: 10, design: .rounded))
+              .foregroundStyle(.white.opacity(0.46))
+              .lineLimit(1)
+          }
+        }
+        if index == selection {
+          Image(systemName: "checkmark")
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white.opacity(0.82))
+        }
+      }
+      .padding(.horizontal, 11)
+      .padding(.vertical, 8)
+      .background(
+        index == selection ? Color.white.opacity(0.13) : Color.white.opacity(0.055),
+        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .strokeBorder(
+            index == selection ? Color.white.opacity(0.22) : Color.white.opacity(0.08),
+            lineWidth: 1
+          )
+      }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(usageProviderDisplayName(for: item, language: language))
+    .accessibilityValue(index == selection ? I18n.text("sidebar.selected", language: language) : "")
+    .accessibilityAddTraits(index == selection ? .isSelected : [])
+  }
+
+  private func select(_ index: Int) {
+    guard providers.indices.contains(index), selection != index else { return }
+    selection = index
+    onSelectionChange(index)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(I18n.text("usage.providers", language: language))
+        .font(.system(size: 11, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white.opacity(0.48))
+        .textCase(.uppercase)
+        .tracking(0.8)
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(Array(providers.enumerated()), id: \.element.id) { index, item in
+            providerButton(index: index, item: item)
+          }
+        }
+      }
+    }
+  }
+
+}
+
 private struct UsageProviderDots: View {
-  let count: Int
+  let providers: [VisibleUsageProvider]
   @Binding var selection: Int
   let language: DokkeLanguage
   let onSelectionChange: (Int) -> Void
 
   var body: some View {
     HStack(spacing: 7) {
-      ForEach(0..<count, id: \.self) { index in
+      ForEach(Array(providers.enumerated()), id: \.element.id) { index, item in
         Button {
           onSelectionChange(index)
         } label: {
@@ -286,7 +428,8 @@ private struct UsageProviderDots: View {
             .frame(width: index == selection ? 14 : 6, height: 6)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(index == 0 ? "Claude Code" : "Codex")
+        .accessibilityLabel(usageProviderDisplayName(for: item, language: language))
+        .accessibilityValue(index == selection ? I18n.text("sidebar.selected", language: language) : "")
         .accessibilityAddTraits(index == selection ? .isSelected : [])
       }
     }
@@ -319,7 +462,7 @@ private struct UsageProviderCard: View {
 
   private var header: some View {
     HStack(alignment: .center, spacing: 10) {
-      UsageProviderLogo(kind: kind)
+      ProviderGlyphView(glyph: kind.providerGlyph, size: 34)
       VStack(alignment: .leading, spacing: 2) {
         Text(providerTitle)
           .font(.headline.weight(.semibold))
@@ -396,44 +539,6 @@ private struct UsageProviderCard: View {
     default: key = "usage.pet.neutral"
     }
     return I18n.text(key, language: language)
-  }
-}
-
-private struct UsageProviderLogo: View {
-  let kind: UsageProviderOrder
-
-  private var assetName: String {
-    kind == .claude ? "anthropic-logo" : "openai-logo"
-  }
-
-  private var assetImage: NSImage? {
-    guard let url = Bundle.module.url(forResource: assetName, withExtension: "svg") else {
-      return nil
-    }
-    return NSImage(contentsOf: url)
-  }
-
-  var body: some View {
-    ZStack {
-      if kind == .claude {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .fill(Color.orange.opacity(0.12))
-      }
-      if let assetImage {
-        Image(nsImage: assetImage)
-          .interpolation(.high)
-          .resizable()
-          .scaledToFit()
-          .frame(width: 21, height: 21)
-      } else {
-        Image(systemName: kind == .claude ? "a.circle" : "circle.hexagongrid.circle")
-          .font(.system(size: 19, weight: .medium))
-          .foregroundStyle(.white.opacity(0.76))
-      }
-    }
-    .frame(width: 34, height: 34)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(kind == .claude ? "Anthropic, Claude Code" : "OpenAI, Codex")
   }
 }
 

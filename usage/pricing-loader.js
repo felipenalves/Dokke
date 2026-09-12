@@ -7,6 +7,30 @@ const PRICING_URLS = {
   modelsDev: "https://models.dev/api.json",
 };
 
+// The Grok CLI writes first-party build slugs that are not stable catalog IDs. These rates and
+// aliases mirror OpenUsage's small provider supplement; the public feeds still remain the source
+// for every other model and are refreshed independently.
+const LOCAL_SUPPLEMENT = {
+  pricing: {
+    "grok-4.5": {
+      input_per_million: 2,
+      cache_write_per_million: 2,
+      cache_read_per_million: 0.5,
+      output_per_million: 6,
+    },
+    "grok-4.6": {
+      input_per_million: 2,
+      cache_write_per_million: 2,
+      cache_read_per_million: 0.5,
+      output_per_million: 6,
+    },
+  },
+  alias_rules: [
+    { pattern: "^(?:cursor-)?grok-4[.]5(?:-build)?$", canonical: "grok-4.5" },
+    { pattern: "^(?:cursor-)?grok-4[.]6(?:-build)?$", canonical: "grok-4.6" },
+  ],
+};
+
 function finite(value) {
   const result = Number(value);
   return Number.isFinite(result) && result >= 0 ? result : null;
@@ -122,9 +146,7 @@ export async function loadPricingCatalog({ fetchImpl = globalThis.fetch, cacheFi
     fetchJSON(fetchImpl, PRICING_URLS.litellm, timeoutMs),
     fetchJSON(fetchImpl, PRICING_URLS.modelsDev, timeoutMs),
   ]);
-  // Supplement parsing remains available for an explicitly supplied local catalog,
-  // but the default Dokke runtime does not call or depend on OpenUsage's feed.
-  const parsedSupplement = { entries: {}, aliases: [] };
+  const parsedSupplement = parseSupplement(LOCAL_SUPPLEMENT);
   const entries = {
     // OpenUsage resolution order: LiteLLM first, models.dev as exact-id gap filler,
     // supplement last for provider-specific models and aliases.

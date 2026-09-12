@@ -16,6 +16,37 @@ OPEN_AFTER=0
 BUILD_ONLY=0
 MAX_BUNDLE_SIZE_MB=121
 VERIFY_BUNDLE=""
+SWIFT_SDK_ARGS=()
+
+# SwiftUI in the Command Line Tools 26 SDK family includes the macro runtime
+# used by this package. Newer SDKs can expose the State macro declaration
+# without shipping SwiftUIMacros, which makes a normal `swift build` fail
+# before the app is compiled. Keep the override for CI/other Macs, then use
+# the newest compatible 26.x SDK installed locally.
+if [[ -n "${DOKKE_SDK:-}" ]]; then
+  if [[ ! -d "${DOKKE_SDK}" ]]; then
+    echo "error: DOKKE_SDK não existe: ${DOKKE_SDK}" >&2
+    exit 1
+  fi
+  SWIFT_SDK_ARGS=(--sdk "${DOKKE_SDK}")
+else
+  for candidate in \
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk" \
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk" \
+    /Library/Developer/CommandLineTools/SDKs/MacOSX26*.sdk; do
+    if [[ -d "${candidate}" ]]; then
+      SWIFT_SDK_ARGS=(--sdk "${candidate}")
+      break
+    fi
+  done
+  if [[ ${#SWIFT_SDK_ARGS[@]} -eq 0 ]]; then
+    echo "warn: SDK MacOS 26.x não encontrado; usando o SDK padrão do Swift. Se SwiftUIMacros falhar, defina DOKKE_SDK para um SDK compatível." >&2
+  fi
+fi
+
+swift_build() {
+  swift build "${SWIFT_SDK_ARGS[@]}" "$@"
+}
 
 find_actool() {
   local candidate help_output
@@ -86,15 +117,15 @@ fi
 
 echo "==> release build (${BIN_NAME})"
 cd "${ROOT}"
-swift build -c release --product "${BIN_NAME}"
-swift build -c debug --product "DokkeIconHelper"
+swift_build -c release --product "${BIN_NAME}"
+swift_build -c debug --product "DokkeIconHelper"
 
-BIN_PATH="$(swift build -c release --show-bin-path)/${BIN_NAME}"
+BIN_PATH="$(swift_build -c release --show-bin-path)/${BIN_NAME}"
 if [[ ! -x "${BIN_PATH}" ]]; then
   echo "error: missing binary: ${BIN_PATH}" >&2
   exit 1
 fi
-RESOURCE_BUNDLE="$(swift build -c release --show-bin-path)/Dokke_Dokke.bundle"
+RESOURCE_BUNDLE="$(swift_build -c release --show-bin-path)/Dokke_Dokke.bundle"
 if [[ ! -d "${RESOURCE_BUNDLE}" ]]; then
   echo "error: missing SwiftUI resource bundle: ${RESOURCE_BUNDLE}" >&2
   exit 1
@@ -104,7 +135,7 @@ fi
 if command -v strip >/dev/null 2>&1; then
   strip -x "${BIN_PATH}"
 fi
-ICON_HELPER_PATH="$(swift build -c debug --show-bin-path)/DokkeIconHelper"
+ICON_HELPER_PATH="$(swift_build -c debug --show-bin-path)/DokkeIconHelper"
 if [[ ! -x "${ICON_HELPER_PATH}" ]]; then
   echo "error: missing icon helper: ${ICON_HELPER_PATH}" >&2
   exit 1

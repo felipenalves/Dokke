@@ -1,9 +1,8 @@
 import { execFile } from "node:child_process";
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { scanFileActivity } from "../activity.js";
-import { scanAntigravityHistory } from "./antigravity-history.js";
+import { discoverDatabases, discoverDatabasesInGeminiHome, discoverConversationDirectories, scanAntigravityHistory } from "./antigravity-history.js";
 import {
   createFetchJSON,
   credentialToken,
@@ -24,6 +23,33 @@ const CLOUD_CODE_BASES = [
 ];
 const QUOTA_SUMMARY_PATH = "/v1internal:retrieveUserQuotaSummary";
 const FETCH_MODELS_PATH = "/v1internal:fetchAvailableModels";
+const LOAD_CODE_ASSIST_PATH = "/v1internal:loadCodeAssist";
+
+function formatPlan(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const value = raw.trim();
+  if (/^Google AI /i.test(value)) return value.replace(/^Google AI /i, "").trim() || null;
+  for (const keyword of ["Ultra", "Pro", "Free"]) {
+    if (value.toLowerCase().includes(keyword.toLowerCase())) return keyword;
+  }
+  return value;
+}
+
+function planFrom(payload) {
+  const status = payload?.userStatus || payload?.response?.userStatus;
+  return formatPlan(
+    status?.userTier?.name
+      || status?.planStatus?.planInfo?.planName
+      || payload?.userTier?.name
+      || payload?.response?.userTier?.name
+      || payload?.planStatus?.planInfo?.planName
+      || payload?.paidTier?.name
+      || payload?.response?.paidTier?.name
+      || payload?.currentTier?.name
+      || payload?.response?.currentTier?.name
+      || payload?.plan
+  );
+}
 
 function parseKeychainValue(raw) {
   if (typeof raw !== "string" || !raw.trim()) return null;
@@ -102,13 +128,6 @@ function mapLegacyResources(live) {
   })]));
 }
 
-async function discoverDatabases(root) {
-  try {
-    const entries = await readdir(root, { withFileTypes: true });
-    return entries.filter(entry => entry.isFile() && entry.name.endsWith(".db")).map(entry => join(root, entry.name)).sort();
-  } catch { return []; }
-}
-
 async function sqliteQuery(database, sql, exec = execFileAsync) {
   const result = await exec("sqlite3", ["-json", database, sql], { timeout: 10000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
   try { return JSON.parse(result.stdout || "[]"); } catch { return []; }
@@ -116,6 +135,16 @@ async function sqliteQuery(database, sql, exec = execFileAsync) {
 
 export function createAntigravityProvider(options = {}) {
   const fetchJSON = options.fetchJSON || createFetchJSON(options.fetchImpl);
+  async function fetchCloudPlan(headers, signal) {
+    for (const base of CLOUD_CODE_BASES) {
+      try {
+        const payload = await fetchJSON(base + LOAD_CODE_ASSIST_PATH, { method: "POST", headers, body: "{}", signal });
+        const plan = planFrom(payload);
+        if (plan) return plan;
+      } catch {}
+    }
+    return null;
+  }
   const provider = {
     id: "antigravity",
     name: "Antigravity",
@@ -134,7 +163,7 @@ export function createAntigravityProvider(options = {}) {
       for (const base of CLOUD_CODE_BASES) {
         try {
           const summary = await fetchJSON(base + QUOTA_SUMMARY_PATH, { method: "POST", headers, body: "{}", signal });
-          if (groupsFrom(summary)) return { body: summary, metadata: { plan: null } };
+          if (groupsFrom(summary)) return { body: summary, metadata: { plan: planFrom(summary) || await fetchCloudPlan(headers, signal) } };
         } catch (error) { lastError = error; }
       }
       // Older Antigravity builds have no quota summary RPC. Keep the OpenUsage fallback: use the
@@ -142,15 +171,17 @@ export function createAntigravityProvider(options = {}) {
       for (const base of CLOUD_CODE_BASES) {
         try {
           const models = await fetchJSON(base + FETCH_MODELS_PATH, { method: "POST", headers, body: "{}", signal });
-          if (models?.models) return { body: { legacyModels: models.models }, metadata: { plan: null } };
+          if (models?.models) return { body: { legacyModels: models.models, ...models }, metadata: { plan: planFrom(models) || await fetchCloudPlan(headers, signal) } };
         } catch (error) { lastError = error; }
       }
       throw lastError || new Error("Antigravity indisponível");
     },
     async readHistory({ since, cache } = {}) {
       const env = options.env || process.env;
-      const root = options.historyRoot || join(homeDirectory(env), ".gemini", "antigravity-cli", "conversations");
-      const databases = options.databases || await discoverDatabases(root);
+      const geminiHome = options.geminiHome || join(homeDirectory(env), ".gemini");
+      const databases = options.databases || (options.historyRoot
+        ? await discoverDatabases(options.historyRoot)
+        : await discoverDatabasesInGeminiHome(geminiHome));
       const sqlite = options.sqlite || { query: (database, sql) => sqliteQuery(database, sql, options.exec || execFileAsync) };
       return { events: await scanAntigravityHistory({ databases, since, sqlite, maxBytes: 1024 * 1024 }) };
     },
@@ -159,7 +190,7 @@ export function createAntigravityProvider(options = {}) {
       const home = homeDirectory(env);
       const roots = options.activityRoots || [
         options.activityRoot || join(home, ".gemini", "antigravity", "brain"),
-        join(home, ".gemini", "antigravity-cli", "conversations"),
+        ...(await discoverConversationDirectories(options.geminiHome || join(home, ".gemini"))),
       ];
       return scanFileActivity({ providerId: provider.id, roots, now });
     },
@@ -167,11 +198,11 @@ export function createAntigravityProvider(options = {}) {
       const payload = responsePayload(live);
       const metadata = responseMeta(live);
       const resources = groupsFrom(payload) ? mapSummaryResources(payload) : mapLegacyResources(payload.legacyModels ? { models: payload.legacyModels } : payload);
-      const plan = metadata.plan || payload.plan || payload.paidTier?.name || payload.currentTier?.name || null;
+      const plan = metadata.plan || planFrom(payload);
       return providerSnapshot({ id: provider.id, name: provider.name, plan, resources, history, now });
     },
   };
   return provider;
 }
 
-export { CLOUD_CODE_BASES, QUOTA_SUMMARY_PATH, sqliteQuery };
+export { CLOUD_CODE_BASES, QUOTA_SUMMARY_PATH, LOAD_CODE_ASSIST_PATH, sqliteQuery, formatPlan as antigravityFormatPlan, planFrom as antigravityPlanFrom };

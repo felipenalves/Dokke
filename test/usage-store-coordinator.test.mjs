@@ -122,3 +122,26 @@ test("coordenador reaproveita cache durante backoff e força nova tentativa", as
   assert.equal(forced.providers.codex.stale, true);
   coordinator.close();
 });
+
+test("coordenador não consulta provider desabilitado e reabre a leitura quando ele é habilitado", async () => {
+  const root = await makeRoot("provider-selection");
+  const calls = [];
+  const codex = provider("codex", { calls });
+  const claude = provider("claude", { calls });
+  const coordinator = createUsageCoordinator({
+    providers: [codex, claude],
+    store: createUsageStore({ file: join(root, "usage-cache.json") }),
+    now: () => now,
+    refreshMs: 60_000,
+    intervalMs: 0,
+  });
+
+  const onlyCodex = await coordinator.refresh({ force: true, enabledProviders: ["codex"] });
+  assert.deepEqual(Object.keys(onlyCodex.providers), ["codex"]);
+  assert.deepEqual(calls.filter(call => call.endsWith(":live")), ["codex:live"]);
+
+  const onlyClaude = await coordinator.refresh({ force: true, enabledProviders: ["claude"] });
+  assert.deepEqual(Object.keys(onlyClaude.providers), ["claude"]);
+  assert.deepEqual(calls.filter(call => call.endsWith(":live")), ["codex:live", "claude:live"]);
+  coordinator.close();
+});

@@ -598,12 +598,14 @@
   .usage-resource-value{ color: var(--ink); font-size: 13px; font-weight: 800; text-align: right; }
   .usage-resource-bottom{ color: var(--ink-3); font-size: 10px; margin-top: 5px; }
   .usage-resource-meter{ height: 5px; margin-top: 8px; }
-  .usage-empty{ margin: 0 8px; padding: 28px 18px; border: 1px dashed rgba(255,255,255,.18); border-radius: 22px; color: var(--ink-2); font-size: 12px; line-height: 1.45; text-align: center; }
-  .usage-empty strong{ display: block; color: var(--ink); font-size: 14px; margin-bottom: 6px; }
-  .usage-loading{ display: flex; align-items: center; gap: 10px; margin: 22px 8px 0; color: var(--ink-2); font-size: 11px; line-height: 1.2; }
-  .usage-loading-bar{ display: block; width: 38px; height: 3px; flex: 0 0 38px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
-  .usage-loading-bar i{ display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--dokke-orange); animation: usageLoadingSweep 1.15s cubic-bezier(.22,.61,.36,1) infinite; }
-  @keyframes usageLoadingSweep{ 0%{ transform: translateX(-140%); opacity: .25; } 48%{ opacity: 1; } 100%{ transform: translateX(250%); opacity: .25; } }
+  .usage-state{ display: grid; align-content: center; justify-items: center; gap: 10px; min-height: 190px; margin: 0 8px; padding: 42px 24px 40px; border: 1px solid rgba(255,255,255,.13); border-radius: 22px; background: rgba(15,18,29,.78); color: var(--ink-2); font-size: 13px; line-height: 1.45; text-align: center; text-transform: none; }
+  .usage-state[data-state="warning"]{ border-style: dashed; border-color: rgba(246,183,88,.32); }
+  .usage-state-icon{ display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(240,135,55,.34); border-radius: 50%; background: rgba(240,135,55,.10); color: var(--dokke-orange); }
+  .usage-state-title{ display: block; color: var(--ink); font-size: 15px; font-weight: 800; }
+  .usage-state-body{ display: block; max-width: 32rem; color: var(--ink-2); }
+  .usage-state-spinner{ display: block; width: 19px; height: 19px; border: 2px solid rgba(240,135,55,.24); border-top-color: currentColor; border-radius: 50%; animation: usageStateSpin .85s linear infinite; }
+  .usage-state-warning{ display: block; color: currentColor; font-size: 19px; font-weight: 900; line-height: 1; }
+  @keyframes usageStateSpin{ to{ transform: rotate(360deg); } }
   .usage-error{ margin: 0 8px 12px; color: var(--amber); font-size: 11px; line-height: 1.35; }
   @media (prefers-reduced-motion: reduce){ .usage-token, .usage-resource-meter i, .usage-island-meter i{ transition: none; } }
 
@@ -859,9 +861,8 @@
   .usage-trend-title{ color: var(--ink); font-size: 12px; font-weight: 800; }
   .usage-trend-peak{ overflow: hidden; color: var(--ink-3); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
   .usage-trend-bars{ position: relative; display: flex; align-items: flex-end; gap: 3px; height: clamp(150px, 31vh, 230px); margin-top: 13px; padding: 0 1px 3px; border-bottom: 1px solid rgba(255,255,255,.16); background-image: linear-gradient(to bottom, transparent 0, transparent calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% + .5px), transparent calc(33.333% + .5px), transparent calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
-  .usage-trend-bar{ position: relative; z-index: 1; min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--dokke-orange) 70%, white); opacity: .82; box-shadow: none; }
-  .usage-trend-bar[data-level="empty"]{ height: 4px; opacity: .28; background: rgba(255,255,255,.72); }
-  .usage-trend-bar[data-peak="true"]{ background: #fff; opacity: 1; box-shadow: 0 0 10px rgba(255,255,255,.18); }
+  .usage-trend-bar{ position: relative; z-index: 1; min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: var(--ink); }
+  .usage-trend-bar[data-level="empty"]{ height: 2px; }
   .usage-trend-axis{ display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; color: var(--ink-3); font-size: 9px; }
   .usage-trend-axis-label{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .usage-trend-note{ display: block; margin-top: 10px; color: var(--ink-3); font-size: 10px; line-height: 1.3; text-align: center; }
@@ -870,7 +871,6 @@
   .usage-more{ margin-top: 11px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); }
   .usage-more-panel{ border-top: 0; }
   .usage-resource{ padding: 10px 1px 4px; }
-  .usage-empty{ background: rgba(15,18,29,.78); }
   @media (max-height: 780px) and (orientation: portrait){
     .usage-scroll{ padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
     .usage-head{ margin-bottom: 8px; }
@@ -945,7 +945,7 @@
     .usage-provider-dots{ padding-top: 1px; padding-bottom: 0; }
   }
   @media (prefers-reduced-motion: reduce){ .usage-live-dot[data-state="online"]{ animation: none; } }
-  @media (prefers-reduced-motion: reduce){ .usage-loading-bar i{ width: 100%; transform: translateX(0); opacity: .5; animation: none; } }
+  @media (prefers-reduced-motion: reduce){ .usage-state-spinner{ animation: none; opacity: .6; } }
   @media (prefers-reduced-motion: reduce){ .usage-token-eyes i{ animation-duration: 7s; } }
   @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap{ animation-duration: 8s; } }
   @media (prefers-reduced-motion: reduce){ .usage-mascot-wrap[data-activity="working"], .usage-mascot-wrap[data-activity="syncing"]{ animation-duration: 4.4s; } }
@@ -993,7 +993,7 @@
   .usage-card.is-open{
     margin: 0; padding: 16px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px;
     background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.20);
+    box-shadow: none;
   }
   .usage-card.is-open .usage-featured{ margin-top: 0; }
   .usage-card.is-open .usage-featured{
@@ -1033,7 +1033,7 @@
   .usage-week-caption{ display: none; color: var(--ink-3); font-size: 9px; font-weight: 800; text-transform: lowercase; }
   .usage-week-row{ display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: 8px; }
   .usage-week-bar{ position: relative; height: 6px; overflow: visible; border-radius: 99px; background: rgba(255,255,255,.1); }
-  .usage-week-bar i{ display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--usage-accent) 58%, transparent); box-shadow: inset 0 1px 0 rgba(255,255,255,.16); transition: width .32s ease, background-color .2s ease; }
+  .usage-week-bar i{ display: block; height: 100%; border-radius: inherit; background: var(--usage-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.16); transition: width .32s ease, background-color .2s ease; }
   .usage-week-pace-tick{
     position: absolute; top: -3px; z-index: 1; width: 3px; height: 12px; transform: translateX(-1.5px);
     border-radius: 99px; background: rgba(255,255,255,.58); box-shadow: 0 0 0 1px rgba(0,0,0,.18); pointer-events: none;
@@ -1153,6 +1153,28 @@
     .usage-trend-slide{ display: flex; height: 100%; padding: 22px 0 0; }
     .usage-trend-slide .usage-trend{ min-height: 0; flex: 1 1 auto; }
     .usage-provider-dots{ flex: 0 0 auto; margin-top: 0; padding: 4px 0 2px; }
+  }
+
+  /* Desktop mantém a leitura vertical do retrato, mas usa o frame disponível.
+     O pager continua horizontal apenas para alternar entre contas e tendência. */
+  @media (min-width: 700px){
+    .usage-scroll{
+      align-items: center;
+      padding: 28px 0 calc(30px + env(safe-area-inset-bottom, 0px));
+    }
+    .usage-content{
+      width: min(100%, 700px);
+      max-width: 700px;
+      min-height: 100%;
+      padding: 14px 0 0;
+    }
+    .usage-head{ margin: 4px 8px 18px; }
+    .usage-provider-slider{ width: 100%; flex: 0 0 auto; }
+    .usage-provider-track{ width: 100%; overflow-x: auto; overflow-y: hidden; }
+    .usage-provider-slide{ width: 100%; min-width: 100%; padding: 0; }
+    .usage-stack{ width: 100%; margin: 22px 0 0; }
+    .usage-card.is-open{ box-shadow: none; filter: none; }
+    .usage-card.is-closed{ box-shadow: none; filter: none; }
   }
 
   /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
@@ -1590,6 +1612,9 @@
   };
   I18N["pt-BR"]["usage.title"] = "Uso";
   I18N["pt-BR"]["usage.provider.claude"] = "Claude";
+  I18N["pt-BR"]["usage.provider.codex"] = "Codex";
+  I18N["pt-BR"]["usage.provider.antigravity"] = "Antigravity";
+  I18N["pt-BR"]["usage.provider.grok"] = "Grok";
   I18N["pt-BR"]["usage.updatedNow"] = "Atualizado agora";
   I18N["pt-BR"]["usage.updatedMinutes"] = "Atualizado há {value} min";
   I18N["pt-BR"]["usage.syncUnknown"] = "Sem horário de atualização";
@@ -1611,6 +1636,8 @@
   I18N["pt-BR"]["usage.showUsed"] = "Mostrar usado";
   I18N["pt-BR"]["usage.trend"] = "Tendência de uso";
   I18N["pt-BR"]["usage.source"] = "Fonte: Dokke";
+  I18N["pt-BR"]["usage.loadingTitle"] = "Buscando limites";
+  I18N["pt-BR"]["usage.loadingBody"] = "Aguardando os provedores retornarem o uso.";
   I18N["pt-BR"]["usage.unavailable"] = "Uso indisponível";
   I18N["pt-BR"]["usage.unavailableBody"] = "Nenhuma fonte local retornou limites utilizáveis.";
   I18N["pt-BR"]["usage.noDataBody"] = "Nenhum provedor retornou limites utilizáveis.";
@@ -1621,6 +1648,9 @@
   I18N["pt-BR"]["usage.trendBars"] = "{count} dias de uso";
   I18N["en"]["usage.title"] = "Usage";
   I18N["en"]["usage.provider.claude"] = "Claude";
+  I18N["en"]["usage.provider.codex"] = "Codex";
+  I18N["en"]["usage.provider.antigravity"] = "Antigravity";
+  I18N["en"]["usage.provider.grok"] = "Grok";
   I18N["en"]["usage.updatedNow"] = "Updated now";
   I18N["en"]["usage.updatedMinutes"] = "Updated {value} min ago";
   I18N["en"]["usage.syncUnknown"] = "Update time unavailable";
@@ -1642,6 +1672,8 @@
   I18N["en"]["usage.showUsed"] = "Show used";
   I18N["en"]["usage.trend"] = "Usage Trend";
   I18N["en"]["usage.source"] = "Source: Dokke";
+  I18N["en"]["usage.loadingTitle"] = "Looking for limits";
+  I18N["en"]["usage.loadingBody"] = "Waiting for providers to return usage.";
   I18N["en"]["usage.unavailable"] = "Usage unavailable";
   I18N["en"]["usage.unavailableBody"] = "No local source returned usable limits.";
   I18N["en"]["usage.noDataBody"] = "No provider returned usable limits yet.";
@@ -1837,10 +1869,19 @@
 
   function normalizeUsageSettings(raw){
     const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const providers = Array.isArray(source.providers)
+      ? Array.from(new Set(source.providers.map(normalizeUsageProviderId).filter(function(id){ return USAGE_PROVIDER_ORDER.indexOf(id) !== -1; })))
+      : null;
+    const providerOrder = Array.isArray(source.providerOrder)
+      ? Array.from(new Set(source.providerOrder.map(normalizeUsageProviderId).filter(function(id){ return USAGE_PROVIDER_ORDER.indexOf(id) !== -1; })))
+      : null;
     return {
       enabled: typeof source.enabled === "boolean" ? source.enabled : true,
       display: source.display === "remaining" ? "remaining" : "used",
       reset: source.reset === "countdown" ? "countdown" : "exact",
+      showPace: typeof source.showPace === "boolean" ? source.showPace : true,
+      ...(providers ? { providers: providers } : {}),
+      ...(providerOrder ? { providerOrder: providerOrder } : {}),
     };
   }
 
@@ -1879,6 +1920,7 @@
     if (changed){
       renderVDots();
       syncVDots();
+      if (state.screen === "usage" && state.usage) renderUsage();
       if (!state.usageSettings.enabled && state.screen === "usage") goScreen("recents");
     }
     return changed;
@@ -1996,7 +2038,7 @@
     obs: { connected: false, error: false, scenes: [], scene: null, recording: false, streaming: false },
     obsTimer: null,
     usage: null, usageActivity: null, usageError: null, usageLoading: false, usageOpenId: null, usageProviderId: null, usageMascotStates: {}, usageMascotAnimations: Object.create(null), usageMascotReaction: null,
-    usageSettings: { enabled: true, display: "used", reset: "exact" },
+    usageSettings: { enabled: true, display: "used", reset: "exact", showPace: true },
   };
 
   const isRunning = name => state.running.some(a => a.name === name);
@@ -2851,6 +2893,12 @@
     return value && (value.state === "working" || value.state === "waiting" || value.state === "idle") ? value : null;
   }
 
+  function enabledUsageProviderIds(){
+    return Array.isArray(state.usageSettings && state.usageSettings.providers)
+      ? state.usageSettings.providers
+      : null;
+  }
+
   function usageActivitySignature(payload){
     const providers = payload && payload.providers && typeof payload.providers === "object" ? payload.providers : {};
     return JSON.stringify(Object.fromEntries(Object.entries(providers).map(function(entry){
@@ -2860,14 +2908,23 @@
   }
 
   function usageProviderIds(snapshot){
-    const ids = USAGE_PROVIDER_ORDER.slice();
+    const enabled = enabledUsageProviderIds();
+    const preferredOrder = Array.isArray(state.usageSettings && state.usageSettings.providerOrder)
+      ? state.usageSettings.providerOrder
+      : USAGE_PROVIDER_ORDER;
+    const ids = enabled
+      ? preferredOrder.filter(function(id){ return enabled.indexOf(id) !== -1; })
+      : preferredOrder.slice();
+    USAGE_PROVIDER_ORDER.forEach(function(id){
+      if ((!enabled || enabled.indexOf(id) !== -1) && ids.indexOf(id) === -1) ids.push(id);
+    });
     const providers = snapshot && snapshot.providers;
     const sourceIds = Array.isArray(providers)
       ? providers.map(function(provider){ return provider && provider.id; })
       : Object.keys(providers || {});
     sourceIds.forEach(function(rawId){
       const id = usageProviderId(rawId);
-      if (id && ids.indexOf(id) === -1) ids.push(id);
+      if (!enabled && id && ids.indexOf(id) === -1) ids.push(id);
     });
     return ids;
   }
@@ -3463,18 +3520,16 @@
       content.appendChild(usageTextNode("div", "usage-error", state.usageError));
     }
     if (state.usageLoading && !state.usage){
-      content.appendChild(usageTextNode("div", "usage-empty", t("usage.loading")));
+      content.appendChild(usageLoadingNode());
       root.replaceChildren(scroll);
       return;
     }
 
     const snapshot = state.usage;
     if (!snapshot || (snapshot.sourceState !== "available" && snapshot.sourceState !== "partial")){
-      const empty = document.createElement("div");
-      empty.className = "usage-empty";
-      empty.appendChild(usageTextNode("strong", "", t("usage.unavailable")));
-      empty.appendChild(usageTextNode("span", "", t("usage.unavailableBody")));
-      content.appendChild(empty);
+      content.appendChild(state.usageLoading
+        ? usageLoadingNode()
+        : usageStatusNode("warning", t("usage.unavailable"), t("usage.unavailableBody")));
       root.replaceChildren(scroll);
       return;
     }
@@ -3483,11 +3538,9 @@
       return { id: id, provider: usageProvider(snapshot, id) };
     }).filter(function(item){ return item.provider; });
     if (!providers.length){
-      const empty = document.createElement("div");
-      empty.className = "usage-empty";
-      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
-      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
-      content.appendChild(empty);
+      content.appendChild(state.usageLoading
+        ? usageLoadingNode()
+        : usageStatusNode("warning", t("usage.noData"), t("usage.noDataBody")));
       root.replaceChildren(scroll);
       return;
     }
@@ -3824,7 +3877,7 @@
   function usageLimitNode(entry, status, primary, providerId){
     const limit = document.createElement("section");
     limit.className = "usage-limit" + (primary ? " primary" : "");
-    const pace = usagePace(entry);
+    const pace = state.usageSettings.showPace ? usagePace(entry) : null;
     const limitStatus = pace && pace.status === "behind" ? "exhausted"
       : pace && pace.status === "onTrack" ? "attention" : status;
     limit.dataset.status = limitStatus;
@@ -3951,7 +4004,8 @@
       const value = Number(point.value);
       bar.dataset.level = value > 0 ? "used" : "empty";
       bar.dataset.peak = peak === point ? "true" : "false";
-      bar.style.setProperty("--trend-height", Math.max(5, Math.round((value / maxValue) * 100)) + "%");
+      const trendHeight = value > 0 ? Math.max(1, Math.round((value / maxValue) * 100)) : 0;
+      bar.style.setProperty("--trend-height", trendHeight + "%");
       bar.title = point.label + " · " + (point.valueLabel || usageTrendValue(point.value));
       bars.appendChild(bar);
     });
@@ -3978,18 +4032,29 @@
     return Math.round(value) + " tokens";
   }
 
+  function usageStatusNode(state, title, body){
+    const status = document.createElement("div");
+    status.className = "usage-state";
+    status.dataset.state = state;
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    if (state === "loading") status.setAttribute("aria-busy", "true");
+
+    const icon = document.createElement("span");
+    icon.className = "usage-state-icon";
+    icon.setAttribute("aria-hidden", "true");
+    const glyph = document.createElement("span");
+    glyph.className = state === "loading" ? "usage-state-spinner" : "usage-state-warning";
+    if (state !== "loading") glyph.textContent = "!";
+    icon.appendChild(glyph);
+    status.appendChild(icon);
+    status.appendChild(usageTextNode("strong", "usage-state-title", title));
+    status.appendChild(usageTextNode("span", "usage-state-body", body));
+    return status;
+  }
+
   function usageLoadingNode(){
-    const loading = document.createElement("div");
-    loading.className = "usage-loading";
-    loading.setAttribute("role", "status");
-    loading.setAttribute("aria-live", "polite");
-    const bar = document.createElement("span");
-    bar.className = "usage-loading-bar";
-    bar.setAttribute("aria-hidden", "true");
-    bar.appendChild(document.createElement("i"));
-    loading.appendChild(bar);
-    loading.appendChild(usageTextNode("span", "usage-loading-copy", t("usage.loading")));
-    return loading;
+    return usageStatusNode("loading", t("usage.loadingTitle"), t("usage.loadingBody"));
   }
 
   function animateUsageProviderPromotion(root, previousRects){
@@ -4067,11 +4132,9 @@
 
     const snapshot = state.usage;
     if (!snapshot || (snapshot.sourceState !== "available" && snapshot.sourceState !== "partial")){
-      const empty = document.createElement("div");
-      empty.className = "usage-empty";
-      empty.appendChild(usageTextNode("strong", "", t("usage.unavailable")));
-      empty.appendChild(usageTextNode("span", "", t("usage.unavailableBody")));
-      content.appendChild(empty);
+      content.appendChild(state.usageLoading
+        ? usageLoadingNode()
+        : usageStatusNode("warning", t("usage.unavailable"), t("usage.unavailableBody")));
       root.replaceChildren(scroll);
       return;
     }
@@ -4080,22 +4143,18 @@
       return { id: id, provider: usageProvider(snapshot, id) };
     }).filter(function(item){ return item.provider; });
     if (!providers.length){
-      const empty = document.createElement("div");
-      empty.className = "usage-empty";
-      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
-      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
-      content.appendChild(empty);
+      content.appendChild(state.usageLoading
+        ? usageLoadingNode()
+        : usageStatusNode("warning", t("usage.noData"), t("usage.noDataBody")));
       root.replaceChildren(scroll);
       return;
     }
 
     const usableProviders = providers.filter(function(item){ return usageProviderHasData(item.provider); });
     if (!usableProviders.length){
-      const empty = document.createElement("div");
-      empty.className = "usage-empty";
-      empty.appendChild(usageTextNode("strong", "", t("usage.noData")));
-      empty.appendChild(usageTextNode("span", "", t("usage.noDataBody")));
-      content.appendChild(empty);
+      content.appendChild(state.usageLoading
+        ? usageLoadingNode()
+        : usageStatusNode("warning", t("usage.noData"), t("usage.noDataBody")));
       root.replaceChildren(scroll);
       return;
     }
@@ -4179,6 +4238,7 @@
       const status = provider.status || "unknown";
       const primary = usagePrimary(provider);
       const weekly = usageWeekly(provider);
+      const weeklyEntry = weekly && weekly.id !== primary?.id ? weekly : null;
       const isOpen = item === openItem;
       const card = document.createElement("article");
       card.className = "usage-card " + (isOpen ? "is-open" : "is-closed");
@@ -4207,7 +4267,7 @@
       if (primaryLimit){
         limits.appendChild(primaryLimit);
       }
-      const weeklyLimit = weekly && weekly.id !== primary?.id ? usageLimitNode(weekly, status, false, item.id) : null;
+      const weeklyLimit = weeklyEntry ? usageLimitNode(weeklyEntry, status, false, item.id) : null;
       if (weeklyLimit){
         limits.appendChild(weeklyLimit);
       }
@@ -4897,12 +4957,14 @@
     let usageScrollEl = null;
     let nativeUsageGesture = false;
     let wheelDelta = 0;
+    let wheelQueuedIntent = 0;
     let wheelT = null;
     let wheelRaf = null;
     let settleT = null;
     let settling = false;
     let settleTarget = null;
     let lastY = 0, lastT = 0, instVel = 0;
+    const VERTICAL_SETTLE_MS = IS_ANDROID_WEBVIEW ? 200 : 220;
 
     function h(){ return Math.max(screensEl.offsetHeight, 1); }
     function commitPx(){ return Math.max(34, Math.round(h() * 0.06)); }
@@ -4963,6 +5025,21 @@
     function dragFlush(){
       if (dragRaf){ cancelAnimationFrame(dragRaf); dragRaf = null; }
       if (dragDy != null){ applyDrag(dragDy); dragDy = null; }
+    }
+    function stopWheelGesture(){
+      if (wheelT){ clearTimeout(wheelT); wheelT = null; }
+      if (wheelRaf){ cancelAnimationFrame(wheelRaf); wheelRaf = null; }
+      wheelDelta = 0;
+      wheelQueuedIntent = 0;
+    }
+    function flushQueuedWheel(){
+      const intent = wheelQueuedIntent;
+      wheelQueuedIntent = 0;
+      if (!intent) return;
+      const direction = intent < 0 ? "up" : "down";
+      requestAnimationFrame(function(){
+        if (!settling) settleAndCommit(direction);
+      });
     }
     // ---- pager horizontal do launchpad (flick/25% troca página) ----
     let hGest = false, hOriginInLaunchpad = false, hOriginInDeck = false;
@@ -5070,27 +5147,34 @@
     }
 
     function finishSettle(nextName){
+      if (!settling && !nextName) return;
+      const resolvedTarget = nextName || settleTarget || screensEl._nextScreen || null;
       settling = false;
       settleTarget = null;
       setLayer(false);
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
-      if (nextName) goScreen(nextName);
+      screensEl._nextScreen = null;
+      if (resolvedTarget) goScreen(resolvedTarget);
       clearDrag();
       flushPendingRecents();
       if (typeof layoutDockScale === "function"){
         requestAnimationFrame(function(){ try{ layoutDockScale(); }catch(e){} });
       }
+      flushQueuedWheel();
     }
     function onSettleEnd(e){
       if (e.propertyName && e.propertyName !== "transform") return;
-      const next = screensEl._nextScreen || null;
-      screensEl._nextScreen = null;
-      finishSettle(next);
+      if (!settling) return;
+      const current = screenIndex(state.screen);
+      const target = settleTarget ? screenIndex(settleTarget) : -1;
+      if (e.target !== screenElements[current] && e.target !== screenElements[target]) return;
+      finishSettle(settleTarget);
     }
     function settleTo(nextName){
       const names = screenNames();
       if (names.indexOf(nextName) < 0 || nextName === state.screen) return;
+      stopWheelGesture();
       settling = true;
       settleTarget = nextName;
       setLayer(true, "vertical");
@@ -5110,15 +5194,18 @@
             const ease = IS_ANDROID_WEBVIEW
               ? "transform .20s cubic-bezier(.22,.61,.36,1)"
               : "transform .22s cubic-bezier(.22,.61,.36,1)";
-            screenElements.forEach(function(el){ if (el) el.style.transition = ease; });
+            const current = screenIndex(state.screen);
+            const target = screenIndex(nextName);
+            screenElements.forEach(function(el, index){
+              if (!el) return;
+              el.style.transition = index === current || index === target ? ease : "none";
+            });
             applyDrag((movingDown ? -1 : 1) * h() * movement);
             screensEl._nextScreen = nextName || null;
             screensEl.addEventListener("transitionend", onSettleEnd);
             settleT = setTimeout(function(){
-              const n = screensEl._nextScreen || null;
-              screensEl._nextScreen = null;
-              finishSettle(n);
-            }, 360);
+              finishSettle(nextName);
+            }, VERTICAL_SETTLE_MS + 120);
           });
         });
         return;
@@ -5137,17 +5224,20 @@
         const ease = IS_ANDROID_WEBVIEW
           ? "transform .20s cubic-bezier(.22,.61,.36,1)"
           : "transform .22s cubic-bezier(.22,.61,.36,1)";
-        screenElements.forEach(function(el){ if (el) el.style.transition = ease; });
+        const current = screenIndex(state.screen);
+        const target = screenIndex(nextName);
+        screenElements.forEach(function(el, index){
+          if (!el) return;
+          el.style.transition = index === current || index === target ? ease : "none";
+        });
         applyDrag((movingDown ? -1 : 1) * h() * movement);
         // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
         // e de pointer-events acontece em finishSettle, depois do último frame.
         screensEl._nextScreen = nextName || null;
         screensEl.addEventListener("transitionend", onSettleEnd);
         settleT = setTimeout(function(){
-          const n = screensEl._nextScreen || null;
-          screensEl._nextScreen = null;
-          finishSettle(n);
-        }, 360);
+          finishSettle(nextName);
+        }, VERTICAL_SETTLE_MS + 120);
       });
     }
     function settleAndCommit(dir){
@@ -5180,6 +5270,7 @@
 
     screensEl.addEventListener("pointerdown", function(e){
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      stopWheelGesture();
       stopHorizontalSnap();
       if (settling){
         const interruptedTarget = settleTarget || screensEl._nextScreen || null;
@@ -5352,7 +5443,6 @@
 
     screensEl.addEventListener("wheel", function(e){
       if (e.ctrlKey) return;
-      if (settling) return;
       const usageScroll = e.target && e.target.closest ? e.target.closest(".usage-scroll") : null;
       const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
       if (adx >= ady * AXIS_RATIO) return;
@@ -5362,6 +5452,11 @@
         const atBottom = usageScroll.scrollTop >= maxScroll - 0.5;
         const canScroll = e.deltaY > 0 ? !atBottom : !atTop;
         if (canScroll) return;
+      }
+      if (settling){
+        e.preventDefault();
+        if (e.deltaY !== 0) wheelQueuedIntent += e.deltaY > 0 ? -1 : 1;
+        return;
       }
       e.preventDefault();
       let d = e.deltaY;
@@ -5531,7 +5626,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v28").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v29").catch(function() {});
   }
 })();</script>
 </body>

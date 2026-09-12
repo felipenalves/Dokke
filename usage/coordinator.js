@@ -87,6 +87,19 @@ export function createUsageCoordinator({
   let lastRefreshAt = 0;
   let retryAt = 0;
   let timer = null;
+  let selectionKey = null;
+  let activeProviderIds = null;
+
+  function providerSelectionKey(enabledProviders) {
+    if (!Array.isArray(enabledProviders)) return "*";
+    return JSON.stringify([...new Set(enabledProviders)].sort());
+  }
+
+  function selectedProviders(enabledProviders) {
+    if (!Array.isArray(enabledProviders)) return providerList;
+    const enabled = new Set(enabledProviders);
+    return providerList.filter(provider => enabled.has(provider.id));
+  }
 
   async function loadCache() {
     if (loaded) return current;
@@ -138,13 +151,13 @@ export function createUsageCoordinator({
     return historyResult(events, { pricing: activePricing, providerId: provider.id, now: at });
   }
 
-  async function runRefresh() {
+  async function runRefresh(activeProviders) {
     const at = new Date(now());
     let activePricing = pricing;
     if (typeof pricingLoader === "function") {
       try { activePricing = await pricingLoader(); } catch { activePricing = pricing; }
     }
-    const results = await Promise.all(providerList.map(provider => refreshProvider(provider, at, activePricing)));
+    const results = await Promise.all(activeProviders.map(provider => refreshProvider(provider, at, activePricing)));
     const providersById = {};
     const errors = [];
     let anyFailure = false;
@@ -182,24 +195,34 @@ export function createUsageCoordinator({
     return current;
   }
 
-  async function refresh({ force = false } = {}) {
+  async function refresh({ force = false, enabledProviders } = {}) {
     await loadCache();
+    const requestedProviders = enabledProviders === undefined ? activeProviderIds : enabledProviders;
+    const nextSelectionKey = providerSelectionKey(requestedProviders);
+    if (selectionKey !== nextSelectionKey) {
+      selectionKey = nextSelectionKey;
+      activeProviderIds = Array.isArray(requestedProviders) ? requestedProviders.slice() : null;
+      force = true;
+    }
     const at = new Date(now()).getTime();
     if (inFlight) return inFlight;
     if (!force && retryAt > at) return current || emptySnapshot(new Date(at));
     if (!force && current && at - lastRefreshAt < refreshMs) return current;
-    inFlight = runRefresh();
+    inFlight = runRefresh(selectedProviders(requestedProviders));
     try { return await inFlight; }
     finally { inFlight = null; }
   }
 
-  async function getUsage({ force = false } = {}) {
+  async function getUsage({ force = false, enabledProviders } = {}) {
     await loadCache();
-    if (!current || force) return refresh({ force });
+    const requestedProviders = enabledProviders === undefined ? activeProviderIds : enabledProviders;
+    const nextSelectionKey = providerSelectionKey(requestedProviders);
+    if (selectionKey !== nextSelectionKey) force = true;
+    if (!current || force) return refresh({ force, enabledProviders: requestedProviders });
     const at = new Date(now()).getTime();
     if (retryAt <= at && at - lastRefreshAt >= refreshMs && !inFlight) {
       // Stale-while-revalidate: the kiosk keeps rendering the last good snapshot while the refresh runs.
-      void refresh({ force: false }).catch(() => {});
+      void refresh({ force: false, enabledProviders: requestedProviders }).catch(() => {});
     }
     return current;
   }

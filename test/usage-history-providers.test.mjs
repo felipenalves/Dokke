@@ -1,6 +1,6 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createIncrementalFileCache } from "../usage/history-cache.js";
@@ -10,6 +10,8 @@ import { scanCodexHistory } from "../usage/providers/codex-history.js";
 import { parseCodexFile } from "../usage/providers/codex-history.js";
 import { scanGrokHistory } from "../usage/providers/grok-history.js";
 import { scanAntigravityHistory, generationSQL } from "../usage/providers/antigravity-history.js";
+import { createAntigravityProvider } from "../usage/providers/antigravity.js";
+import { createGrokProvider } from "../usage/providers/grok.js";
 
 const roots = [];
 const now = new Date("2026-09-01T15:00:00.000Z");
@@ -35,6 +37,58 @@ async function writeJsonl(root, name, records) {
   const path = join(root, name);
   await writeFile(path, records.map(record => JSON.stringify(record)).join("\n") + "\n");
   return path;
+}
+
+function concatBytes(...parts) {
+  return Uint8Array.from(parts.flatMap(part => [...part]));
+}
+
+function varint(value) {
+  const bytes = [];
+  let remaining = BigInt(value);
+  do {
+    let byte = Number(remaining & 0x7fn);
+    remaining >>= 7n;
+    if (remaining > 0n) byte |= 0x80;
+    bytes.push(byte);
+  } while (remaining > 0n);
+  return Uint8Array.from(bytes);
+}
+
+function protobufVarint(number, value) {
+  return concatBytes(varint((number << 3) | 0), varint(value));
+}
+
+function protobufBytes(number, value) {
+  return concatBytes(varint((number << 3) | 2), varint(value.length), value);
+}
+
+function utf8(value) {
+  return new TextEncoder().encode(value);
+}
+
+function generationHex({ modelID = null, label = null, timestampSeconds = null } = {}) {
+  const usage = concatBytes(
+    protobufVarint(1, 2),
+    protobufVarint(2, 10),
+    protobufVarint(3, 5),
+    protobufVarint(5, 3),
+  );
+  const fields = [
+    modelID ? protobufBytes(19, utf8(modelID)) : new Uint8Array(),
+    label ? protobufBytes(21, utf8(label)) : new Uint8Array(),
+    protobufBytes(4, usage),
+  ];
+  if (timestampSeconds !== null) {
+    const timestamp = protobufBytes(4, protobufVarint(1, timestampSeconds));
+    fields.push(protobufBytes(9, timestamp));
+  }
+  return Buffer.from(protobufBytes(1, concatBytes(...fields))).toString("hex");
+}
+
+function stepMetadataHex(timestampSeconds) {
+  const timestamp = protobufBytes(1, protobufVarint(1, timestampSeconds));
+  return Buffer.from(timestamp).toString("hex");
 }
 
 test("cache incremental reutiliza arquivo inalterado", async () => {
@@ -122,6 +176,32 @@ test("Grok lê turn_completed por modelo e mantém custo carregado", async () =>
   assert.equal(events[0].costUSD, 0.01);
 });
 
+test("Grok usa GROK_HOME, inclui sessões filhas e deduplica por evento e modelo @spec:AC-349 @spec:AC-352", async () => {
+  const home = await makeRoot("grok-home");
+  const parent = join(home, "sessions", "parent");
+  const child = join(home, "sessions", "child");
+  await mkdir(parent, { recursive: true });
+  await mkdir(child, { recursive: true });
+  const turn = model => ({
+    timestamp: 1788256800,
+    params: {
+      _meta: { eventId: "same-event", agentTimestampMs: 1788256800000 },
+      update: {
+        sessionUpdate: "turn_completed",
+        usage: { modelUsage: { [model]: { inputTokens: 10, outputTokens: 5 } } },
+      },
+    },
+  });
+  await writeJsonl(parent, "updates.jsonl", [turn("grok-4")]);
+  await writeJsonl(child, "updates.jsonl", [turn("grok-4"), turn("grok-4.1")]);
+  await writeFile(join(child, "summary.json"), JSON.stringify({ session_kind: "subagent" }));
+
+  const provider = createGrokProvider({ env: { HOME: home, GROK_HOME: home } });
+  const result = await provider.readHistory({ since, cache: createIncrementalFileCache() });
+
+  assert.deepEqual(result.events.map(event => event.model), ["grok-4", "grok-4.1"]);
+});
+
 test("Antigravity aceita geração injetada e ignora linha sem tokens", async () => {
   const events = await scanAntigravityHistory({
     databases: ["fixture.db"],
@@ -147,8 +227,58 @@ test("Antigravity consulta gen_metadata em lotes com cursor crescente", async ()
     } },
   });
   assert.equal(events.length, 1);
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /FROM gen_metadata/);
-  assert.match(calls[0].sql, /WHERE idx > -1 AND data IS NOT NULL/);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /pragma_table_info/);
+  assert.match(calls[1].sql, /FROM gen_metadata/);
+  assert.match(calls[1].sql, /WHERE idx > -1 AND data IS NOT NULL/);
   assert.match(generationSQL(42), /WHERE idx > 42 AND data IS NOT NULL/);
+});
+
+test("Antigravity descobre todos os stores e não duplica diretório por symlink @spec:AC-350 @spec:AC-352", async () => {
+  const home = await makeRoot("antigravity-home");
+  const gemini = join(home, ".gemini");
+  const cliConversations = join(gemini, "antigravity-cli", "conversations");
+  const ideConversations = join(gemini, "antigravity-ide", "conversations");
+  await mkdir(cliConversations, { recursive: true });
+  await mkdir(ideConversations, { recursive: true });
+  await writeFile(join(cliConversations, "cli.db"), "");
+  await writeFile(join(ideConversations, "ide.db"), "");
+  await symlink(join(gemini, "antigravity-ide"), join(gemini, "antigravity-copy"));
+  const calls = [];
+  const provider = createAntigravityProvider({
+    env: { HOME: home },
+    sqlite: { async query(database, sql) {
+      calls.push({ database, sql });
+      if (sql.includes("pragma_table_info")) return [{ name: "metadata" }];
+      return [{ index: 1, timestamp: "2026-09-01T10:00:00.000Z", model: "gemini-pro", inputTokens: 1, outputTokens: 1 }];
+    } },
+  });
+  const result = await provider.readHistory({ since });
+
+  assert.equal(result.events.length, 2);
+  assert.equal(new Set(calls.map(call => call.database)).size, 2);
+  assert.deepEqual([...new Set(calls.map(call => call.database))].sort(), [
+    await realpath(join(cliConversations, "cli.db")),
+    await realpath(join(ideConversations, "ide.db")),
+  ].sort());
+});
+
+test("Antigravity usa steps.metadata quando a geração não carrega timestamp @spec:AC-351", async () => {
+  const generation = generationHex({ modelID: "gemini-pro-default", label: "gemini-pro" });
+  const stepMetadata = stepMetadataHex(1788256800);
+  const events = await scanAntigravityHistory({
+    databases: ["fixture.db"],
+    since,
+    sqlite: { async query(_database, sql) {
+      if (sql.includes("pragma_table_info")) return [{ name: "metadata" }];
+      return [{ index: 1, hex: generation, step_hex: stepMetadata }];
+    } },
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].timestamp, "2026-09-01T10:00:00.000Z");
+  assert.equal(events[0].model, "gemini-pro");
+  assert.deepEqual(events[0].tokens, {
+    input: 12, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 3, output: 5, total: 20,
+  });
 });

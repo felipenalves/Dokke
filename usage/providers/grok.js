@@ -18,6 +18,21 @@ import {
 const DEFAULT_CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const DEFAULT_SETTINGS_URL = "https://cli-chat-proxy.grok.com/v1/settings";
 
+function planFrom(payload) {
+  const raw = payload?.subscription_tier_display ?? payload?.subscriptionTierDisplay ?? payload?.plan;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function grokHome(env) {
+  const configured = typeof env.GROK_HOME === "string" ? env.GROK_HOME.trim() : "";
+  if (configured) {
+    if (configured === "~") return homeDirectory(env);
+    if (configured.startsWith("~/")) return join(homeDirectory(env), configured.slice(2));
+    return configured;
+  }
+  return join(homeDirectory(env), ".grok");
+}
+
 async function readCredentials(options) {
   if (options.credentials && typeof options.credentials === "object") return options.credentials;
   if (typeof options.readCredentials === "function") return options.readCredentials();
@@ -25,7 +40,7 @@ async function readCredentials(options) {
   const envToken = credentialToken({ accessToken: env.GROK_ACCESS_TOKEN });
   if (envToken) return { accessToken: envToken };
   try {
-    const parsed = JSON.parse(await readFile(options.authFile || join(homeDirectory(env), ".grok", "auth.json"), "utf8"));
+    const parsed = JSON.parse(await readFile(options.authFile || join(grokHome(env), "auth.json"), "utf8"));
     const entries = Object.entries(parsed || {}).filter(([, value]) => credentialToken(value));
     return entries.length ? { ...entries[0][1], entryKey: entries[0][0] } : null;
   } catch { return null; }
@@ -90,16 +105,21 @@ export function createGrokProvider(options = {}) {
         "User-Agent": "grok",
       };
       const body = await fetchJSON(options.creditsUrl || DEFAULT_CREDITS_URL, { method: "GET", headers, signal });
-      return { body, metadata: { plan: null } };
+      let plan = null;
+      try {
+        const settings = await fetchJSON(options.settingsUrl || DEFAULT_SETTINGS_URL, { method: "GET", headers, signal });
+        plan = planFrom(settings);
+      } catch {}
+      return { body, metadata: { plan } };
     },
     async readHistory({ since, cache, pricing } = {}) {
       const env = options.env || process.env;
-      const root = options.historyRoot || join(homeDirectory(env), ".grok");
+      const root = options.historyRoot || grokHome(env);
       return { events: await scanGrokHistory({ roots: [root], since, cache, pricing }) };
     },
     async readActivity({ now } = {}) {
       const env = options.env || process.env;
-      const roots = options.activityRoots || [options.activityRoot || join(homeDirectory(env), ".grok")];
+      const roots = options.activityRoots || [options.activityRoot || grokHome(env)];
       return scanFileActivity({
         providerId: provider.id,
         roots,
@@ -116,4 +136,4 @@ export function createGrokProvider(options = {}) {
   return provider;
 }
 
-export { DEFAULT_CREDITS_URL, DEFAULT_SETTINGS_URL };
+export { DEFAULT_CREDITS_URL, DEFAULT_SETTINGS_URL, planFrom as grokPlanFrom };

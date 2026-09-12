@@ -385,16 +385,16 @@ export function createDokkeUsageSource({
     async getUsage(options) {
       const [snapshot, activity] = await Promise.all([
         loadUsageWithFallback(options, value => coordinator.getUsage(value)),
-        activityMonitor.getActivity(),
+        activityMonitor.getActivity(options),
       ]);
       return attachActivity(snapshot, activity);
     },
-    getActivity: () => activityMonitor.getActivity(),
+    getActivity: options => activityMonitor.getActivity(options),
     ingestActivityEvent: event => activityMonitor.ingestActivityEvent(event),
     async refresh(options) {
       const [snapshot, activity] = await Promise.all([
         loadUsageWithFallback(options, value => coordinator.refresh(value)),
-        activityMonitor.getActivity(),
+        activityMonitor.getActivity(options),
       ]);
       return attachActivity(snapshot, activity);
     },

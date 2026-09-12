@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { startServer } from "../server.js";
 import { MAX_PINNED_APPS, pinnedLimits } from "../config.js";
 
-const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact" };
+const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact", showPace: true };
 
 async function startTemp(extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), "j5api-"));
@@ -39,16 +39,32 @@ test("PUT /api/config/usage salva preferências e expõe no /api/apps", async ()
     const r = await fetch(`${base(s)}/api/config/usage`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: { enabled: false, display: "remaining", reset: "exact" } }),
+      body: JSON.stringify({ usage: { enabled: false, display: "remaining", reset: "exact", showPace: false } }),
     });
     assert.equal(r.status, 200);
     const body = await r.json();
     assert.equal(body.ok, true);
     assert.equal(body.pushed, true);
-    assert.deepEqual(body.config.usage, { enabled: false, display: "remaining", reset: "exact" });
+    assert.deepEqual(body.config.usage, { enabled: false, display: "remaining", reset: "exact", showPace: false });
 
     const apps = await fetch(`${base(s)}/api/apps`);
-    assert.deepEqual((await apps.json()).usage, { enabled: false, display: "remaining", reset: "exact" });
+    assert.deepEqual((await apps.json()).usage, { enabled: false, display: "remaining", reset: "exact", showPace: false });
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("PUT /api/config/usage preserva o modo de contagem regressiva", async () => {
+  const s = await startTemp();
+  try {
+    const r = await fetch(`${base(s)}/api/config/usage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "countdown" } }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).config.usage.reset, "countdown");
+
+    const apps = await fetch(`${base(s)}/api/apps`);
+    assert.equal((await apps.json()).usage.reset, "countdown");
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
@@ -84,6 +100,51 @@ test("PUT /api/config/usage idempotente não incrementa revisão", async () => {
     });
     assert.equal(r.status, 200);
     assert.equal((await r.json()).config.revision, 0);
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("/api/usage e /api/usage/activity respeitam as IAs habilitadas @spec:AC-353", async () => {
+  const usageSource = {
+    async getUsage() {
+      return { ok: true, source: "dokke", sourceState: "available", providers: { claude: { name: "Claude" }, codex: { name: "Codex" } }, errors: [] };
+    },
+    async getActivity() {
+      return { ok: true, source: "dokke", sourceState: "available", providers: { claude: { state: "idle" }, codex: { state: "working" } }, errors: [] };
+    },
+  };
+  const s = await startTemp({ usage: usageSource });
+  try {
+    const save = await fetch(`${base(s)}/api/config/usage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "exact", providers: ["codex"] } }),
+    });
+    assert.equal(save.status, 200);
+
+    const usage = await fetch(`${base(s)}/api/usage`).then(response => response.json());
+    const activity = await fetch(`${base(s)}/api/usage/activity`).then(response => response.json());
+    assert.deepEqual(Object.keys(usage.providers), ["codex"]);
+    assert.deepEqual(Object.keys(activity.providers), ["codex"]);
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("/api/usage preserva o alias anthropic quando Claude está habilitado", async () => {
+  const usageSource = {
+    async getUsage() {
+      return { ok: true, source: "dokke", sourceState: "available", providers: { anthropic: { name: "Claude" }, codex: { name: "Codex" } }, errors: [] };
+    },
+  };
+  const s = await startTemp({ usage: usageSource });
+  try {
+    const save = await fetch(`${base(s)}/api/config/usage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "exact", providers: ["claude"] } }),
+    });
+    assert.equal(save.status, 200);
+
+    const usage = await fetch(`${base(s)}/api/usage`).then(response => response.json());
+    assert.deepEqual(Object.keys(usage.providers), ["anthropic"]);
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
@@ -141,7 +202,7 @@ test("GET /api/status retorna devices e pinned", async () => {
   const s = await startTemp({
     configFile: null,
     config: {
-      usage: { enabled: false, display: "remaining", reset: "exact" },
+      usage: { enabled: false, display: "remaining", reset: "exact", showPace: true },
       usageProvider: "codex",
     },
   });
@@ -154,7 +215,7 @@ test("GET /api/status retorna devices e pinned", async () => {
     assert.equal(typeof j.devices, "number");
     assert.equal(j.pinned, 1);
     assert.deepEqual(j.config.pinned, ["Notes"]);
-    assert.deepEqual(j.config.usage, { enabled: false, display: "remaining", reset: "exact" });
+    assert.deepEqual(j.config.usage, { enabled: false, display: "remaining", reset: "exact", showPace: true });
     assert.equal(j.config.usageProvider, "codex");
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });

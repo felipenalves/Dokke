@@ -12,7 +12,28 @@ function localDateKey(value) {
 function dateFromKey(key) {
   const [year, month, day] = String(key).split("-").map(Number);
   if (![year, month, day].every(Number.isInteger)) return null;
-  return new Date(year, month - 1, day);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    ? date
+    : null;
+}
+
+function normalizeUsageDayKey(value) {
+  if (value instanceof Date) return localDateKey(value);
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  const canonical = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (canonical) {
+    const date = dateFromKey(`${canonical[1]}-${canonical[2]}-${canonical[3]}`);
+    return date ? localDateKey(date) : null;
+  }
+  const compact = /^(\d{4})(\d{2})(\d{2})$/.exec(raw);
+  if (compact) {
+    const date = dateFromKey(`${compact[1]}-${compact[2]}-${compact[3]}`);
+    return date ? localDateKey(date) : null;
+  }
+  return localDateKey(new Date(raw));
 }
 
 function normalizeTokens(tokens = {}) {
@@ -142,9 +163,13 @@ export function buildSpendSummary(series, now = new Date()) {
 }
 
 export function buildUsageTrend(series, now = new Date()) {
-  const entries = new Map((Array.isArray(series?.daily) ? series.daily : [])
-    .map(entry => [entry.date, Number(entry.totalTokens) || 0]));
-  if (![...entries.values()].some(value => value > 0)) return [];
+  const entries = new Map();
+  for (const entry of Array.isArray(series?.daily) ? series.daily : []) {
+    const day = normalizeUsageDayKey(entry?.date);
+    const tokens = Number(entry?.totalTokens);
+    if (!day || !Number.isFinite(tokens) || tokens < 0) continue;
+    entries.set(day, (entries.get(day) || 0) + tokens);
+  }
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const points = [];
   for (let offset = HISTORY_DAYS; offset >= 0; offset -= 1) {
@@ -154,7 +179,7 @@ export function buildUsageTrend(series, now = new Date()) {
     const value = entries.get(key) || 0;
     points.push({ date: key, label: formatTrendLabel(date), value, valueLabel: compactTokenLabel(value) });
   }
-  return points;
+  return points.some(point => point.value > 0) ? points : [];
 }
 
 export { localDateKey, normalizeTokens };

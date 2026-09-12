@@ -1,10 +1,15 @@
-import { readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename } from "node:path";
 import { jsonlFiles, createIncrementalFileCache } from "../history-cache.js";
 
 function number(value) {
   const result = Number(value);
   return Number.isFinite(result) && result >= 0 ? result : 0;
+}
+
+const MAXIMUM_PLAUSIBLE_TOKENS = 1_000_000_000_000;
+
+function tokenCount(value) {
+  return Math.min(number(value), MAXIMUM_PLAUSIBLE_TOKENS);
 }
 
 function timestampOf(record, params) {
@@ -30,10 +35,10 @@ export function parseGrokFile(content) {
     if (Number.isNaN(timestamp.getTime())) continue;
     for (const [model, value] of Object.entries(modelUsage)) {
       if (!value || typeof value !== "object") continue;
-      const inputTotal = number(value.inputTokens);
-      const cacheRead = Math.min(inputTotal, number(value.cachedReadTokens));
-      const cacheWrite = Math.min(inputTotal - cacheRead, number(value.cacheCreationTokens));
-      const output = number(value.outputTokens);
+      const inputTotal = tokenCount(value.inputTokens);
+      const cacheRead = Math.min(inputTotal, tokenCount(value.cachedReadTokens));
+      const cacheWrite = Math.min(inputTotal - cacheRead, tokenCount(value.cacheCreationTokens));
+      const output = tokenCount(value.outputTokens);
       const tokens = {
         input: inputTotal - cacheRead - cacheWrite,
         cacheWrite5m: cacheWrite,
@@ -58,22 +63,11 @@ export function parseGrokFile(content) {
 
 export async function scanGrokHistory({ roots = [], since = new Date(0), cache = createIncrementalFileCache(), maxFiles = 2000 } = {}) {
   const candidates = (await jsonlFiles(roots, { maxFiles })).filter(file => basename(file) === "updates.jsonl");
-  const files = [];
-  for (const file of candidates) {
-    const summary = join(dirname(file), "summary.json");
-    try {
-      const parsed = JSON.parse(await readFile(summary, "utf8"));
-      const kind = typeof parsed?.session_kind === "string" ? parsed.session_kind.trim().toLowerCase() : "";
-      if (kind.startsWith("subagent")) continue;
-    } catch {
-      // An absent summary is valid for older sessions. A present but corrupt summary is
-      // deliberately ignored: the coordinator transcript cannot be identified safely.
-      try { await readFile(summary, "utf8"); continue; } catch {}
-    }
-    files.push(file);
-  }
   const events = [];
-  for (const file of files) {
+  // OpenUsage treats every session ledger as authoritative. Child/subagent ledgers can contain
+  // usage absent from the coordinator; the eventId+model key below removes replays without dropping
+  // a legitimate child turn.
+  for (const file of candidates) {
     try { events.push(...await cache.read(file, parseGrokFile)); } catch {}
   }
   const cutoff = new Date(since).getTime();

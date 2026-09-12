@@ -48,3 +48,11 @@ test("pricing loader padrão não consulta o OpenUsage", async () => {
   assert.equal(result.resolve("missing-model"), null);
   assert.equal(calls.some(url => url.includes("openusage")), false);
 });
+
+test("pricing loader precifica os slugs de build usados pelos logs do Grok", async () => {
+  const result = await loadPricingCatalog({
+    fetchImpl: async () => new Response(JSON.stringify({ models: {} }), { status: 200 }),
+  });
+  assert.equal(result.resolve("grok-4.5-build").outputPerMillion, 6);
+  assert.equal(result.resolve("grok-4.6-build").outputPerMillion, 6);
+});

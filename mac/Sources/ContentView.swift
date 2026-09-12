@@ -13,7 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
   var icon: String {
     switch self {
     case .apps: return "square.grid.2x2.fill"
-    case .usage: return "gearshape"
+    case .usage: return "chart.bar.xaxis"
     case .about: return "info.circle"
     }
   }
@@ -343,7 +343,7 @@ struct AboutView: View {
           Text(I18n.text("aria.language", language: languageStore.selected))
             .font(.subheadline.weight(.semibold))
           Spacer()
-          Picker("Idioma", selection: Binding(
+          Picker("", selection: Binding(
             get: { languageStore.selected },
             set: { languageStore.select($0) }
           )) {
@@ -351,8 +351,10 @@ struct AboutView: View {
               Text(language.displayName).tag(language)
             }
           }
+          .labelsHidden()
           .pickerStyle(.menu)
-          .accessibilityLabel("Idioma")
+          .fixedSize()
+          .accessibilityLabel(I18n.text("aria.language", language: languageStore.selected))
         }
 
         VStack(alignment: .leading, spacing: 4) {

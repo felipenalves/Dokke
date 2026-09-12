@@ -4,13 +4,19 @@ import test from "node:test";
 
 const source = name => readFile(new URL(`../mac/Sources/${name}`, import.meta.url), "utf8");
 
-test("sidebar nativa expõe Uso e roteia para as preferências SwiftUI", async () => {
+test("sidebar nativa expõe Uso e roteia para as configurações SwiftUI", async () => {
   const content = await source("ContentView.swift");
+  const settings = await source("UsageSettings.swift");
 
   assert.match(content, /case usage\s*=\s*"Usage"/);
   assert.match(content, /case \.usage:\s*UsageSettingsView\(store:\s*store\)/);
-  assert.match(content, /gearshape/);
+  assert.match(content, /case \.usage:\s*return "chart\.bar\.xaxis"/);
+  assert.doesNotMatch(content, /case \.usage:\s*return "gearshape/);
   assert.match(content, /sidebar\.usageSettings/);
+  assert.doesNotMatch(content, /case \.usage:\s*UsageView\(store:\s*store\)/);
+  assert.match(settings, /struct UsageSettingsView:\s*View/);
+  assert.match(settings, /Toggle\(/);
+  assert.match(settings, /Picker\(/);
 });
 
 test("modelo nativo lê o contrato público do OpenUsage sem zerar campos ausentes", async () => {
@@ -26,13 +32,15 @@ test("modelo nativo lê o contrato público do OpenUsage sem zerar campos ausent
   assert.match(store, /baseURL \+ "\/api\/usage"/);
 });
 
-test("tela nativa mantém somente Claude e Codex com gráficos e Token", async () => {
+test("tela nativa mostra todas as IAs suportadas com gráficos e Token", async () => {
   const usage = await source("UsageView.swift");
 
   assert.match(usage, /struct UsageView:\s*View/);
   assert.match(usage, /UsageProviderOrder/);
   assert.match(usage, /case claude/);
   assert.match(usage, /case codex/);
+  assert.match(usage, /case antigravity/);
+  assert.match(usage, /case grok/);
   assert.match(usage, /TokenMascot/);
   assert.match(usage, /UsageLimitChart/);
   assert.match(usage, /accessibilityReduceMotion/);
@@ -54,12 +62,14 @@ test("tela nativa prioriza janela de 5 horas e semanal sem sidecar extra", async
 
 test("tela nativa do Painel de Uso usa marcas dos provedores e estado de sincronização", async () => {
   const usage = await source("UsageView.swift");
+  const glyphs = await source("ProviderGlyph.swift");
   const i18n = await source("LanguageStore.swift");
 
-  assert.match(usage, /UsageProviderLogo/);
+  assert.match(usage, /ProviderGlyphView/);
   assert.match(usage, /UsageConnectionIndicator/);
   assert.match(usage, /case \.codex/);
-  assert.match(usage, /OpenAI/);
+  assert.match(glyphs, /case grok/);
+  assert.match(glyphs, /case openai/);
   assert.match(usage, /usage\.sync/);
   assert.doesNotMatch(usage, /usage\.localData/);
   assert.match(i18n, /"usage\.title": "Painel de Uso"/);
@@ -70,8 +80,8 @@ test("tela nativa do Painel de Uso usa marcas dos provedores e estado de sincron
 test("cards nativos deixam somente os limites com fundo próprio", async () => {
   const usage = await source("UsageView.swift");
   const cardStart = usage.indexOf("private struct UsageProviderCard");
-  const logoStart = usage.indexOf("private struct UsageProviderLogo", cardStart);
-  const cardSource = usage.slice(cardStart, logoStart);
+  const cardEnd = usage.indexOf("private struct UsageConnectionIndicator", cardStart);
+  const cardSource = usage.slice(cardStart, cardEnd);
 
   assert.doesNotMatch(cardSource, /\.background\(/, "o card do provedor não deve criar uma moldura adicional");
   assert.match(usage, /UsageLimitPanel[\s\S]*?\.background\(/, "cada limite continua com o próprio card visual");
@@ -104,22 +114,45 @@ test("tela nativa compartilha a IA selecionada e evita provider sem dados no top
   assert.match(usage, /hasUsableUsageData/);
 });
 
-test("logo nativa do Codex resolve o SVG diretamente no bundle", async () => {
+test("selector nativo ignora clique no provider que já está selecionado", async () => {
   const usage = await source("UsageView.swift");
+  const selectorStart = usage.indexOf("private struct UsageProviderSelector");
+  const selectorEnd = usage.indexOf("private struct UsageProviderDots", selectorStart);
+  const selectorSource = usage.slice(selectorStart, selectorEnd);
 
-  assert.match(usage, /Bundle\.module\.url\(forResource: assetName, withExtension: "svg"\)/);
-  assert.match(usage, /NSImage\(contentsOf: url\)/);
-  assert.match(usage, /Image\(nsImage: assetImage\)/);
+  assert.match(usage, /guard providers\.indices\.contains\(index\), selection != index else \{ return \}/);
+  assert.match(selectorSource, /private func providerButton\(index: Int, item: VisibleUsageProvider\)/);
+  assert.match(selectorSource, /providerButton\(index: index, item: item\)/);
+  assert.match(selectorSource, /withAnimation\(\.smooth\(duration: 0\.24\)\) \{[\s\S]*select\(index\)/);
+  assert.match(selectorSource, /private func select\(_ index: Int\)[\s\S]*onSelectionChange\(index\)/);
 });
 
-test("logo nativa do Codex não recebe cápsula de fundo", async () => {
+test("tela nativa filtra providers pela lista habilitada pelo usuário", async () => {
+  const settings = await source("UsageSettings.swift");
   const usage = await source("UsageView.swift");
-  const logoStart = usage.indexOf("private struct UsageProviderLogo");
-  const logoEnd = usage.indexOf("private struct UsageConnectionIndicator", logoStart);
-  const logoSource = usage.slice(logoStart, logoEnd);
+  const glyphs = await source("ProviderGlyph.swift");
 
-  assert.match(logoSource, /if kind == \.claude \{[\s\S]*RoundedRectangle/, "somente Claude pode manter o fundo de marca");
-  assert.match(logoSource, /Image\(nsImage: assetImage\)[\s\S]*?interpolation\(\.high\)/, "o SVG deve ser rasterizado com qualidade alta");
+  assert.match(settings, /providers:\s*\[String\]\?/);
+  assert.match(settings, /UsageProviderOrder\.allCases/);
+  assert.match(settings, /accountToggle\(_ kind: UsageProviderOrder\)/);
+  assert.match(settings, /providers/);
+  assert.match(usage, /isProviderEnabled/);
+  assert.match(usage, /case \.antigravity/);
+  assert.match(glyphs, /case \.grok/);
+});
+
+test("logos nativos usam os glyphs vetoriais do Codenotch", async () => {
+  const glyphs = await source("ProviderGlyph.swift");
+  const usage = await source("UsageView.swift");
+
+  assert.match(glyphs, /struct ProviderGlyphView: View/);
+  assert.match(glyphs, /GlyphShape\(outline: glyph\.outline\)/);
+  assert.match(glyphs, /case claude/);
+  assert.match(glyphs, /case openai/);
+  assert.match(glyphs, /case antigravity/);
+  assert.match(glyphs, /case grok/);
+  assert.match(usage, /ProviderGlyphView\(glyph:/);
+  assert.doesNotMatch(usage, /anthropic-logo\.svg|fallbackSymbol/);
 });
 
 test("tela nativa mostra o Usage Trend abaixo dos limites", async () => {

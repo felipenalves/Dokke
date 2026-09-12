@@ -319,6 +319,84 @@ test("swipe vertical imediato após o settle não é descartado pelo cooldown", 
   }
 });
 
+test("troca vertical anima somente as duas telas envolvidas", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.addInitScript(() => {
+      navigator.serviceWorker.register = () => Promise.reject(new Error("blocked"));
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    const transitions = await page.evaluate(async () => {
+      const screens = document.querySelector("#screens");
+      const ids = ["screenApps", "screenRecents", "screenUsage"];
+      const events = [];
+      for (const id of ids){
+        const el = document.getElementById(id);
+        el.addEventListener("transitionrun", event => {
+          if (event.propertyName === "transform") events.push(event.target.id);
+        });
+      }
+      const event = (type, y, pointerId) => screens.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId, pointerType: "touch", isPrimary: true,
+        clientX: 195, clientY: y,
+      }));
+      event("pointerdown", 700, 1);
+      for (let i = 1; i <= 6; i++) event("pointermove", 700 - 100 * i, 1);
+      event("pointerup", 100, 1);
+      await new Promise(resolve => setTimeout(resolve, 320));
+      return events;
+    });
+    assert.deepEqual(
+      [...new Set(transitions)].sort(),
+      ["screenApps", "screenRecents"],
+      "a tela que não participa da troca não deve entrar na animação",
+    );
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("rolagem rápida durante o settle preserva a próxima intenção vertical", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.addInitScript(() => {
+      navigator.serviceWorker.register = () => Promise.reject(new Error("blocked"));
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+
+    await page.evaluate(() => new Promise(resolve => {
+      const screens = document.querySelector("#screens");
+      const wheel = () => screens.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 500,
+      }));
+      screens.addEventListener("transitionrun", () => {
+        wheel();
+        resolve();
+      }, { once: true });
+      wheel();
+    }));
+    await page.waitForTimeout(700);
+
+    assert.equal(
+      await page.evaluate(() => document.body.classList.contains("is-usage")),
+      true,
+      "a segunda rolagem não deve desaparecer durante o assentamento da primeira",
+    );
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
 test("swipes horizontais rápidos encadeiam páginas do Launchpad", async () => {
   const pieces = Array.from({ length: 24 }, (_, index) => ({
     id: `website:https://fast-page-${index + 1}.example.com`,
@@ -437,7 +515,10 @@ async function openOverflowingUsagePage(port, browser, beforeNavigate) {
 }
 
 test("Usage mostra outros provedores abaixo e promove o card clicado", async () => {
-  const { port, close } = await startServer(0);
+  const { port, close } = await startServer({
+    port: 0,
+    config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [] },
+  });
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -583,7 +664,10 @@ test("Usage não promove a IA preferida quando ela está sem dados utilizáveis"
 });
 
 test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", async () => {
-  const { port, close } = await startServer(0);
+  const { port, close } = await startServer({
+    port: 0,
+    config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], usageProvider: "codex" },
+  });
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   try {
     const page = await openOverflowingUsagePage(port, browser);
@@ -1631,7 +1715,7 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v28/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v29/, "service worker deve invalidar o cache antigo da UI");
     assert.match(js, /dokke-mascot-working-loop-strip\.webp\?v=20260909-11/, "sprites do mascote devem entrar no precache offline");
     assert.match(js, /dokke-mascot-idle-principal-strip\.webp\?v=20260909-11/, "o idle principal deve entrar no precache offline");
     assert.doesNotMatch(js, /dokke-mascot-idle-two-strip/, "o idleTwo removido não deve voltar ao precache");

@@ -44,7 +44,7 @@ test("server e instalador empacotam o helper nativo sem mudar o endpoint", () =>
   assert.match(apps, /DokkeIconHelper/);
   assert.match(apps, /iconHelper/);
   assert.match(packageSwift, /executable\(name: "DokkeIconHelper", targets: \["DokkeIconHelper"\]\)/);
-  assert.match(install, /swift build -c debug --product "DokkeIconHelper"/);
+  assert.match(install, /swift_build -c debug --product "DokkeIconHelper"/);
   assert.match(install, /SRV_DIR="\$\{APP_BUNDLE\}\/Contents\/Resources\/Dokke"/);
   assert.match(install, /ICON_HELPER_APP="\$\{SRV_DIR\}\/bin\/DokkeIconHelper\.app"/);
   assert.match(install, /Contents\/MacOS.*Contents\/Resources/);

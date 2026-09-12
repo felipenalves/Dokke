@@ -18,7 +18,7 @@ const emptyConfig = {
   revision: 0,
   pieces: [],
   pinned: [],
-  usage: { enabled: true, display: "used", reset: "exact" },
+  usage: { enabled: true, display: "used", reset: "exact", showPace: true },
 };
 
 test("limite do dock cabe em cinco páginas completas", () => {
@@ -68,4 +68,35 @@ test("normalizeConfig preserva a última IA selecionada e ignora IDs inválidos"
   assert.equal(normalizeConfig({ usageProvider: " Codex " }).usageProvider, "codex");
   assert.equal(normalizeConfig({ usageProvider: "claude" }).usageProvider, "claude");
   assert.equal(normalizeConfig({ usageProvider: "não é um id" }).usageProvider, undefined);
+});
+
+test("normaliza a lista opcional de IAs habilitadas sem quebrar configurações antigas", () => {
+  assert.equal(normalizeConfig({}).usage.providers, undefined);
+  assert.deepEqual(normalizeConfig({ usage: { providers: [" Grok ", "claude", "grok", "unknown"] } }).usage.providers, ["grok", "claude"]);
+  assert.deepEqual(normalizeConfig({ usage: { providers: [] } }).usage.providers, []);
+});
+
+test("normaliza a ordem opcional das contas sem confundir ordem com habilitação", () => {
+  assert.equal(normalizeConfig({}).usage.providerOrder, undefined);
+  assert.deepEqual(
+    normalizeConfig({ usage: { providerOrder: [" Grok ", "codex", "grok", "unknown"] } }).usage.providerOrder,
+    ["grok", "codex"]
+  );
+  assert.deepEqual(normalizeConfig({ usage: { providers: ["codex"], providerOrder: ["grok", "codex"] } }).usage.providers, ["codex"]);
+});
+
+test("normaliza ritmo de uso sem configuração de anel semanal", () => {
+  assert.equal(normalizeConfig({}).usage.showPace, true);
+  assert.deepEqual(normalizeConfig({ usage: { showPace: false, weeklyRing: "outside" } }).usage, {
+    enabled: true,
+    display: "used",
+    reset: "exact",
+    showPace: false,
+  });
+  assert.equal(normalizeConfig({ usage: { showPace: "yes", weeklyRing: "invalid" } }).usage.showPace, true);
+  assert.equal(Object.hasOwn(normalizeConfig({ usage: { weeklyRing: "invalid" } }).usage, "weeklyRing"), false);
+});
+
+test("preserva contagem regressiva do reset nas preferências de uso", () => {
+  assert.equal(normalizeConfig({ usage: { reset: "countdown" } }).usage.reset, "countdown");
 });

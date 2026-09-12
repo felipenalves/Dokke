@@ -53,6 +53,29 @@ test("tendência preserva dias vazios e retorna hoje mais 30 dias", () => {
   assert.equal(trend.at(-2).value, 0);
 });
 
+test("@spec:AC-346 consolida datas equivalentes e soma linhas do mesmo dia", () => {
+  const series = {
+    daily: [
+      { date: "2026-08-31", totalTokens: 10 },
+      { date: "2026-08-31T12:00:00.000Z", totalTokens: 20 },
+      { date: "20260901", totalTokens: 5 },
+      { date: "2026-07-01", totalTokens: 900 },
+    ],
+  };
+  const trend = buildUsageTrend(series, now);
+
+  assert.equal(trend.length, 31);
+  assert.equal(trend.at(-1).value, 5);
+  assert.equal(trend.at(-2).value, 30);
+  assert.equal(trend.at(0).value, 0);
+});
+
+test("@spec:AC-346 não exibe tendência quando todo o uso está fora da janela", () => {
+  const trend = buildUsageTrend({ daily: [{ date: "2026-07-01", totalTokens: 900 }] }, now);
+
+  assert.deepEqual(trend, []);
+});
+
 test("resumo separa hoje, ontem, 30 dias e breakdown por modelo", () => {
   const series = {
     daily: [

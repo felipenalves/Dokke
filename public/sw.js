@@ -1,4 +1,4 @@
-const CACHE = "dokke-v28";
+const CACHE = "dokke-v29";
 const PRECACHE = [
   "/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest",
   "/mascot/dokke-mascot-working-start-strip.webp?v=20260909-11",

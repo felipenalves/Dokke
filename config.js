@@ -2,7 +2,9 @@ import { readFile, writeFile, rename } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 
-const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact" };
+const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact", showPace: true };
+export const USAGE_PROVIDER_IDS = Object.freeze(["claude", "codex", "antigravity", "grok"]);
+const USAGE_PROVIDER_SET = new Set(USAGE_PROVIDER_IDS);
 const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [], usage: DEFAULT_USAGE };
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
@@ -175,12 +177,31 @@ function safeRevision(value) {
 }
 
 /** Normaliza preferências compartilhadas entre o app Mac e o PWA/Android. */
+export function normalizeUsageProviderIds(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const id = item.trim().toLowerCase();
+    if (!USAGE_PROVIDER_SET.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 export function normalizeUsageSettings(raw) {
   const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const providers = normalizeUsageProviderIds(source.providers);
+  const providerOrder = normalizeUsageProviderIds(source.providerOrder);
   return {
     enabled: typeof source.enabled === "boolean" ? source.enabled : DEFAULT_USAGE.enabled,
     display: source.display === "remaining" ? "remaining" : DEFAULT_USAGE.display,
-    reset: source.reset === "exact" ? "exact" : DEFAULT_USAGE.reset,
+    reset: source.reset === "countdown" ? "countdown" : "exact",
+    showPace: typeof source.showPace === "boolean" ? source.showPace : DEFAULT_USAGE.showPace,
+    ...(providers ? { providers } : {}),
+    ...(providerOrder ? { providerOrder } : {}),
   };
 }
 

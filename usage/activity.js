@@ -202,7 +202,14 @@ export function createActivityMonitor({
   let current = null;
   let inFlight = null;
   let timer = null;
+  let activeProviderIds = null;
+  let selectionKey = null;
   const hookSessions = new Map();
+
+  function providerSelectionKey(enabledProviders) {
+    if (!Array.isArray(enabledProviders)) return "*";
+    return JSON.stringify([...new Set(enabledProviders)].sort());
+  }
 
   function hookTtl(state) {
     if (state === "working") return Math.max(0, Number(hookWorkingMs) || DEFAULT_ACTIVITY_HOOK_WORKING_MS);
@@ -233,8 +240,15 @@ export function createActivityMonitor({
     }, { providerId, now: observedAt });
   }
 
-  async function refresh() {
+  async function refresh({ enabledProviders } = {}) {
     if (inFlight) return inFlight;
+    const requestedProviders = enabledProviders === undefined ? activeProviderIds : enabledProviders;
+    const nextSelectionKey = providerSelectionKey(requestedProviders);
+    activeProviderIds = Array.isArray(requestedProviders) ? requestedProviders.slice() : null;
+    selectionKey = nextSelectionKey;
+    const selected = Array.isArray(requestedProviders)
+      ? new Set(requestedProviders)
+      : null;
     inFlight = (async () => {
       const observedAt = dateFrom(now()) || new Date();
       const maxHookTtl = Math.max(
@@ -243,7 +257,7 @@ export function createActivityMonitor({
       for (const [key, entry] of hookSessions) {
         if (ageMs(observedAt.getTime(), entry.observedAtMs) > maxHookTtl * 2) hookSessions.delete(key);
       }
-      const entries = await Promise.all(providerList.map(async provider => {
+      const entries = await Promise.all(providerList.filter(provider => !selected || selected.has(provider.id)).map(async provider => {
         const hooked = hookActivity(provider.id, observedAt);
         if (hooked) return [provider.id, hooked];
         if (typeof provider.readActivity !== "function") return [provider.id, emptyActivity(provider.id, observedAt)];
@@ -268,8 +282,9 @@ export function createActivityMonitor({
     finally { inFlight = null; }
   }
 
-  async function getActivity() {
-    if (!current) return refresh();
+  async function getActivity({ enabledProviders } = {}) {
+    const requestedProviders = enabledProviders === undefined ? activeProviderIds : enabledProviders;
+    if (!current || selectionKey !== providerSelectionKey(requestedProviders)) return refresh({ enabledProviders: requestedProviders });
     return clone(current);
   }
 

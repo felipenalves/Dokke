@@ -9,6 +9,7 @@ import {
   nonNegative,
   progressResource,
   providerSnapshot,
+  readMacKeychain,
   responseMeta,
   responsePayload,
   resetTimestamp,
@@ -26,15 +27,40 @@ function authPaths(options) {
   return [join(home, ".config", "codex", "auth.json"), join(home, ".codex", "auth.json")];
 }
 
+function parseCredentialPayload(raw) {
+  if (raw && typeof raw === "object") return raw;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const text = raw.trim();
+  const candidates = [text];
+  if (text.startsWith("go-keyring-base64:")) {
+    try { candidates.unshift(Buffer.from(text.slice("go-keyring-base64:".length), "base64").toString("utf8")); } catch {}
+  }
+  if (/^[0-9a-f]+$/i.test(text) && text.length % 2 === 0) {
+    try { candidates.push(Buffer.from(text, "hex").toString("utf8")); } catch {}
+  }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {}
+  }
+  return null;
+}
+
 async function readCredentials(options) {
   if (options.credentials && typeof options.credentials === "object") return options.credentials;
   if (typeof options.readCredentials === "function") return options.readCredentials();
   for (const path of authPaths(options)) {
     try {
-      const parsed = JSON.parse(await readFile(path, "utf8"));
+      const parsed = parseCredentialPayload(await readFile(path, "utf8"));
       if (parsed?.tokens?.access_token || parsed?.tokens?.accessToken || parsed?.access_token) return parsed;
     } catch {}
   }
+  const keychainRead = options.keychainRead || (() => readMacKeychain({ service: "Codex Auth" }));
+  try {
+    const parsed = parseCredentialPayload(await keychainRead());
+    if (parsed?.tokens?.access_token || parsed?.tokens?.accessToken || parsed?.access_token) return parsed;
+  } catch {}
   return null;
 }
 

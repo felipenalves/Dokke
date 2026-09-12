@@ -42,6 +42,7 @@ import {
   PINNED_LIMIT_MESSAGE,
   pinnedLimits,
   normalizeUsageSettings,
+  normalizeUsageProviderIds,
   normalizeUsageProvider,
 } from "./config.js";
 import { connectOBS } from "./obs-ws.js";
@@ -64,6 +65,23 @@ const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const PING_MIN_INTERVAL_MS = 1500;
 /** Detecta conexões WebSocket quebradas sem adicionar tráfego HTTP. */
 const WS_HEARTBEAT_MS = 30_000;
+
+function filterUsageProviders(payload, enabledProviders) {
+  if (!payload || typeof payload !== "object" || !Array.isArray(enabledProviders)) return payload;
+  const canonicalId = id => {
+    const normalized = typeof id === "string" ? id.trim().toLowerCase() : id;
+    return normalized === "anthropic" ? "claude" : normalized;
+  };
+  const allowed = new Set(enabledProviders.map(canonicalId));
+  if (Array.isArray(payload.providers)) {
+    return { ...payload, providers: payload.providers.filter(provider => allowed.has(canonicalId(provider?.id))) };
+  }
+  if (!payload.providers || typeof payload.providers !== "object") return payload;
+  return {
+    ...payload,
+    providers: Object.fromEntries(Object.entries(payload.providers).filter(([id]) => allowed.has(canonicalId(id)))),
+  };
+}
 
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
@@ -498,14 +516,24 @@ export function makeApp(deps = {}) {
     }
     if (url.pathname === "/api/usage/activity" && req.method === "GET") {
       Promise.resolve()
-        .then(() => usageSource.getActivity ? usageSource.getActivity() : { ok: true, source: "dokke", sourceState: "available", updatedAt: new Date().toISOString(), providers: {}, errors: [] })
+        .then(async () => {
+          const cfg = await readConfig();
+          const data = usageSource.getActivity
+            ? await usageSource.getActivity({ enabledProviders: cfg.usage.providers })
+            : { ok: true, source: "dokke", sourceState: "available", updatedAt: new Date().toISOString(), providers: {}, errors: [] };
+          return filterUsageProviders(data, cfg.usage.providers);
+        })
         .then(data => ok(data))
         .catch(err => fail(res, err));
       return;
     }
     if (url.pathname === "/api/usage" && req.method === "GET") {
       Promise.resolve()
-        .then(() => usageSource.getUsage())
+        .then(async () => {
+          const cfg = await readConfig();
+          const data = await usageSource.getUsage({ enabledProviders: cfg.usage.providers });
+          return filterUsageProviders(data, cfg.usage.providers);
+        })
         .then(data => ok(data))
         .catch(err => fail(res, err));
       return;
@@ -537,7 +565,18 @@ export function makeApp(deps = {}) {
         const valid = usage && typeof usage === "object" && !Array.isArray(usage)
           && typeof usage.enabled === "boolean"
           && (usage.display === "used" || usage.display === "remaining")
-          && (usage.reset === "countdown" || usage.reset === "exact");
+          && (usage.reset === "countdown" || usage.reset === "exact")
+          && (!Object.prototype.hasOwnProperty.call(usage, "showPace") || typeof usage.showPace === "boolean")
+          && (!Object.prototype.hasOwnProperty.call(usage, "providers") || (
+            Array.isArray(usage.providers)
+            && normalizeUsageProviderIds(usage.providers).length === usage.providers.length
+            && new Set(normalizeUsageProviderIds(usage.providers)).size === usage.providers.length
+          ))
+          && (!Object.prototype.hasOwnProperty.call(usage, "providerOrder") || (
+            Array.isArray(usage.providerOrder)
+            && normalizeUsageProviderIds(usage.providerOrder).length === usage.providerOrder.length
+            && new Set(normalizeUsageProviderIds(usage.providerOrder)).size === usage.providerOrder.length
+          ));
         if (!valid) {
           respondError(400, { error: "preferências de uso inválidas" });
           return;
