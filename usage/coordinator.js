@@ -1,11 +1,12 @@
 import { join } from "node:path";
 import { aggregateUsageEvents, buildSpendSummary, buildUsageTrend } from "./history.js";
 import { createIncrementalFileCache } from "./history-cache.js";
-import { emptyHistory } from "./models.js";
+import { emptyHistory, TREND_DAYS } from "./models.js";
 
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 10 * 1000;
 const DEFAULT_BACKOFF_MS = 5 * 60 * 1000;
+const TREND_LOOKBACK_DAYS = 60;
 
 function isoNow(now) {
   const date = now instanceof Date ? now : new Date(now);
@@ -31,7 +32,7 @@ function hasData(provider) {
 }
 
 function historyResult(events, { pricing, providerId, now }) {
-  const aggregate = aggregateUsageEvents(events, { pricing, providerId, now });
+  const aggregate = aggregateUsageEvents(events, { pricing, providerId, now, daysBack: TREND_DAYS });
   const summary = buildSpendSummary(aggregate.series, now);
   const trend = buildUsageTrend(aggregate.series, now);
   const unknownModels = [...new Set(Object.values(aggregate.unknownModelsByDay).flat())].sort();
@@ -119,7 +120,7 @@ export function createUsageCoordinator({
       credentials = false;
     }
     const historyTask = typeof provider.readHistory === "function"
-      ? withTimeout(signal => provider.readHistory({ since: new Date(at.getTime() - 30 * 24 * 60 * 60 * 1000), cache, pricing: activePricing, signal }), timeoutMs)
+      ? withTimeout(signal => provider.readHistory({ since: new Date(at.getTime() - TREND_LOOKBACK_DAYS * 24 * 60 * 60 * 1000), cache, pricing: activePricing, signal }), timeoutMs)
       : Promise.resolve({ events: [] });
     const liveTask = credentials && typeof provider.fetchLive === "function"
       ? withTimeout(signal => provider.fetchLive({ signal, now: at }), timeoutMs)

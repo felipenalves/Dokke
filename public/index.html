@@ -45,14 +45,14 @@
     --edge: rgba(255,255,255,.10);
     --dokke-safe-top: env(safe-area-inset-top, 0px);
     --dokke-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --dokke-viewport-height: 100%;
     --app-tile: min(40vmin, max(21vw,21vh), 180px);
     --icon-turn: 0deg;
   }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  :focus{ outline: none; }
   html,body{
-    width:100%; height:100%;
-    min-height:100%; min-height:-webkit-fill-available;
+    width:100%; height:var(--dokke-viewport-height);
+    min-height:var(--dokke-viewport-height);
     background:#080301 !important;
     overflow:hidden;
   }
@@ -74,6 +74,12 @@
     padding: 0;
     overscroll-behavior: none;
   }
+  #dokke, #dokke *{
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+  }
   .bg{
     position: fixed;
     top: calc(-32px - env(safe-area-inset-top, 0px));
@@ -88,7 +94,7 @@
   }
 
   main{
-    position: fixed; inset:0;
+    position: fixed; inset:0; height:var(--dokke-viewport-height); min-height:0;
     padding: 0;
     z-index:1;
   }
@@ -97,13 +103,13 @@
      cada .screen é absolute e o container não empilha. A troca usa apenas
      translate no compositor; a camada ativa só muda depois do slide. */
   .screens{
-    position: fixed; inset:0;
+    position: fixed; inset:0; height:var(--dokke-viewport-height); min-height:0;
     padding: 0 14px;
     overflow: hidden;
     touch-action: none;
   }
   .screen{
-    position: absolute; top:0; left:0; right:0; bottom:0;
+    position: absolute; top:0; left:0; right:0; bottom:auto; height:var(--dokke-viewport-height); min-height:0;
     display: flex; flex-direction: column;
     padding-top: env(safe-area-inset-top, 0px);
     backface-visibility: hidden;
@@ -156,6 +162,9 @@
     70%{ box-shadow: 0 0 0 9px rgba(48,209,88,0); }
     100%{ box-shadow: 0 0 0 0 rgba(48,209,88,0); }
   }
+  @media (display-mode: standalone){
+    :root{ --dokke-viewport-height: 100dvh; }
+  }
 
   /* ---- stage (launchpad full-bleed; chrome lateral removido) ---- */
   .stage{
@@ -198,9 +207,11 @@
     box-sizing: border-box;
     /* A largura do slide permanece integral para não alterar o scrollLeft. */
     --tile: var(--app-tile);
-    --tile-r: 0.29;
-    --tile-in: 0.84;
-    --tile-in-r: 0.19;
+    /* DockIcon macOS: card 80, frame 68, inset 6, raios 28/20. O PNG web
+       normalizado usa 80% para ficar levemente maior na referência móvel. */
+    --tile-r: 0.32;
+    --tile-in: 0.80;
+    --tile-in-r: 0.27;
   }
   .page-grid{
     width: 100%; height: 100%;
@@ -281,6 +292,179 @@
     animation: appPress .30s cubic-bezier(.22,.61,.36,1);
     will-change: transform;
   }
+  /* Cards fechados: uma faixa única, centralizada e sem altura desperdiçada.
+     O indicador continua disponível quando há dados; sem dados, o `—` ocupa
+     exatamente o mesmo lugar visual do percentual. */
+  body.is-usage .usage-card.is-closed{
+    display: flex;
+    min-height: 54px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 18px;
+  }
+  body.is-usage .usage-card.is-closed .usage-card-head{
+    display: contents;
+    width: auto;
+    min-height: 0;
+    margin: 0;
+  }
+  body.is-usage .usage-card.is-closed .usage-provider-logo{
+    order: 1;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 9px;
+  }
+  body.is-usage .usage-card.is-closed .usage-provider-logo img,
+  body.is-usage .usage-card.is-closed .usage-provider-logo svg{
+    width: 19px;
+    height: 19px;
+  }
+  body.is-usage .usage-card.is-closed .usage-provider-name{
+    order: 2;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body.is-usage .usage-card.is-closed .usage-provider-plan{
+    margin-left: 4px;
+    font-size: 9px;
+  }
+  body.is-usage .usage-card.is-closed .usage-secondary-meter{
+    order: 3;
+    width: 42px;
+    height: 4px;
+    flex: 0 1 42px;
+    margin: 0;
+  }
+  body.is-usage .usage-card.is-closed .usage-peek{
+    order: 4;
+    flex: 0 0 auto;
+    margin-left: 0;
+    font-size: 17px;
+    line-height: 1;
+  }
+  body.is-usage .usage-card.is-closed .usage-card-chevron{
+    order: 5;
+    flex: 0 0 auto;
+    margin-left: 0;
+    color: var(--ink-2);
+    font-size: 25px;
+    line-height: .8;
+  }
+  @media (max-width: 699px) and (orientation: portrait){
+    body.is-usage .usage-stack{ gap: 10px; }
+  }
+  @media (max-width: 380px){
+    body.is-usage .usage-card.is-closed{
+      min-height: 50px;
+      gap: 6px;
+      padding: 7px 8px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo{
+      width: 26px;
+      height: 26px;
+      flex-basis: 26px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo img,
+    body.is-usage .usage-card.is-closed .usage-provider-logo svg{
+      width: 18px;
+      height: 18px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-name{ font-size: 13px; }
+    body.is-usage .usage-card.is-closed .usage-secondary-meter{ width: 34px; flex-basis: 34px; }
+    body.is-usage .usage-card.is-closed .usage-peek{ font-size: 15px; }
+    body.is-usage .usage-card.is-closed .usage-card-chevron{ font-size: 22px; }
+  }
+  @media (max-width: 699px) and (max-height: 520px) and (orientation: portrait){
+    body.is-usage .usage-stack{ gap: 8px; }
+  }
+  @media (orientation: landscape){
+    body.is-usage .usage-card.is-closed{
+      min-height: 48px;
+      gap: 6px;
+      padding: 6px 9px;
+      border-radius: 16px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo{
+      width: 26px;
+      height: 26px;
+      flex-basis: 26px;
+      border-radius: 8px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo img,
+    body.is-usage .usage-card.is-closed .usage-provider-logo svg{
+      width: 18px;
+      height: 18px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-name{ font-size: 12px; }
+    body.is-usage .usage-card.is-closed .usage-provider-plan{ font-size: 8px; }
+    body.is-usage .usage-card.is-closed .usage-secondary-meter{ width: 34px; flex-basis: 34px; height: 3px; }
+    body.is-usage .usage-card.is-closed .usage-peek{ font-size: 15px; }
+    body.is-usage .usage-card.is-closed .usage-card-chevron{ font-size: 22px; }
+  }
+  @media (max-width: 699px) and (max-height: 520px) and (orientation: portrait){
+    /* Em alturas muito curtas, três cards secundários ainda precisam caber
+       junto do pager. A redução é local: não altera a escala do iPhone 16. */
+    body.is-usage .usage-card.is-open{ padding: 7px; }
+    body.is-usage .usage-card.is-open .usage-card-head{ min-height: 23px; }
+    body.is-usage .usage-metric-5h{
+      grid-template-columns: 84px minmax(0, 1fr);
+      min-height: 84px;
+      gap: 4px;
+    }
+    body.is-usage .usage-gauge-wrap{
+      width: 84px;
+      height: 84px;
+      flex-basis: 84px;
+    }
+    body.is-usage .usage-card.is-open .usage-gauge-copy .usage-limit-value{ font-size: 24px; }
+    body.is-usage .usage-card.is-open .usage-gauge-copy .usage-limit-unit{ font-size: 10px; }
+    body.is-usage .usage-five-copy{ gap: 3px; }
+    body.is-usage .usage-reset-block .usage-limit-reset-value{ font-size: 17px; }
+    body.is-usage .usage-pace-explanation{
+      min-height: 20px;
+      margin: 3px 0;
+      padding: 4px 5px;
+      font-size: 7px;
+      white-space: nowrap;
+    }
+    body.is-usage .usage-pace-explanation-copy{ overflow: hidden; text-overflow: ellipsis; }
+    body.is-usage .usage-metric-week{ margin-top: 4px; padding-top: 4px; }
+    body.is-usage .usage-week-row{ gap: 2px; margin-top: 2px; }
+    body.is-usage .usage-week-bar{ height: 4px; }
+    body.is-usage .usage-card.is-closed{
+      min-height: 44px;
+      gap: 6px;
+      padding: 5px 8px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo{
+      width: 24px;
+      height: 24px;
+      flex-basis: 24px;
+      border-radius: 7px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-logo img,
+    body.is-usage .usage-card.is-closed .usage-provider-logo svg{
+      width: 16px;
+      height: 16px;
+    }
+    body.is-usage .usage-card.is-closed .usage-provider-name{ font-size: 12px; }
+    body.is-usage .usage-card.is-closed .usage-provider-plan{ font-size: 8px; }
+    body.is-usage .usage-card.is-closed .usage-secondary-meter{ width: 32px; flex-basis: 32px; height: 3px; }
+    body.is-usage .usage-card.is-closed .usage-peek{ font-size: 14px; }
+    body.is-usage .usage-card.is-closed .usage-card-chevron{ font-size: 21px; }
+  }
+
   @media (prefers-reduced-motion: reduce){
     .atile.is-activating, .dcard.is-activating{ animation:none; }
   }
@@ -303,7 +487,7 @@
   .website-plate{
     position: relative; z-index: 1;
     display: flex; align-items: center; justify-content: center;
-    width: 82%; height: 82%;
+    width: 80%; height: 80%;
     border: 1px solid rgba(255,255,255,.72);
     border-radius: 26%;
     background: rgba(255,255,255,.96);
@@ -311,12 +495,12 @@
     overflow: hidden;
   }
   .atile .aglass .website-plate img.aicon{
-    width: 72%; height: 72%;
+    width: calc(100% * var(--tile-in)); height: calc(100% * var(--tile-in));
     border-radius: 18%;
     object-fit: cover;
   }
   .atile .aglass .website-plate .gicon{
-    width: 72%; height: 72%;
+    width: calc(100% * var(--tile-in)); height: calc(100% * var(--tile-in));
     border-radius: 18%;
     color: rgba(0,0,0,.62);
     text-shadow: none;
@@ -347,12 +531,12 @@
   /* launchpad: tamanho fluido — aglass e ícone preenchem o tile */
   .atile .aglass{
     width: 100%; height: 100%;
-    border-radius: 29%;
+    border-radius: 32%;
   }
-  .atile .aglass::before{ border-radius: 29%; }
+  .atile .aglass::before{ border-radius: 32%; }
   .atile .aglass .gicon, .atile .aglass img.aicon{
-    width: 84%; height: 84%;
-    border-radius: 18%;
+    width: 80%; height: 80%;
+    border-radius: 27%;
   }
   .atile .aglass img.aicon:not(.ready){ opacity:0; transition: opacity .16s ease; }
   .atile .aglass img.aicon.ready{ opacity:1; }
@@ -362,7 +546,7 @@
     .atile .aglass::before{ border-radius: calc(100cqi * var(--tile-r)); }
     .atile .aglass .gicon, .atile .aglass img.aicon{
       width: calc(100cqi * var(--tile-in)); height: calc(100cqi * var(--tile-in));
-      border-radius: calc(100cqi * var(--tile-in-r));
+      border-radius: calc(100% * var(--tile-in-r));
     }
     .atile .aglass .gicon{ font-size: 30cqi; }
   }
@@ -483,20 +667,20 @@
     user-select: none; -webkit-user-select: none;
     -webkit-touch-callout: none;
     container-type: inline-size;
-    --tile-r: 0.29;
-    --tile-in: 0.84;
-    --tile-in-r: 0.19;
+    --tile-r: 0.32;
+    --tile-in: 0.80;
+    --tile-in-r: 0.27;
   }
   .dcard .aglass{
     flex: 0 0 auto;
     width: var(--app-tile);
     height: var(--app-tile);
-    border-radius: 29%;
+    border-radius: 32%;
   }
-  .dcard .aglass::before{ border-radius: 29%; }
+  .dcard .aglass::before{ border-radius: 32%; }
   .dcard .aglass .gicon, .dcard .aglass img.aicon{
-    width: 84%; height: 84%;
-    border-radius: 18%;
+    width: 80%; height: 80%;
+    border-radius: 27%;
   }
   .dcard .aglass .gicon{ font-size: clamp(30px, 3vw, 66px); }
   @supports (width: 1cqi){
@@ -504,7 +688,7 @@
     .dcard .aglass::before{ border-radius: calc(100cqi * var(--tile-r)); }
     .dcard .aglass .gicon, .dcard .aglass img.aicon{
       width: calc(100cqi * var(--tile-in)); height: calc(100cqi * var(--tile-in));
-      border-radius: calc(100cqi * var(--tile-in-r));
+      border-radius: calc(100% * var(--tile-in-r));
     }
     .dcard .aglass .gicon{ font-size: 30cqi; }
   }
@@ -530,8 +714,11 @@
     flex: 0 0 auto; display: flex; align-items: center;
     width: calc(100% - 40px); max-width: 360px;
     margin: 18px 20px 0; padding: 12px 14px; border-radius: 18px;
-    background: linear-gradient(160deg, rgba(10,132,255,.22), rgba(94,92,230,.16));
-    border: 1px solid rgba(10,132,255,.35);
+    background: linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.045) 58%, rgba(74,27,12,.25));
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 24px rgba(0,0,0,.12);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
     box-sizing: border-box;
   }
   .robscard .ic{ font-size: 20px; margin-right: 10px; }
@@ -598,7 +785,8 @@
   .usage-resource-value{ color: var(--ink); font-size: 13px; font-weight: 800; text-align: right; }
   .usage-resource-bottom{ color: var(--ink-3); font-size: 10px; margin-top: 5px; }
   .usage-resource-meter{ height: 5px; margin-top: 8px; }
-  .usage-state{ display: grid; align-content: center; justify-items: center; gap: 10px; min-height: 190px; margin: 0 8px; padding: 42px 24px 40px; border: 1px solid rgba(255,255,255,.13); border-radius: 22px; background: rgba(15,18,29,.78); color: var(--ink-2); font-size: 13px; line-height: 1.45; text-align: center; text-transform: none; }
+  .usage-state{ display: grid; align-content: center; justify-items: center; gap: 10px; min-height: 190px; margin: 0 8px; padding: 42px 24px 40px; border: 1px solid rgba(255,255,255,.13); border-radius: 22px; background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035) 58%, rgba(74,27,12,.22)); box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 24px rgba(0,0,0,.12); backdrop-filter: blur(14px) saturate(125%); -webkit-backdrop-filter: blur(14px) saturate(125%); color: var(--ink-2); font-size: 13px; line-height: 1.45; text-align: center; text-transform: none; }
+  .usage-state[data-state="loading"]{ min-height: 0; margin: 0 8px; padding: 22px 16px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
   .usage-state[data-state="warning"]{ border-style: dashed; border-color: rgba(246,183,88,.32); }
   .usage-state-icon{ display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(240,135,55,.34); border-radius: 50%; background: rgba(240,135,55,.10); color: var(--dokke-orange); }
   .usage-state-title{ display: block; color: var(--ink); font-size: 15px; font-weight: 800; }
@@ -643,6 +831,15 @@
     .usage-charts{ width: 100%; justify-content: space-around; }
     .usage-featured-copy{ width: 100%; }
   }
+  @media (max-width: 620px){
+    .usage-trend-summary{ gap: 7px; margin-bottom: 10px; }
+    .usage-trend-summary-head{ gap: 7px; }
+    .usage-trend-summary-metrics{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+    .usage-trend-summary-metric{ justify-content: initial; gap: 2px; padding: 1px 5px; }
+    .usage-trend-summary-metric:first-child{ padding-left: 0; border-left: 0; }
+  .usage-trend-summary-label{ font-size: 8px; line-height: 1.1; }
+  .usage-trend-summary-value{ font-size: 10px; letter-spacing: -.04em; }
+  }
   @media (prefers-reduced-motion: reduce){ .usage-ring{ transition: none; } }
 
   /* Painel de Uso: monitor compacto inspirado em um display dedicado. */
@@ -680,6 +877,7 @@
   .usage-provider-dot{ width: 6px; height: 6px; margin: 0 5px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: all .2s ease; }
   .usage-provider-dot[aria-current="true"]{ width: 14px; height: 6px; border-radius: 3px; background: #fff; }
   .usage-stack{ display: flex; flex-direction: column; gap: 12px; flex: 1 0 auto; min-height: 0; margin: 0 8px; }
+  .usage-side{ display: contents; }
   .usage-card{ --usage-accent: var(--green); margin: 0 8px 16px; padding: 12px; border: 1px solid rgba(255,255,255,.075); border-radius: 18px; background: rgba(25,10,4,.88); box-shadow: 0 12px 28px rgba(0,0,0,.16); }
   .usage-card.is-open{ margin: 0; padding: 0; background: transparent; border-color: transparent; box-shadow: none; }
   .usage-card.is-closed{
@@ -702,8 +900,12 @@
   .usage-provider-logo{ display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: rgba(255,255,255,.065); color: var(--ink); }
   .usage-provider-logo img, .usage-provider-logo svg{ display: block; width: 21px; height: 21px; object-fit: contain; }
   .usage-provider-logo-fallback{ color: var(--ink-2); font-size: 12px; font-weight: 800; line-height: 1; }
-  .usage-provider-logo[data-provider="claude"]{ background: #f4e6d8; color: #d97757; }
-  .usage-provider-logo[data-provider="codex"]{ color: #f5f7ff; background: transparent; }
+  .usage-provider-logo[data-provider="claude"]{ background: transparent; color: var(--ink); }
+  .usage-provider-logo[data-provider="codex"]{ color: var(--ink); background: transparent; }
+  .usage-provider-logo[data-provider="claude"] img{ width: 22px; height: 22px; filter: brightness(0) invert(1); }
+  .usage-provider-logo[data-provider="codex"] svg{ width: 22px; height: 22px; }
+  .usage-provider-logo[data-provider="antigravity"] img{ width: 22px; height: 22px; filter: brightness(0) invert(1); transform: scale(1.12); }
+  .usage-provider-logo[data-provider="antigravity"]{ background: transparent; color: var(--ink); }
   .usage-provider-name{ font-size: 15px; letter-spacing: -.01em; }
   .usage-provider-plan{ display: inline; margin-left: 6px; color: var(--ink-3); font-size: 10px; }
   .usage-mascot-wrap{ --usage-mascot-accent: var(--dokke-orange); position: relative; display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; width: 36px; height: 38px; margin-left: auto; overflow: visible; }
@@ -856,16 +1058,20 @@
   .usage-limit-meter i[data-active="true"]{ background: var(--usage-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--usage-accent) 42%, transparent); }
   .usage-limit .usage-provider-logo{ position: absolute; top: 8px; right: 9px; width: 24px; height: 24px; border-radius: 0; }
   .usage-limit .usage-provider-logo svg{ width: 22px; height: 22px; }
-  .usage-trend{ margin-top: 10px; padding: 16px 16px 13px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px; background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.20); }
+  .usage-trend{ margin-top: 10px; padding: 16px 16px 13px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px; background: linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.045) 46%, rgba(7,9,11,.62)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 24px rgba(0,0,0,.12); -webkit-backdrop-filter: blur(14px) saturate(1.08); backdrop-filter: blur(14px) saturate(1.08); }
   .usage-trend-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .usage-trend-title{ color: var(--ink); font-size: 12px; font-weight: 800; }
   .usage-trend-peak{ overflow: hidden; color: var(--ink-3); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-  .usage-trend-bars{ position: relative; display: flex; align-items: flex-end; gap: 3px; height: clamp(150px, 31vh, 230px); margin-top: 13px; padding: 0 1px 3px; border-bottom: 1px solid rgba(255,255,255,.16); background-image: linear-gradient(to bottom, transparent 0, transparent calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% - .5px), rgba(255,255,255,.065) calc(33.333% + .5px), transparent calc(33.333% + .5px), transparent calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% - .5px), rgba(255,255,255,.065) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
-  .usage-trend-bar{ position: relative; z-index: 1; min-width: 2px; flex: 1 1 0; height: var(--trend-height); border-radius: 3px 3px 1px 1px; background: var(--ink); }
-  .usage-trend-bar[data-level="empty"]{ height: 2px; }
-  .usage-trend-axis{ display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; color: var(--ink-3); font-size: 9px; }
-  .usage-trend-axis-label{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .usage-trend-note{ display: block; margin-top: 10px; color: var(--ink-3); font-size: 10px; line-height: 1.3; text-align: center; }
+  .usage-head-mascot[hidden]{ display: none; }
+  .usage-trend-summary{ display: flex; flex-direction: column; gap: 6px; margin: 0 0 5px; min-width: 0; color: var(--ink); }
+  .usage-trend-summary-head{ display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+  .usage-trend-summary-title{ color: var(--ink); font-size: clamp(15px, 1.5vw, 22px); font-weight: 800; letter-spacing: -.025em; }
+  .usage-trend-summary-window{ overflow: hidden; color: var(--ink-3); font-size: clamp(11px, 1vw, 14px); text-overflow: ellipsis; white-space: nowrap; }
+  .usage-trend-summary-metrics{ display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 18px; min-width: 0; }
+  .usage-trend-summary-metric{ display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .usage-trend-summary-label{ color: var(--ink-3); font-size: clamp(10px, .9vw, 13px); font-weight: 700; }
+  .usage-trend-summary-value{ color: var(--ink); font-size: clamp(13px, 1.15vw, 17px); font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
   .usage-limit-empty{ color: var(--ink-2); }
   .usage-featured-copy{ display: none; }
   .usage-more{ margin-top: 11px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); }
@@ -892,22 +1098,36 @@
     .usage-limits{ grid-template-columns: minmax(0, 1fr); gap: 9px; }
   }
   @media (max-width: 699px) and (orientation: portrait){
-    .usage-provider-track{ flex: 1 1 auto; width: 100%; min-height: 0; }
-    .usage-provider-slide{ display: flex; width: 100%; flex-direction: column; }
+    .usage-provider-slider{ flex: 1 1 auto; min-height: 0; }
+    .usage-provider-track{ flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; align-items: stretch; }
+    .usage-provider-slide{ display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; }
     .usage-provider-slide .usage-card{ flex: 1 1 auto; display: flex; width: 100%; flex-direction: column; }
     .usage-featured{ flex: 1 1 auto; display: flex; width: 100%; flex-direction: column; }
     .usage-limits{ flex: 1 1 auto; min-height: 0; width: 100%; grid-template-rows: minmax(0, 1.18fr) minmax(0, 1fr); }
     .usage-limit{ min-height: 0; }
     .usage-limit.primary{ min-height: 0; }
+    .usage-trend-slide{ height: 100%; min-height: 0; }
+    .usage-trend-slide .usage-trend{ display: flex; height: 100%; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+    .usage-trend-slide .usage-trend-plot{ flex: 1 1 auto; min-height: 0; }
+    .usage-trend-slide .usage-trend-bars{ height: 100%; min-height: clamp(180px, 34vh, 420px); flex: 0 1 auto; }
   }
   @media (min-height: 781px) and (max-width: 699px) and (orientation: portrait){
     .usage-scroll{ padding-top: 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
     .usage-head{ margin-top: 0; margin-bottom: 8px; }
     .usage-card-head{ margin-bottom: 6px; }
   }
+  @media (max-height: 520px) and (max-width: 699px) and (orientation: portrait){
+    .usage-provider-slider{ flex: 0 0 auto; min-height: 0; }
+    .usage-provider-track{ height: auto; flex: 0 0 auto; align-items: stretch; }
+    .usage-provider-slide{ height: auto; min-height: 0; }
+    .usage-trend-slide{ height: auto; min-height: 0; }
+    .usage-trend-slide .usage-trend{ height: auto; min-height: 0; flex: 0 0 auto; }
+    .usage-trend-slide .usage-trend-plot{ flex: 0 0 auto; min-height: 0; }
+    .usage-trend-slide .usage-trend-bars{ height: clamp(180px, 34vh, 240px); min-height: 0; flex: 0 0 auto; }
+  }
   @media (orientation: landscape) and (max-height: 520px){
-    .usage-scroll{ padding: 4px 10px calc(3px + env(safe-area-inset-bottom, 0px)); overflow-y: hidden; }
-    .usage-head{ margin: 0 8px 3px; }
+    .usage-scroll{ padding-top: clamp(10px, 2.8vh, 16px); padding-right: 10px; padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px)); padding-left: 10px; overflow-y: hidden; }
+    .usage-head{ margin: 0 8px 6px; }
     .usage-head-copy{ display: block; min-width: 0; }
     .usage-title{ overflow: hidden; font-size: 24px; margin-top: 0; text-overflow: ellipsis; white-space: nowrap; }
     .usage-sync{ gap: 5px; margin-top: 4px; min-height: 0; white-space: nowrap; }
@@ -939,7 +1159,7 @@
     .usage-trend{ margin-top: 0; padding: 14px 13px 11px; border-radius: 32px; }
     .usage-trend-title{ font-size: 10px; }
     .usage-trend-peak{ font-size: 9px; }
-    .usage-trend-bars{ height: clamp(34px, 12vh, 48px); margin-top: 4px; }
+    .usage-trend-bars{ height: auto; min-height: clamp(140px, 42vh, 240px); flex: 1 1 auto; margin-top: 4px; }
     .usage-trend-axis{ margin-top: 3px; font-size: 8px; }
     .usage-trend-note{ margin-top: 3px; font-size: 8px; }
     .usage-provider-dots{ padding-top: 1px; padding-bottom: 0; }
@@ -992,8 +1212,10 @@
   }
   .usage-card.is-open{
     margin: 0; padding: 16px; border: 1px solid rgba(255,255,255,.09); border-radius: 32px;
-    background: linear-gradient(180deg, rgba(22,24,27,.84), rgba(12,14,16,.89));
-    box-shadow: none;
+    background: linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.045) 46%, rgba(7,9,11,.62));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 24px rgba(0,0,0,.12);
+    -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    backdrop-filter: blur(14px) saturate(1.08);
   }
   .usage-card.is-open .usage-featured{ margin-top: 0; }
   .usage-card.is-open .usage-featured{
@@ -1032,7 +1254,11 @@
   .usage-card.is-open .usage-week-value .usage-limit-value{ margin: 0; color: var(--ink); font-size: 18px; font-weight: 800; }
   .usage-week-caption{ display: none; color: var(--ink-3); font-size: 9px; font-weight: 800; text-transform: lowercase; }
   .usage-week-row{ display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: 8px; }
-  .usage-week-bar{ position: relative; height: 6px; overflow: visible; border-radius: 99px; background: rgba(255,255,255,.1); }
+  .usage-week-bar{
+    position: relative; height: 6px; overflow: visible; border: 1px solid rgba(255,255,255,.10); border-radius: 99px;
+    background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.18);
+  }
   .usage-week-bar i{ display: block; height: 100%; border-radius: inherit; background: var(--usage-accent); box-shadow: inset 0 1px 0 rgba(255,255,255,.16); transition: width .32s ease, background-color .2s ease; }
   .usage-week-pace-tick{
     position: absolute; top: -3px; z-index: 1; width: 3px; height: 12px; transform: translateX(-1.5px);
@@ -1062,8 +1288,8 @@
   .usage-card.is-closed .usage-provider-logo{ width: 24px; height: 24px; border-radius: 7px; }
   .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 15px; height: 15px; }
   .usage-card.is-open[data-status="attention"]{ --usage-accent: #ff8a38; }
-  .usage-card.is-closed .usage-provider-logo[data-provider="codex"]{ background: #111; border: 1px solid rgba(255,255,255,.12); }
-  .usage-title{ font-family: inherit; font-size: 36px; font-weight: 700; line-height: .95; letter-spacing: -.055em; }
+  .usage-card.is-closed .usage-provider-logo[data-provider="codex"]{ background: transparent; border: 0; box-shadow: none; }
+  .usage-title{ font-family: "Bricolage Grotesque", sans-serif; font-size: 36px; font-weight: 700; line-height: .95; letter-spacing: -.055em; }
   .usage-head{ gap: 10px; margin-left: 0; margin-right: 8px; margin-bottom: 0; }
   .usage-card.is-open .usage-card-head{ min-height: 28px; margin-bottom: 0; }
   .usage-mascot-wrap[data-status="attention"]{ --usage-mascot-accent: #ff8a38; }
@@ -1114,50 +1340,97 @@
     .usage-provider-logo{ width: 24px; height: 24px; border-radius: 7px; }
     .usage-provider-logo img, .usage-provider-logo svg{ width: 15px; height: 15px; }
   }
+
   .usage-scroll{ padding-top: 28px; }
   .usage-head{ margin-bottom: 0; }
   .usage-card.is-open{ padding: 16px 16px 14px; }
   @media (orientation: portrait){
-    .usage-scroll{ padding: 14px 0 30px; }
+    .usage-scroll{ padding: 14px 0 calc(8px + env(safe-area-inset-bottom, 0px)); }
   }
 
-  /* Usage mobile horizontal: aproveita a largura da tela e separa a
-     leitura principal dos provedores secundários. */
-  @media (orientation: landscape) and (max-height: 760px) and (pointer: coarse),
-         (max-width: 699px) and (orientation: landscape){
+  /* Usage landscape: composição responsiva para mobile, tablet e desktop. */
+  @media (orientation: landscape){
     .usage-scroll{
       align-items: stretch;
       overflow: hidden;
-      padding: 10px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+      padding: clamp(10px, 2.8vh, 28px) clamp(16px, 3.2vw, 64px) calc(clamp(8px, 1.8vh, 20px) + env(safe-area-inset-bottom, 0px));
     }
     .usage-content{
-      width: min(100%, 620px); max-width: 620px; min-height: 0; flex: 1 1 auto;
-      margin: 0 auto; padding: 0;
+      width: min(100%, 1180px); max-width: 1180px; height: 100%; min-height: 0; flex: 1 1 auto;
+      justify-content: center; margin: 0 auto; padding: 0;
     }
-    .usage-head{ min-height: 50px; margin: 0 8px 10px; align-items: center; }
-    .usage-title{ font-size: 30px; }
+    .usage-head{ min-height: clamp(50px, 7vh, 72px); margin: 0 8px clamp(10px, 1.8vh, 20px); align-items: center; }
+    .usage-title{ font-size: clamp(28px, 3vw, 42px); }
     .usage-provider-slider{ width: 100%; min-height: 0; flex: 1 1 auto; }
-    .usage-provider-track{ width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
-    .usage-provider-slide{ display: block; width: 100%; height: 100%; min-height: 0; padding: 0; }
+    .usage-provider-track{ width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; align-items: stretch; overflow-x: auto; overflow-y: hidden; contain: paint; isolation: isolate; }
+    .usage-provider-slide{ display: block; width: 100%; height: 100%; min-height: 0; padding: 0; box-sizing: border-box; overflow: hidden; contain: layout paint; scroll-snap-stop: always; }
+    .usage-provider-track > .usage-provider-slide{ width: 100%; min-width: 100%; max-width: 100%; flex: 0 0 100%; }
     .usage-stack{
-      display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-rows: repeat(3, minmax(0,1fr));
-      gap: 8px 12px; width: 100%; height: 100%; min-height: 0; margin: 0;
+      display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,.8fr); grid-template-rows: minmax(0,1fr);
+      gap: 0 clamp(14px, 1.8vw, 24px); width: calc(100% - 16px); height: clamp(228px, 62vh, 420px); min-height: 0; margin: 0 8px;
+      align-items: stretch;
+    }
+    .usage-stack[data-secondary-count="0"]{
+      grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr);
     }
     .usage-card.is-open{
-      grid-column: 1; grid-row: 1 / span 3; height: 100%; min-height: 0; padding: 10px; border-radius: 32px;
+      display: flex; flex-direction: column; grid-column: 1; grid-row: 1; height: 100%; min-height: 0; align-self: stretch; padding: clamp(12px, 1.4vw, 20px); cursor: pointer;
     }
     .usage-card.is-closed{
-      grid-column: 2; height: auto; min-height: 0; margin: 0; padding: 10px 12px; border-radius: 20px;
+      grid-column: 1; align-self: stretch; height: auto; min-height: 0; margin: 0; padding: clamp(10px, 1vw, 14px) clamp(12px, 1.2vw, 18px);
     }
+    .usage-side{ grid-column: 2; grid-row: 1; display: flex; min-width: 0; flex-direction: column; align-items: stretch; gap: clamp(12px, 1vw, 16px); }
+    .usage-stack[data-secondary-count="0"] .usage-card.is-open{ grid-column: 1; }
+    .usage-card.is-open .usage-featured{ display: flex; flex: 1 1 auto; flex-direction: column; justify-content: flex-start; width: 100%; height: auto; min-height: 0; padding: 0; }
+    .usage-card.is-open .usage-limits{ width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; justify-content: flex-start; }
+    .usage-card.is-open .usage-limit{ flex: 0 0 auto; height: auto; }
+    .usage-card.is-open .usage-limit.primary{ min-height: 0; }
+    .usage-metric-5h{ grid-template-columns: clamp(120px, 16vw, 180px) minmax(0,1fr); min-height: 0; gap: clamp(6px, 1vw, 18px); }
+    .usage-gauge-wrap{ width: clamp(120px, 16vw, 180px); height: clamp(120px, 16vw, 180px); flex-basis: clamp(120px, 16vw, 180px); }
+    .usage-card.is-open .usage-gauge-copy .usage-limit-value{ font-size: clamp(28px, 2.2vw, 38px); }
     .usage-card.is-closed .usage-card-head{ margin: 0; }
-    .usage-trend-slide{ display: flex; height: 100%; padding: 22px 0 0; }
-    .usage-trend-slide .usage-trend{ min-height: 0; flex: 1 1 auto; }
+    .usage-trend-slide{ display: flex; height: 100%; min-height: 0; align-items: stretch; padding: 0; }
+    .usage-trend-slide > .usage-trend-summary{ flex: 0 0 auto; }
+    .usage-trend-slide .usage-trend{ display: flex; width: 100%; height: 100%; max-width: none; min-height: 0; flex: 1 1 auto; flex-direction: column; margin: 0; }
+    .usage-trend-slide .usage-trend-bars{ height: auto; min-height: clamp(140px, 34vh, 320px); flex: 1 1 auto; }
+    .usage-trend-note{ display: -webkit-box; max-height: 1.3em; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
     .usage-provider-dots{ flex: 0 0 auto; margin-top: 0; padding: 4px 0 2px; }
+  }
+
+  @media (orientation: landscape) and (max-width: 620px){
+    .usage-stack{ grid-template-columns: minmax(0,1.2fr) minmax(180px,.8fr); gap: 0 10px; }
+    .usage-metric-5h{ grid-template-columns: 112px minmax(0,1fr); gap: 6px; }
+    .usage-gauge-wrap{ width: 112px; height: 112px; flex-basis: 112px; }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px){
+    .usage-scroll{ padding-top: clamp(10px, 2.8vh, 16px); padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px)); }
+    .usage-head{ min-height: 36px; margin: 0 8px 6px; }
+    .usage-title{ font-size: 24px; }
+    .usage-stack{ gap: 8px 12px; }
+    .usage-card.is-open{ padding: 10px; }
+    .usage-card.is-open .usage-card-head{ min-height: 24px; }
+    .usage-metric-5h{ grid-template-columns: clamp(118px, 31vh, 142px) minmax(0,1fr); gap: 6px; min-height: 0; }
+    .usage-gauge-wrap{ width: clamp(118px, 31vh, 142px); height: clamp(118px, 31vh, 142px); flex-basis: clamp(118px, 31vh, 142px); }
+    .usage-card.is-open .usage-gauge-copy .usage-limit-value{ font-size: clamp(24px, 6.6vh, 32px); }
+    .usage-five-copy .usage-limit-reset-value{ font-size: clamp(20px, 5.6vh, 24px); }
+    .usage-metric-week{ min-height: 0; margin-top: 7px; padding-top: 7px; }
+    .usage-week-row{ margin-top: 5px; }
+    .usage-trend-slide{ height: 100%; min-height: 0; padding: 0; }
+    .usage-trend-slide > .usage-trend-summary{ margin-bottom: 6px; }
+    .usage-trend-slide .usage-trend{ height: 100%; min-height: 0; flex: 1 1 auto; margin-top: 0; padding: 10px 12px 9px; }
+    .usage-trend-slide .usage-trend-summary{ gap: 5px; margin-bottom: 3px; }
+    .usage-trend-slide .usage-trend-summary-head{ gap: 7px; }
+    .usage-trend-slide .usage-trend-plot{ flex: 1 1 auto; min-height: 0; margin-top: 3px; }
+    .usage-trend-slide .usage-trend-bars{ height: 100%; min-height: clamp(140px, 42vh, 240px); flex: 0 1 auto; margin-top: 0; }
+    .usage-trend-slide .usage-trend-axis{ margin-top: 5px; }
+    .usage-trend-slide .usage-trend-legend{ margin-top: 6px; }
+    .usage-trend-note{ margin-top: 4px; }
   }
 
   /* Desktop mantém a leitura vertical do retrato, mas usa o frame disponível.
      O pager continua horizontal apenas para alternar entre contas e tendência. */
-  @media (min-width: 700px){
+  @media (min-width: 700px) and (orientation: portrait){
     .usage-scroll{
       align-items: center;
       padding: 28px 0 calc(30px + env(safe-area-inset-bottom, 0px));
@@ -1169,12 +1442,27 @@
       padding: 14px 0 0;
     }
     .usage-head{ margin: 4px 8px 18px; }
-    .usage-provider-slider{ width: 100%; flex: 0 0 auto; }
-    .usage-provider-track{ width: 100%; overflow-x: auto; overflow-y: hidden; }
-    .usage-provider-slide{ width: 100%; min-width: 100%; padding: 0; }
+    .usage-provider-slider{ width: 100%; flex: 1 1 auto; min-height: 0; }
+    .usage-provider-track{ width: 100%; height: 100%; flex: 1 1 auto; align-items: stretch; overflow-x: auto; overflow-y: hidden; }
+    .usage-provider-slide{ width: 100%; min-width: 100%; height: 100%; min-height: 0; padding: 0; }
     .usage-stack{ width: 100%; margin: 22px 0 0; }
     .usage-card.is-open{ box-shadow: none; filter: none; }
     .usage-card.is-closed{ box-shadow: none; filter: none; }
+    .usage-trend-slide{ display: flex; height: 100%; min-height: 0; align-items: stretch; }
+    .usage-trend-slide .usage-trend{ display: flex; width: 100%; height: 100%; max-width: none; min-height: 0; flex: 1 1 auto; flex-direction: column; margin: 0; }
+    .usage-trend-slide .usage-trend-plot{ flex: 1 1 auto; min-height: 0; }
+    .usage-trend-slide .usage-trend-bars{ height: 100%; min-height: clamp(180px, 34vh, 420px); flex: 0 1 auto; }
+  }
+
+  /* No retrato, o gráfico de barras tem altura própria e acompanha o conteúdo. O slide
+     continua ocupando a largura inteira, mas o frame não cresce até a altura
+     total da página sem conteúdo para preencher. */
+  @media (orientation: portrait){
+    .usage-trend-slide{ height: auto; min-height: 0; align-self: flex-start; }
+    .usage-trend-slide .usage-trend{ height: auto; min-height: 0; flex: 0 0 auto; }
+    .usage-trend-slide .usage-trend-plot{ --trend-cell-size: clamp(10px, 2.8vw, 15px); --trend-gap: clamp(2px, .6vw, 4px); flex: 0 0 auto; }
+    .usage-trend-slide .usage-trend-bars{ height: clamp(180px, 26vh, 320px); min-height: 0; flex: 0 0 auto; }
+    .usage-trend-slide .usage-trend-calendar{ display: flex; height: 100%; min-height: 0; flex-direction: column; }
   }
 
   /* ---- landscape: grade 4x2, dock escala (GPU), arte normal no PWA ---- */
@@ -1337,17 +1625,43 @@
 
   /* ---- toast ---- */
   .toast{
-    position: fixed; left:50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+    position: fixed; left:50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
     transform: translateX(-50%) translateY(20px);
-    z-index: 60; min-width: 200px; max-width: 320px; text-align:center;
-    padding: 13px 20px; border-radius: 16px;
-    background: rgba(28,34,54,.94); border:1px solid rgba(255,255,255,.14);
-    box-shadow: 0 14px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
-    color: var(--ink); font-size: 13.5px; font-weight: 600;
+    z-index: 60; display:flex; width:fit-content; max-width:calc(100vw - 24px);
+    min-width:0; align-items:center; justify-content:center; gap:8px;
+    padding: 8px 12px; border-radius: 999px;
+    --toast-accent: var(--dokke-orange);
+    --toast-ring: rgba(240,135,55,.16);
+    background:rgba(37,18,11,.9);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow: 0 8px 24px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+    color: var(--ink); font-size: 12px; font-weight: 600;
+    line-height: 1.15; text-align:center; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
     opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
   }
+  .toast::before{
+    content:""; flex:0 0 6px; width:6px; height:6px; border-radius:50%;
+    background:var(--toast-accent); box-shadow:none;
+  }
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
-  .toast.err{ border-color: rgba(255,69,58,.5); color:#ffb3ae; }
+  .toast.ok{
+    --toast-accent: var(--green);
+    --toast-ring: rgba(48,209,88,.16);
+    border-color: rgba(48,209,88,.28);
+  }
+  .toast.sync{
+    --toast-accent: var(--amber);
+    --toast-ring: rgba(255,214,10,.15);
+    border-color: rgba(255,214,10,.26);
+  }
+  .toast.err{
+    --toast-accent: var(--red);
+    --toast-ring: rgba(255,69,58,.16);
+    border-color: rgba(255,69,58,.38); color:#ffb3ae;
+  }
 
   /* ---- aviso de atualização ---- */
   .up-banner{
@@ -1401,10 +1715,10 @@
     text-align:center; animation: rise .18s ease;
   }
   .login-card .lkey{ width:62px; height:62px; margin:0 auto 14px; border-radius:20px;
-    padding:4px;
-    background: linear-gradient(160deg, rgba(10,132,255,.32), rgba(10,132,255,.10));
-    border:1px solid rgba(255,255,255,.16);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+    padding:0;
+    background: transparent;
+    border:0;
+    box-shadow:none;
     display:flex; align-items:center; justify-content:center; }
   .login-card .lkey img{ width:100%; height:100%; border-radius:17px; object-fit:cover; display:block; }
   .login-card h3{ font-size:19px; font-weight:700; margin-bottom:4px; letter-spacing:-.01em; }
@@ -1435,6 +1749,819 @@
   .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
   .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
 
+  /* Apple pass: menos ornamento, mais estado e ação legíveis. */
+  :focus-visible{
+    outline: 3px solid rgba(10,132,255,.92);
+    outline-offset: 3px;
+  }
+  button:focus-visible, [role="button"]:focus-visible{
+    box-shadow: 0 0 0 4px rgba(10,132,255,.22);
+  }
+  .bg{
+    background: linear-gradient(180deg, #241106 0%, #150a06 56%, #080301 100%);
+  }
+  .aglass{
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 6px 14px rgba(0,0,0,.22);
+  }
+  .aglass::before{ background: linear-gradient(160deg, rgba(255,255,255,.12), transparent 48%); }
+  .atile.empty .aglass{
+    background: rgba(255,255,255,.05);
+    border-color: rgba(255,255,255,.08);
+    box-shadow: none;
+  }
+  .robscard{
+    background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.035) 58%, rgba(74,27,12,.18));
+    border-color: rgba(255,255,255,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 22px rgba(0,0,0,.10);
+  }
+  .usage-island{
+    background: rgba(255,255,255,.06);
+    border-color: rgba(246,183,88,.26);
+    box-shadow: none;
+  }
+  .usage-card, .usage-card.is-closed{
+    box-shadow: none;
+  }
+  .usage-card-chevron{
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    place-items: center;
+    color: var(--ink-2);
+    font-size: 20px;
+    line-height: 1;
+  }
+  .usage-provider-dot{
+    position: relative;
+    display: grid;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    place-items: center;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .usage-provider-dot[aria-current="true"]{
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .usage-provider-dot::before{
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translate(var(--hdot-x, 0px), 0);
+    background: rgba(255,255,255,.35);
+    transition: width .2s ease, background-color .2s ease;
+  }
+  .usage-provider-dot[aria-current="true"]::before{
+    width: 14px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.92);
+  }
+  .login-help{
+    margin: 16px 0 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 14px;
+    background: rgba(255,255,255,.045);
+    text-align: left;
+  }
+  .login-help summary{
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    list-style: none;
+  }
+  .login-help summary::-webkit-details-marker{ display: none; }
+  .login-help summary::after{ content: "+"; color: var(--ink-2); font-size: 18px; font-weight: 400; }
+  .login-help[open] summary::after{ content: "−"; }
+  .login-card .login-help .lsteps{
+    margin: 0;
+    padding: 0 14px 12px;
+  }
+  .login-card .body, .login-card .lfoot{ font-size: 12px; }
+  .usage-kicker, .usage-source, .usage-sync-label, .usage-provider-plan,
+  .usage-status, .usage-resource-bottom, .usage-featured-kicker,
+  .usage-chart-reset, .usage-ring-caption{ font-size: 11px; }
+  .usage-featured-hint, .usage-five-caption{ font-size: 11px; }
+  .usage-card.is-closed{ cursor: pointer; }
+  .vdots .d{
+    display: grid;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .vdots .d::before{
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translate(16px, var(--vdot-y, 0px));
+    background: rgba(255,255,255,.35);
+    transition: width .2s ease, height .2s ease, background-color .2s ease;
+  }
+  .vdots .d.on{
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .vdots .d.on::before{
+    width: 6px;
+    height: 14px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.92);
+  }
+
+  /* Refinamento Usage: o vermelho comunica ritmo projetado; o uso real e o
+     reset ficam em blocos próprios para não parecerem a mesma métrica. */
+  body.is-usage #vdots{ display: none; }
+  body.is-usage .usage-scroll{ overflow-y: hidden; }
+  .usage-title{ font-size: clamp(34px, 8vw, 48px); }
+  .usage-card.is-open{
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 28px;
+    background: linear-gradient(145deg, rgba(255,255,255,.13), rgba(255,255,255,.06) 48%, rgba(12,7,5,.48));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.15), 0 16px 32px rgba(0,0,0,.16);
+  }
+  .usage-card.is-open .usage-card-head{ min-height: 34px; margin: 0 0 12px; padding: 0 2px; }
+  .usage-card.is-open .usage-window-label{ display: none; }
+  .usage-card.is-open .usage-provider-logo{ width: 34px; height: 34px; }
+  .usage-card.is-open .usage-provider-logo img, .usage-card.is-open .usage-provider-logo svg{ width: 24px; height: 24px; }
+  .usage-card.is-open .usage-provider-name{ font-size: 18px; font-weight: 800; }
+  .usage-card.is-open .usage-provider-plan{
+    display: inline-flex; align-items: center; margin-left: 7px; padding: 5px 9px;
+    border: 1px solid rgba(255,255,255,.08); border-radius: 99px; background: rgba(255,255,255,.08);
+    color: var(--ink-2); font-size: 12px; font-weight: 700;
+  }
+  .usage-card.is-open .usage-plan-corner{ margin-left: auto; margin-right: 2px; }
+  .usage-card.is-open .usage-card-chevron{
+    display: inline-flex; width: 28px; height: 38px; align-items: center; justify-content: flex-end;
+    margin-left: auto; color: var(--ink-2); font-size: 32px; font-weight: 300; line-height: 1;
+  }
+  .usage-card.is-open .usage-limit.primary{ min-height: 0; }
+  .usage-metric-5h{
+    grid-template-columns: minmax(132px, .9fr) minmax(0, 1.1fr);
+    align-items: start; gap: 14px; min-height: 0;
+  }
+  .usage-gauge-wrap{
+    width: 100%; max-width: 190px; height: auto; aspect-ratio: 1 / 1; flex-basis: auto; justify-self: center;
+  }
+  .usage-card.is-open .usage-gauge-copy .usage-limit-value{ font-size: clamp(34px, 7vw, 50px); letter-spacing: -.08em; }
+  .usage-card.is-open .usage-gauge-copy .usage-limit-unit{ font-size: 15px; }
+  .usage-pace-score{ cursor: default; }
+  .usage-gauge-caption{ display: none; }
+  .usage-five-copy{ gap: 14px; padding: 5px 0 0; }
+  .usage-reset-block{ min-width: 0; }
+  .usage-reset-block[role="button"]{ cursor: pointer; }
+  .usage-section-label{ display: block; color: var(--ink-3); font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+  .usage-reset-block .usage-limit-reset-value{ display: block; margin-top: 6px; color: var(--ink); font-size: clamp(24px, 5.5vw, 34px); font-weight: 800; letter-spacing: -.055em; }
+  .usage-reset-date, .usage-five-caption.usage-five-reset-exact{
+    display: block; width: 100%; margin-top: 5px; overflow: hidden; color: var(--ink-3); font-size: 11px; font-weight: 600;
+    line-height: 1.2; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .usage-pace-explanation{
+    display: flex; align-items: center; gap: 7px; min-width: 0; margin: 10px 0 10px; padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--usage-accent) 22%, rgba(255,255,255,.08)); border-radius: 12px;
+    background: color-mix(in srgb, var(--usage-accent) 7%, rgba(255,255,255,.045)); color: var(--ink-2); font-size: 11px; font-weight: 700; line-height: 1.25;
+  }
+  .usage-pace-explanation-copy{ min-width: 0; flex: 1; }
+  .usage-pace-explanation .usage-pace-warning{ display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin: 0; color: var(--usage-accent); }
+  .usage-pace-explanation .usage-pace-flame{ width: 14px; height: 14px; }
+  .usage-pace-explanation[data-pace="behind"], .usage-pace-explanation[data-pace="spent"]{ color: #ffb09a; }
+  .usage-metric-week{ min-height: 0; margin-top: 0; padding-top: 14px; border-top-color: rgba(255,255,255,.12); }
+  .usage-week-top .usage-limit-label{ color: var(--ink-2); font-size: 12px; letter-spacing: .03em; text-transform: none; }
+  .usage-week-value .usage-limit-value, .usage-card.is-open .usage-week-value .usage-limit-value{ font-size: 21px; font-weight: 800; }
+  .usage-week-row{ display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 9px; }
+  .usage-week-bar{ height: 8px; border-color: rgba(255,255,255,.13); }
+  .usage-week-reset{ align-self: flex-start; font-size: 11px; }
+  .usage-card.is-closed{
+    display: flex; min-height: 72px; flex-direction: column; align-items: stretch; justify-content: center;
+    padding: 10px 14px 9px; border-radius: 22px; background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+  }
+  .usage-card.is-closed .usage-card-head{ min-height: 32px; margin: 0; gap: 9px; }
+  .usage-card.is-closed .usage-provider-logo{ width: 32px; height: 32px; border-radius: 10px; }
+  .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 21px; height: 21px; }
+  .usage-card.is-closed .usage-provider-name{ font-size: 15px; font-weight: 800; }
+  .usage-card.is-closed .usage-provider-plan{ margin-left: 5px; font-size: 10px; }
+  .usage-card.is-closed .usage-peek{ font-size: 19px; font-weight: 800; }
+  .usage-card.is-closed .usage-card-chevron{ margin-left: 5px; color: var(--ink-2); font-size: 28px; }
+  .usage-secondary-meter{ height: 4px; margin: 8px 39px 0 48px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.12); }
+  .usage-secondary-meter i{ display: block; height: 100%; border-radius: inherit; background: var(--usage-accent); }
+  @media (max-width: 380px){
+    .usage-card.is-open{ padding: 15px; }
+    .usage-card.is-open .usage-card-head{ margin-bottom: 10px; }
+    .usage-card.is-open .usage-provider-name{ font-size: 17px; }
+    .usage-card.is-open .usage-provider-plan{ padding-inline: 7px; font-size: 10px; }
+    .usage-metric-5h{ grid-template-columns: minmax(124px, .9fr) minmax(0, 1.1fr); gap: 10px; }
+    .usage-section-label{ font-size: 10px; }
+    .usage-pace-explanation{ margin: 9px 0 9px; padding: 7px 9px; font-size: 10px; }
+  }
+  @media (orientation: landscape){
+    .usage-title{ font-size: clamp(28px, 3vw, 42px); }
+    .usage-card.is-open{ padding: 14px; border-radius: 26px; }
+    .usage-card.is-open .usage-card-head{ min-height: 30px; margin-bottom: 9px; }
+    .usage-card.is-open .usage-provider-logo{ width: 30px; height: 30px; }
+    .usage-card.is-open .usage-provider-logo img, .usage-card.is-open .usage-provider-logo svg{ width: 21px; height: 21px; }
+    .usage-card.is-open .usage-provider-name{ font-size: 15px; }
+    .usage-card.is-open .usage-provider-plan{ padding: 4px 7px; font-size: 10px; }
+    .usage-card.is-open .usage-card-chevron{ height: 32px; font-size: 27px; }
+    .usage-metric-5h{ grid-template-columns: minmax(116px, .9fr) minmax(0, 1.1fr); gap: 11px; }
+    .usage-gauge-wrap{ max-width: 170px; }
+    .usage-card.is-open .usage-metric-5h{ align-items: center; }
+    .usage-card.is-open .usage-five-copy{ gap: 9px; padding-top: 0; }
+    .usage-section-label{ font-size: 9px; }
+    .usage-reset-block .usage-limit-reset-value{ margin-top: 3px; font-size: clamp(19px, 3.2vw, 28px); }
+    .usage-reset-date, .usage-five-caption.usage-five-reset-exact{ margin-top: 3px; font-size: 9px; }
+    .usage-pace-explanation{ margin: 8px 0 8px; padding: 6px 8px; font-size: 9px; }
+    .usage-metric-week{ padding-top: 9px; }
+    .usage-week-value .usage-limit-value, .usage-card.is-open .usage-week-value .usage-limit-value{ font-size: 16px; }
+    .usage-week-row{ gap: 5px; margin-top: 5px; }
+    .usage-week-bar{ height: 6px; }
+    .usage-week-reset{ font-size: 9px; }
+    .usage-card.is-closed{ min-height: 62px; padding: 8px 11px 7px; border-radius: 18px; }
+    .usage-card.is-closed .usage-card-head{ min-height: 28px; gap: 7px; }
+    .usage-card.is-closed .usage-provider-logo{ width: 28px; height: 28px; border-radius: 9px; }
+    .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 19px; height: 19px; }
+    .usage-card.is-closed .usage-provider-name{ font-size: 12px; }
+    .usage-card.is-closed .usage-peek{ font-size: 15px; }
+    .usage-card.is-closed .usage-card-chevron{ font-size: 23px; }
+    .usage-secondary-meter{ height: 3px; margin: 5px 32px 0 37px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px){
+    .usage-card.is-open{ padding: 11px; }
+    .usage-card.is-open .usage-card-head{ margin-bottom: 7px; }
+    .usage-metric-5h{ grid-template-columns: minmax(108px, .9fr) minmax(0, 1.1fr); gap: 8px; }
+    .usage-gauge-wrap{ max-width: 136px; }
+    .usage-five-copy{ gap: 6px; }
+    .usage-pace-explanation{ margin: 6px 0 6px; padding: 5px 7px; font-size: 8px; }
+    .usage-metric-week{ padding-top: 6px; }
+    .usage-week-row{ margin-top: 4px; }
+    .usage-card.is-closed{ min-height: 58px; }
+  }
+  @media (max-height: 780px) and (orientation: portrait){
+    .usage-card.is-open{ padding: 12px; }
+    .usage-card.is-open .usage-card-head{ min-height: 28px; margin-bottom: 6px; }
+    .usage-card.is-open .usage-provider-logo{ width: 28px; height: 28px; }
+    .usage-card.is-open .usage-provider-logo img, .usage-card.is-open .usage-provider-logo svg{ width: 19px; height: 19px; }
+    .usage-card.is-open .usage-provider-name{ font-size: 15px; }
+    .usage-card.is-open .usage-provider-plan{ padding: 3px 6px; font-size: 9px; }
+    .usage-card.is-open .usage-card-chevron{ height: 30px; font-size: 25px; }
+    .usage-metric-5h{ grid-template-columns: minmax(100px, .9fr) minmax(0, 1.1fr); gap: 6px; }
+    .usage-gauge-wrap{ max-width: 100px; }
+    .usage-five-copy{ gap: 6px; padding-top: 1px; }
+    .usage-section-label{ font-size: 9px; }
+    .usage-reset-block .usage-limit-reset-value{ margin-top: 3px; font-size: 20px; }
+    .usage-reset-date, .usage-five-caption.usage-five-reset-exact{ margin-top: 2px; font-size: 9px; }
+    .usage-pace-explanation{ margin: 6px 0 6px; padding: 6px 7px; font-size: 8px; }
+    .usage-metric-week{ padding-top: 7px; }
+    .usage-week-top .usage-limit-label{ font-size: 10px; }
+    .usage-week-value .usage-limit-value, .usage-card.is-open .usage-week-value .usage-limit-value{ font-size: 16px; }
+    .usage-week-row{ gap: 4px; margin-top: 5px; }
+    .usage-week-bar{ height: 6px; }
+    .usage-week-reset{ font-size: 9px; }
+    .usage-card.is-closed{ min-height: 58px; padding: 7px 10px 6px; }
+    .usage-card.is-closed .usage-card-head{ min-height: 26px; gap: 6px; }
+    .usage-card.is-closed .usage-provider-logo{ width: 26px; height: 26px; border-radius: 8px; }
+    .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 18px; height: 18px; }
+    .usage-card.is-closed .usage-provider-name{ font-size: 13px; }
+  }
+  @media (max-height: 520px) and (orientation: portrait){
+    .usage-scroll{ padding: 8px 0 12px; }
+    .usage-provider-slider{ flex: 1 1 auto; min-height: 0; }
+    .usage-provider-track{ flex: 0 0 auto; height: auto; align-items: flex-start; overflow-y: hidden; }
+    .usage-provider-slide{ height: auto; min-height: 0; }
+    .usage-provider-dots{ margin-top: auto; }
+    .usage-stack{ height: auto; flex: 0 0 auto; margin-top: 0; }
+    .usage-trend-note{ display: -webkit-box; max-height: 1.3em; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+    .usage-head{ min-height: 42px; gap: 6px; margin-bottom: 6px; }
+    .usage-title{ font-size: 30px; }
+    .usage-head-mascot, .usage-head-mascot .usage-mascot-wrap, .usage-head-mascot .usage-token-dock{ min-height: 48px; width: 48px; height: 48px; }
+    .usage-head-mascot .usage-mascot-wrap .usage-token{ width: 38px; height: 38px; }
+    .usage-card.is-open{ padding: 10px; }
+    .usage-card.is-open .usage-card-head{ min-height: 25px; margin-bottom: 4px; }
+    .usage-card.is-open .usage-provider-logo{ width: 25px; height: 25px; }
+    .usage-card.is-open .usage-provider-logo img, .usage-card.is-open .usage-provider-logo svg{ width: 17px; height: 17px; }
+    .usage-card.is-open .usage-provider-name{ font-size: 14px; }
+    .usage-card.is-open .usage-provider-plan{ padding: 2px 5px; font-size: 8px; }
+    .usage-metric-5h{ grid-template-columns: minmax(94px, .9fr) minmax(0, 1.1fr); gap: 5px; }
+    .usage-gauge-wrap{ max-width: 94px; }
+    .usage-card.is-open .usage-gauge-copy .usage-limit-value{ font-size: 26px; }
+    .usage-card.is-open .usage-gauge-copy .usage-limit-unit{ font-size: 11px; }
+    .usage-five-copy{ gap: 4px; }
+    .usage-section-label{ font-size: 8px; }
+    .usage-reset-block .usage-limit-reset-value{ margin-top: 2px; font-size: 18px; }
+    .usage-reset-date, .usage-five-caption.usage-five-reset-exact{ margin-top: 1px; font-size: 8px; }
+    .usage-pace-explanation{ margin: 4px 0; padding: 5px 6px; font-size: 8px; }
+    .usage-metric-week{ padding-top: 5px; }
+    .usage-week-top .usage-limit-label{ font-size: 9px; }
+    .usage-week-value .usage-limit-value, .usage-card.is-open .usage-week-value .usage-limit-value{ font-size: 14px; }
+    .usage-week-row{ gap: 3px; margin-top: 3px; }
+    .usage-week-bar{ height: 5px; }
+    .usage-week-reset{ font-size: 8px; }
+    .usage-card.is-closed{ min-height: 54px; padding: 6px 9px 5px; }
+    .usage-card.is-closed .usage-card-head{ min-height: 24px; gap: 5px; }
+    .usage-card.is-closed .usage-provider-logo{ width: 24px; height: 24px; border-radius: 7px; }
+    .usage-card.is-closed .usage-provider-logo img, .usage-card.is-closed .usage-provider-logo svg{ width: 16px; height: 16px; }
+    .usage-card.is-closed .usage-provider-name{ font-size: 12px; }
+    .usage-card.is-closed .usage-peek{ font-size: 14px; }
+    .usage-card.is-closed .usage-card-chevron{ font-size: 21px; }
+    .usage-secondary-meter{ height: 3px; margin: 4px 28px 0 34px; }
+  }
+
+  /* No portrait alto, o pager ocupa o espaço livre, mas os cards não podem
+     herdar essa altura: um track esticado transforma o último card em um
+     overflow vertical recortado pelo scroller horizontal. */
+  @media (min-height: 521px) and (max-width: 699px) and (orientation: portrait){
+    .usage-provider-track{
+      flex: 0 0 auto;
+      height: auto;
+      align-items: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      contain: none;
+      isolation: auto;
+    }
+    .usage-provider-slide{
+      display: block;
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+      contain: none;
+    }
+    .usage-stack{
+      height: auto;
+      min-height: 0;
+      flex: 0 0 auto;
+    }
+  }
+  /* No Safari com a barra do navegador, a área CSS é menor, mas o card não
+     deve parecer espremido. Mantemos uma composição intermediária legível e
+     alinhamos o gauge na borda interna do card. O PWA standalone não passa
+     por esta regra. */
+  @media (min-height: 521px) and (orientation: portrait){
+    body.is-browser .usage-card.is-open{
+      min-height: 250px;
+      padding: 14px;
+    }
+    body.is-browser .usage-card.is-open .usage-card-head{
+      min-height: 30px;
+      margin-bottom: 9px;
+    }
+    body.is-browser .usage-metric-5h{
+      grid-template-columns: minmax(124px, .9fr) minmax(0, 1.1fr);
+      align-items: start;
+      gap: 10px;
+      min-height: 124px;
+    }
+    body.is-browser .usage-gauge-wrap{
+      width: 124px;
+      height: 124px;
+      max-width: 124px;
+      flex-basis: 124px;
+      justify-self: start;
+    }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: .001ms !important;
+    }
+  }
+
+  /* Usage Trend refinado: um frame único com resumo e barras. */
+  .usage-trend{
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: clamp(12px, 1.4vw, 18px);
+    border-radius: 26px;
+  }
+  .usage-trend-periods{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 3px;
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 13px;
+    background: rgba(8,3,1,.32);
+  }
+  .usage-trend-period{
+    min-width: 0;
+    min-height: 28px;
+    padding: 5px 7px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    font: 700 10px/1 inherit;
+    transition: background .2s ease, color .2s ease, transform .2s ease;
+  }
+  .usage-trend-period[aria-pressed="true"]{
+    background: rgba(255,255,255,.16);
+    color: var(--ink);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .usage-trend-period:active{ transform: scale(.97); }
+  .usage-trend-period:focus-visible,
+  .usage-trend-bar:focus-visible{ outline: 2px solid var(--dokke-orange); outline-offset: 2px; }
+  .usage-trend-summary{ gap: 8px; margin: 0 0 12px; padding: 1px 1px 11px; border-bottom: 1px solid rgba(255,255,255,.09); }
+  .usage-trend-summary-head{ gap: 8px; }
+  .usage-trend-summary-title{ font-size: clamp(15px, 1.6vw, 21px); }
+  .usage-trend-summary-window{ font-size: clamp(10px, 1vw, 13px); }
+  .usage-trend-summary-total-block{ display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+  .usage-trend-summary-total-label{ color: var(--ink-3); font-size: clamp(10px, .9vw, 12px); font-weight: 700; }
+  .usage-trend-summary-total{ color: var(--ink); font-size: clamp(18px, 1.9vw, 25px); font-weight: 800; letter-spacing: -.04em; line-height: 1; white-space: nowrap; }
+  .usage-trend-summary-comparison{ display: flex; align-items: baseline; gap: 5px; min-height: 14px; color: var(--ink-3); font-size: clamp(10px, .9vw, 12px); font-weight: 700; }
+  .usage-trend-summary-comparison-arrow{ font-size: 15px; line-height: 1; }
+  .usage-trend-summary-comparison-value{ font-weight: 800; }
+  .usage-trend-summary-comparison-label{ color: var(--ink-3); font-weight: 600; }
+  .usage-trend-summary-comparison[data-direction="down"] .usage-trend-summary-comparison-arrow,
+  .usage-trend-summary-comparison[data-direction="down"] .usage-trend-summary-comparison-value{ color: var(--green); }
+  .usage-trend-summary-comparison[data-direction="up"] .usage-trend-summary-comparison-arrow,
+  .usage-trend-summary-comparison[data-direction="up"] .usage-trend-summary-comparison-value{ color: var(--dokke-orange); }
+  .usage-trend-summary-metrics{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+  .usage-trend-summary-metric{ display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 2px; padding: 1px 10px; border-left: 1px solid rgba(255,255,255,.09); }
+  .usage-trend-summary-metric:first-child{ padding-left: 0; border-left: 0; }
+  .usage-trend-summary-label{ font-size: clamp(9px, .8vw, 11px); }
+  .usage-trend-summary-value{ font-size: clamp(12px, 1.05vw, 16px); }
+  .usage-trend-plot{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+    min-height: 0;
+    margin-top: 0;
+  }
+  .usage-trend-bars-slot{ display: flex; width: 100%; min-width: 0; min-height: 0; }
+  .usage-trend-bars-panel{
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    padding: 10px 11px 9px;
+    border: 1px solid rgba(255,255,255,.075);
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
+  }
+  .usage-trend-panel-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+  .usage-trend-panel-title{ color: var(--ink); font-size: clamp(12px, 1.15vw, 16px); font-weight: 800; letter-spacing: -.02em; }
+  .usage-trend-panel-meta{ margin-left: auto; overflow: hidden; color: var(--ink-3); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+  .usage-trend-panel-chevron{ color: var(--ink); font-size: 24px; font-weight: 400; line-height: .7; }
+  .usage-trend-bar-chart{ position: relative; display: flex; min-width: 0; height: clamp(122px, 21vh, 190px); flex-direction: column; justify-content: flex-end; margin-top: 8px; padding-top: 19px; }
+  .usage-trend-bar-y-axis{ position: absolute; top: 18px; bottom: 0; left: 0; display: flex; width: 37px; flex-direction: column; justify-content: space-between; pointer-events: none; }
+  .usage-trend-bar-y-axis-label{ color: var(--ink-3); font-size: 10px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  .usage-trend-bar-gridlines{ position: absolute; inset: 18px 0 0 37px; pointer-events: none; }
+  .usage-trend-bar-gridlines i{ position: absolute; right: 0; left: 0; display: block; border-top: 1px dashed rgba(255,255,255,.09); }
+  .usage-trend-bar-list{ position: relative; z-index: 1; display: flex; align-items: flex-end; gap: clamp(3px, .45vw, 5px); width: calc(100% - 37px); height: 100%; min-width: 0; margin-left: 37px; border-bottom: 1px solid rgba(255,255,255,.14); }
+  .usage-trend-bar{ display: block; min-width: 0; min-height: 4px; flex: 1 1 0; padding: 0; border: 0; border-radius: 3px 3px 1px 1px; background: linear-gradient(180deg, rgba(240,135,55,.98), rgba(176,78,28,.72)); box-shadow: 0 0 8px rgba(240,135,55,.08); cursor: pointer; transition: filter .2s ease, opacity .2s ease, transform .2s ease; }
+  .usage-trend-bar:hover,
+  .usage-trend-bar.is-selected{ background: linear-gradient(180deg, #ffc273, #e97931); filter: brightness(1.12); }
+  .usage-trend-bar.is-selected{ box-shadow: 0 0 11px rgba(240,135,55,.28); }
+  .usage-trend-bar-tooltip{ position: absolute; top: 0; left: var(--bar-tooltip-x, 50%); z-index: 2; max-width: min(150px, 48%); overflow: hidden; padding: 4px 7px; border: 1px solid rgba(255,255,255,.11); border-radius: 8px; background: rgba(25,10,4,.88); color: var(--ink); font-size: 9px; font-weight: 700; line-height: 1.1; text-overflow: ellipsis; transform: translateX(-50%); white-space: nowrap; }
+  .usage-trend-bar-axis{ display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--ink-3); font-size: 8px; }
+  .usage-trend-note{ display: -webkit-box; max-height: 1.3em; margin-top: 7px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+
+  @media (max-width: 699px) and (orientation: portrait){
+    .usage-trend{ padding: 12px 12px 10px; border-radius: 26px; }
+    .usage-trend-periods{ margin-bottom: 9px; }
+    .usage-trend-plot{ grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .usage-trend-summary-metrics{ grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+    .usage-trend-summary-metric{ justify-content: initial; gap: 2px; padding: 1px 5px; }
+    .usage-trend-summary-metric:first-child{ padding-left: 0; border-left: 0; }
+    .usage-trend-summary-label{ font-size: 8px; line-height: 1.1; }
+    .usage-trend-summary-value{ font-size: 10px; letter-spacing: -.04em; }
+    .usage-trend-bar-chart{ height: clamp(118px, 18vh, 156px); }
+  }
+
+  @media (orientation: landscape){
+    .usage-provider-slide .usage-card.is-open{ display: flex; flex-direction: column; }
+    .usage-head-copy{
+      display: flex;
+      min-width: 0;
+      align-items: baseline;
+      gap: clamp(8px, 1vw, 14px);
+    }
+    .usage-sync{
+      flex: 0 0 auto;
+      min-height: 0;
+      margin-top: 0;
+      white-space: nowrap;
+    }
+    .usage-trend-slide .usage-trend{ gap: 0; }
+    .usage-trend-slide .usage-trend-plot{ flex: 1 1 auto; }
+    .usage-trend-bars-panel .usage-trend-bar-chart{ height: auto; min-height: clamp(122px, 22vh, 210px); flex: 1 1 auto; }
+    /* No landscape, o card aberto usa duas colunas na primeira faixa e leva a
+       semana para baixo, em largura total. Assim o reset continua alinhado ao
+       gauge e a régua semanal não ganha uma divisória vertical própria. */
+    .usage-card.is-open .usage-limits{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto auto;
+      align-items: stretch;
+      align-content: stretch;
+      gap: 0;
+    }
+    .usage-card.is-open .usage-limit.primary,
+    .usage-card.is-open .usage-limit.primary > .usage-metric-5h{
+      display: contents;
+    }
+    .usage-card.is-open .usage-gauge-wrap{
+      grid-column: 1;
+      grid-row: 1;
+      width: clamp(104px, min(17vw, 29vh), 170px);
+      max-width: none;
+      height: clamp(104px, min(17vw, 29vh), 170px);
+      align-self: center;
+      justify-self: start;
+    }
+    .usage-card.is-open .usage-five-copy{
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+      min-width: 0;
+      padding: 0 0 0 12px;
+      border-left: 1px solid rgba(255,255,255,.10);
+    }
+    .usage-card.is-open .usage-limit:not(.primary){
+      display: contents;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      align-self: auto;
+      min-width: 0;
+      height: auto;
+    }
+    .usage-card.is-open .usage-metric-week{
+      grid-column: 1 / -1;
+      grid-row: 3;
+      height: auto;
+      justify-content: flex-start;
+      margin: 10px 0 0;
+      padding: 10px 0 0;
+      border-top: 1px solid rgba(255,255,255,.10);
+      border-left: 0;
+    }
+    .usage-card.is-open .usage-pace-explanation{
+      grid-column: 1 / -1;
+      grid-row: 2;
+      width: 100%;
+      margin: 9px 0 0;
+    }
+  }
+
+  @media (min-width: 700px) and (orientation: portrait){
+    .usage-trend{ padding: 16px; }
+    .usage-trend-periods{ max-width: 440px; margin-inline: auto; }
+    .usage-trend-bar-chart{ height: clamp(150px, 21vh, 210px); }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px){
+    .usage-trend{ padding: 8px 10px 7px; }
+    .usage-trend-periods{ margin-bottom: 6px; padding: 2px; }
+    .usage-trend-period{ min-height: 22px; padding: 4px 6px; font-size: 9px; }
+    .usage-trend-summary{ gap: 4px; margin-bottom: 7px; padding-bottom: 8px; }
+    .usage-trend-summary-head{ gap: 6px; }
+    .usage-trend-summary-title{ font-size: 14px; }
+    .usage-trend-summary-window{ font-size: 9px; }
+    .usage-trend-summary-total-block{ gap: 5px; }
+    .usage-trend-summary-total-label{ font-size: 8px; }
+    .usage-trend-summary-total{ font-size: 24px; }
+    .usage-trend-summary-comparison{ min-height: 10px; font-size: 8px; gap: 3px; }
+    .usage-trend-summary-comparison-arrow{ font-size: 11px; }
+    .usage-trend-summary-metrics{ gap: 0; }
+    .usage-trend-summary-metric{ padding: 1px 8px; }
+    .usage-trend-summary-metric:first-child{ padding-left: 0; border-left: 0; }
+    .usage-trend-summary-label{ font-size: 8px; }
+    .usage-trend-summary-value{ font-size: 10px; }
+    .usage-trend-plot{ gap: 7px; }
+    .usage-trend-bars-panel{ padding: 7px 8px 6px; border-radius: 14px; }
+    .usage-trend-panel-title{ font-size: 10px; }
+    .usage-trend-panel-meta{ font-size: 8px; }
+    .usage-trend-bars-panel .usage-trend-bar-chart{ min-height: 72px; margin-top: 4px; padding-top: 14px; }
+    .usage-trend-bar-axis{ margin-top: 4px; font-size: 7px; }
+    .usage-trend-bar-tooltip{ padding: 3px 5px; font-size: 8px; }
+    .usage-trend-note{ display: none; }
+  }
+
+  .usage-trend-bar-list{ gap: clamp(3px, .45vw, 5px); }
+
+  /* Tendência mobile: o resumo segue a composição da referência, com o
+     total em bloco próprio e a faixa de métricas separada por uma divisória. */
+  @media (max-width: 699px) and (orientation: portrait){
+    .usage-scroll{ padding-top: 8px; }
+    .usage-content{ width: min(100%, 422px); max-width: 422px; padding-top: 6px; }
+    .usage-trend-summary{ gap: 0; margin: 7px 8px 0; padding: 0 1px; border-bottom: 0; }
+    .usage-trend-summary-head{ gap: 8px; margin-bottom: 10px; }
+    .usage-trend-summary-title{ font-size: 17px; }
+    .usage-trend-summary-window{ font-size: 11px; }
+    .usage-trend-summary-total-block{ gap: 12px; }
+    .usage-trend-summary-total-label{ font-size: 12px; }
+    .usage-trend-summary-total{ font-size: 30px; }
+    .usage-trend-summary-comparison{ gap: 6px; min-height: 16px; margin-top: 21px; font-size: 12px; }
+    .usage-trend-summary-comparison-arrow{ font-size: 16px; }
+    .usage-trend-summary-metrics{ margin-top: 19px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.09); }
+    .usage-trend-summary-metric{ gap: 4px; padding: 1px 10px; }
+    .usage-trend-summary-metric:first-child{ padding-left: 0; }
+    .usage-trend-summary-label{ font-size: 12px; line-height: 1.15; }
+    .usage-trend-summary-value{ font-size: 20px; letter-spacing: -.035em; }
+    .usage-trend-periods,
+    .usage-trend-plot{ width: calc(100% + 26px); margin-inline: -13px; }
+    .usage-trend-plot{ margin-top: 38px; }
+    .usage-trend-bar-chart{ height: clamp(170px, 25.5vh, 210px); }
+    .usage-trend-panel-title{ font-size: 16px; }
+    .usage-trend-panel-meta{ font-size: 10px; }
+    .usage-trend-panel-chevron{ font-size: 25px; }
+    .usage-trend-bar-y-axis-label,
+    .usage-trend-bar-axis{ font-size: 10px; }
+  }
+
+  /* Contrato responsivo do Usage: esta é a régua final de composição. Os
+     blocos históricos acima preservam a aparência base; aqui ficam somente
+     as decisões que dependem do viewport e precisam vencer a cascata. */
+  body.is-usage .usage-head,
+  body.is-usage .usage-stack,
+  body.is-usage .usage-provider-dots{
+    width: calc(100% - 16px);
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+  body.is-usage .usage-head{ margin-top: 0; }
+  body.is-usage .usage-provider-dots{ flex-shrink: 0; }
+  body.is-usage .usage-card.is-open .usage-gauge-copy .usage-limit-value{
+    font-size: clamp(34px, min(6.2vh, 4vw), 50px);
+  }
+
+  body.is-usage .usage-trend-slide{
+    width: 100%;
+    min-width: 100%;
+    padding: 0;
+    align-items: stretch;
+  }
+  body.is-usage .usage-trend-slide .usage-trend{
+    width: calc(100% - 16px);
+    max-width: none;
+    margin: 0 8px;
+    padding: clamp(12px, 1.4vw, 18px);
+    border-radius: 26px;
+  }
+  body.is-usage .usage-trend-slide .usage-trend-periods,
+  body.is-usage .usage-trend-slide .usage-trend-plot{
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  body.is-usage .usage-trend-slide .usage-trend-periods{
+    margin-top: 0;
+    margin-bottom: clamp(8px, 1.1vw, 12px);
+  }
+  body.is-usage .usage-trend-slide .usage-trend-summary{
+    margin: 0 0 clamp(10px, 1.4vw, 16px);
+  }
+  body.is-usage .usage-trend-slide .usage-trend-plot{
+    margin-top: 0;
+    gap: 0;
+  }
+  body.is-usage .usage-trend-slide .usage-trend-bars-panel{
+    width: 100%;
+    min-width: 0;
+  }
+
+  @media (max-width: 699px) and (orientation: portrait){
+    body.is-usage .usage-head,
+    body.is-usage .usage-stack,
+    body.is-usage .usage-provider-dots{
+      width: calc(100% - 16px);
+      margin-left: 8px;
+      margin-right: 8px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend{
+      width: calc(100% - 16px);
+      margin-left: 8px;
+      margin-right: 8px;
+      padding: 12px 12px 10px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-summary{
+      margin: 0 0 12px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-plot{
+      margin-top: 0;
+    }
+  }
+
+  @media (orientation: landscape){
+    body.is-usage .usage-content{
+      width: min(100%, 1180px);
+      max-width: 1180px;
+    }
+    body.is-usage .usage-head,
+    body.is-usage .usage-stack,
+    body.is-usage .usage-provider-dots{
+      width: calc(100% - 16px);
+      margin-left: 8px;
+      margin-right: 8px;
+    }
+    body.is-usage .usage-stack{
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+      grid-template-rows: minmax(0, 1fr);
+      align-items: stretch;
+    }
+    body.is-usage .usage-stack[data-secondary-count="0"]{
+      grid-template-columns: minmax(0, 1fr);
+    }
+    body.is-usage .usage-trend-slide .usage-trend{
+      width: calc(100% - 16px);
+      margin-left: 8px;
+      margin-right: 8px;
+    }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px){
+    body.is-usage .usage-card.is-open .usage-gauge-copy .usage-limit-value{
+      font-size: clamp(28px, 7.2vh, 30px);
+      line-height: .92;
+    }
+    body.is-usage .usage-card.is-open .usage-gauge-copy .usage-limit-unit{
+      font-size: 12px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend{
+      padding: 9px 12px 8px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-periods{
+      margin-bottom: 7px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-summary{
+      gap: 4px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-summary-title{ font-size: 14px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-window{ font-size: 9px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-total-block{
+      flex-direction: row;
+      align-items: baseline;
+      gap: 6px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-summary-total{ font-size: 24px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-comparison{ font-size: 8px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-metric{ padding-left: 8px; padding-right: 8px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-label{ font-size: 8px; }
+    body.is-usage .usage-trend-slide .usage-trend-summary-value{ font-size: 10px; }
+    body.is-usage .usage-trend-slide .usage-trend-bars-panel{ padding: 7px 8px 6px; }
+    body.is-usage .usage-trend-slide .usage-trend-bar-chart{
+      min-height: 0;
+      margin-top: 4px;
+      padding-top: 14px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-bar-y-axis{
+      top: 14px;
+      bottom: 14px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-bar-gridlines{
+      inset: 14px 0 14px 37px;
+    }
+    body.is-usage .usage-trend-slide .usage-trend-bar-list{
+      height: calc(100% - 14px);
+    }
+    body.is-usage .usage-trend-slide .usage-trend-bar-axis{ margin-top: 4px; font-size: 8px; }
+  }
+
+  @media (min-width: 700px) and (orientation: portrait){
+    body.is-usage .usage-trend-slide .usage-trend{
+      width: calc(100% - 16px);
+      margin-left: 8px;
+      margin-right: 8px;
+    }
+  }
+
 </style>
 </head>
 <body id="dokke">
@@ -1460,19 +2587,22 @@
 <div class="toast" id="toast"></div>
 
   <div class="login-scrim" id="loginScrim">
-    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginDescription">
       <div class="lkey" aria-hidden="true">
         <img src="/icon-192.png" alt="" aria-hidden="true" width="54" height="54">
       </div>
       <h3 id="loginTitle" data-i18n="login.title">Conectar ao Dokke</h3>
-      <div class="body" data-i18n="login.description">Conecte o aparelho ao seu Mac para abrir os apps.</div>
-      <ol class="lsteps">
-        <li><span class="lnum">1</span><div><p><span data-i18n="login.step1Prefix">Conecte o Mac e este aparelho à</span> <b data-i18n="login.sameNetwork">mesma rede Wi-Fi</b>.</p></div></li>
-        <li><span class="lnum">2</span><div><p><span data-i18n="login.step2Prefix">No Mac, abra o</span> <b>Dokke</b> <span data-i18n="login.step2Suffix">e escolha os apps que quer usar.</span></p></div></li>
-        <li><span class="lnum">3</span><div><p><span data-i18n="login.step3Prefix">Toque em</span> <b data-i18n="login.generateCode">Gerar novo código</b> <span data-i18n="login.step3Suffix">no Mac e digite o código de 4 dígitos aqui.</span></p></div></li>
-      </ol>
+      <div class="body" id="loginDescription" data-i18n="login.description">Conecte o aparelho ao seu Mac para abrir os apps.</div>
+      <details class="login-help">
+        <summary data-i18n="login.help">Como conectar?</summary>
+        <ol class="lsteps">
+          <li><span class="lnum">1</span><div><p><span data-i18n="login.step1Prefix">Conecte o Mac e este aparelho à</span> <b data-i18n="login.sameNetwork">mesma rede Wi-Fi</b>.</p></div></li>
+          <li><span class="lnum">2</span><div><p><span data-i18n="login.step2Prefix">No Mac, abra o</span> <b>Dokke</b> <span data-i18n="login.step2Suffix">e escolha os apps que quer usar.</span></p></div></li>
+          <li><span class="lnum">3</span><div><p><span data-i18n="login.step3Prefix">Toque em</span> <b data-i18n="login.generateCode">Gerar novo código</b> <span data-i18n="login.step3Suffix">no Mac e digite o código de 4 dígitos aqui.</span></p></div></li>
+        </ol>
+      </details>
       <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso" data-i18n-aria-label="login.pinLabel">
-      <div class="lerr" id="loginErr"></div>
+      <div class="lerr" id="loginErr" role="status" aria-live="polite"></div>
       <button class="btn connect" id="loginGo" data-i18n="login.connect">Conectar</button>
       <p class="lfoot" data-i18n="footer.brand">Dokke by Felipe Natanael</p>
     </div>
@@ -1520,10 +2650,42 @@
 
   const $ = id => document.getElementById(id);
 
+  /* Só o PWA standalone deve trocar a régua estrutural pela visual viewport.
+     No Safari aberto como navegador, a barra inferior faz parte da régua
+     original do layout e não deve comprimir os cards. */
+  const DOKKE_STANDALONE = (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches)
+    || window.navigator.standalone === true;
+  document.body.classList.toggle("is-browser", !DOKKE_STANDALONE);
+  function syncDokkeViewport(){
+    if (!DOKKE_STANDALONE) return;
+    const visualViewport = window.visualViewport;
+    const height = visualViewport && Number.isFinite(visualViewport.height)
+      ? visualViewport.height
+      : window.innerHeight;
+    if (!Number.isFinite(height) || height <= 0) return;
+    document.documentElement.style.setProperty("--dokke-viewport-height", `${Math.round(height)}px`);
+  }
+  if (DOKKE_STANDALONE){
+    syncDokkeViewport();
+    window.addEventListener("resize", syncDokkeViewport, { passive: true });
+    if (window.visualViewport){
+      window.visualViewport.addEventListener("resize", syncDokkeViewport, { passive: true });
+      window.visualViewport.addEventListener("scroll", syncDokkeViewport, { passive: true });
+    }
+  }
+
+  function blockNativeSurfaceAction(event){
+    event.preventDefault();
+  }
+  document.addEventListener("selectstart", blockNativeSurfaceAction, { capture: true, passive: false });
+  document.addEventListener("contextmenu", blockNativeSurfaceAction, { capture: true, passive: false });
+  document.addEventListener("dragstart", blockNativeSurfaceAction, { capture: true, passive: false });
+
   const I18N = {
     "pt-BR": {
       "aria.language": "Idioma", "aria.selectLanguage": "Selecionar idioma", "aria.close": "Fechar",
-      "login.title": "Conectar ao Dokke", "login.description": "Conecte o aparelho ao seu Mac para abrir os apps.",
+      "screen.apps": "Apps", "screen.recents": "Abertos", "screen.usage": "Uso",
+      "login.title": "Conectar ao Dokke", "login.description": "Conecte o aparelho ao seu Mac para abrir os apps.", "login.help": "Como conectar?",
       "login.step1Prefix": "Conecte o Mac e este aparelho à", "login.sameNetwork": "mesma rede Wi-Fi",
       "login.step2Prefix": "No Mac, abra o", "login.step2Suffix": "e escolha os apps que quer usar.",
       "login.step3Prefix": "Toque em", "login.generateCode": "Gerar novo código", "login.step3Suffix": "no Mac e digite o código de 4 dígitos aqui.",
@@ -1531,7 +2693,7 @@
       "login.tooMany": "Muitas tentativas — aguarde um pouco.", "login.wrongCode": "Código errado.",
       "dock.openApps": "Apps abertos", "dock.apps": "Apps", "dock.pinned": "Favoritos", "dock.tapToOpen": "Toque em um app para abrir",
       "recents.title": "Apps abertos", "recents.empty": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
-      "usage.title": "Uso", "usage.source": "Fonte: OpenUsage", "usage.localData": "Dados locais", "usage.updated": "atualizado", "usage.refresh": "Atualizar", "usage.loading": "Lendo limites...", "usage.primaryLimit": "Limite principal", "usage.focusHint": "Veja o uso atual e quando o limite reinicia.", "usage.providers": "Limites monitorados", "usage.unavailable": "OpenUsage indisponível", "usage.unavailableBody": "Inicie o OpenUsage no Mac para o Dokke ler os limites localmente. Nenhum número foi inventado.", "usage.noData": "Sem limite confiável", "usage.noDataBody": "Claude e Codex ainda não retornaram limites utilizáveis.", "usage.normal": "normal", "usage.attention": "atenção", "usage.exhausted": "esgotado", "usage.unknown": "sem dados", "usage.fiveHour": "Janela de 5 horas", "usage.session": "Sessão", "usage.weekly": "Semana", "usage.monthly": "Mês", "usage.credits": "Créditos", "usage.balance": "Saldo", "usage.reset": "reseta", "usage.resetUnknown": "reset desconhecido", "usage.used": "{value} usado", "usage.usedShort": "usado", "usage.remaining": "restante", "usage.available": "disponível", "usage.moreLimits": "Mais limites", "usage.hideLimits": "Ocultar limites", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token está tranquilo", "usage.pet.attentive": "Token está atento", "usage.pet.tired": "Token está cansado", "usage.pet.exhausted": "Token precisa recarregar", "usage.pet.neutral": "Token está aguardando dados", "usage.pet.greeting": "Opa! Sou o token", "usage.pet.refreshing": "Atualizando...", "usage.pet.updated": "Atualizado", "usage.pet.interact": "Interagir com o Token",
+      "usage.title": "Uso", "usage.source": "Fonte: OpenUsage", "usage.localData": "Dados locais", "usage.updated": "atualizado", "usage.refresh": "Atualizar", "usage.loading": "Lendo limites...", "usage.primaryLimit": "Limite principal", "usage.focusHint": "Veja o uso atual e quando o limite reinicia.", "usage.providers": "Limites monitorados", "usage.openProvider": "Abrir limites de {name}", "usage.unavailable": "OpenUsage indisponível", "usage.unavailableBody": "Inicie o OpenUsage no Mac para o Dokke ler os limites localmente. Nenhum número foi inventado.", "usage.noData": "Sem limite confiável", "usage.noDataBody": "Claude e Codex ainda não retornaram limites utilizáveis.", "usage.normal": "normal", "usage.attention": "atenção", "usage.exhausted": "esgotado", "usage.unknown": "sem dados", "usage.fiveHour": "Janela de 5 horas", "usage.session": "Sessão", "usage.weekly": "Semana", "usage.monthly": "Mês", "usage.credits": "Créditos", "usage.balance": "Saldo", "usage.reset": "reseta", "usage.resetUnknown": "reset desconhecido", "usage.used": "{value} usado", "usage.usedShort": "usado", "usage.remaining": "restante", "usage.available": "disponível", "usage.moreLimits": "Mais limites", "usage.hideLimits": "Ocultar limites", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token está tranquilo", "usage.pet.attentive": "Token está atento", "usage.pet.tired": "Token está cansado", "usage.pet.exhausted": "Token precisa recarregar", "usage.pet.neutral": "Token está aguardando dados", "usage.pet.greeting": "Opa! Sou o token", "usage.pet.refreshing": "Atualizando...", "usage.pet.updated": "Atualizado", "usage.pet.interact": "Interagir com o Token",
       "modal.pinTitle": "Fixar apps como favoritos",
       "dock.opened": "aberto", "dock.noOpenApps": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
       "dock.pinApps": "Fixar apps como favoritos", "dock.pinSubtitle": "Escolha os apps que aparecem no Launchpad.",
@@ -1541,12 +2703,12 @@
       "modal.removeAppBody": "\"{name}\" sai dos fixos. O app continua no Launchpad.",
       "modal.cancel": "Cancelar", "modal.removeConfirm": "Remover", "modal.stopAllTitle": "Encerrar transmissão?",
       "modal.stopAllBody": "O OBS vai parar a gravação e a live.", "modal.stopAll": "Encerrar tudo",
-      "toast.macDisconnected": "Mac desconectado", "toast.deviceConnected": "Dispositivo conectado",
+      "toast.macDisconnected": "Desconectado", "toast.deviceConnected": "Conectado",
       "toast.pinAdded": "\"{name}\" adicionado aos favoritos", "toast.removed": "\"{name}\" removido",
       "toast.pinFailed": "Falha ao fixar", "toast.openFailed": "Não consegui abrir \"{name}\"",
       "toast.removeFailed": "Falha ao remover", "toast.dockChanged": "O dock mudou; tente novamente",
-      "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "OBS offline",
-      "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando…",
+      "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "Offline",
+      "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando",
       "error.PINNED_LIMIT_REACHED": "Limite de {pages} páginas atingido",
       "error.REVISION_CONFLICT": "O dock mudou; tente novamente",
       "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "Essa configuração exige um cliente atualizado",
@@ -1567,7 +2729,8 @@
     },
     en: {
       "aria.language": "Language", "aria.selectLanguage": "Select language", "aria.close": "Close",
-      "login.title": "Connect to Dokke", "login.description": "Connect this device to your Mac to open apps.",
+      "screen.apps": "Apps", "screen.recents": "Open apps", "screen.usage": "Usage",
+      "login.title": "Connect to Dokke", "login.description": "Connect this device to your Mac to open apps.", "login.help": "How to connect?",
       "login.step1Prefix": "Connect your Mac and this device to the", "login.sameNetwork": "same Wi-Fi network",
       "login.step2Prefix": "On your Mac, open", "login.step2Suffix": "and choose the apps you want to use.",
       "login.step3Prefix": "Tap", "login.generateCode": "Generate new code", "login.step3Suffix": "on your Mac and enter the 4-digit code here.",
@@ -1575,7 +2738,7 @@
       "login.tooMany": "Too many attempts — please wait a moment.", "login.wrongCode": "Wrong code.",
       "dock.openApps": "Open apps", "dock.apps": "Apps", "dock.pinned": "Favorites", "dock.tapToOpen": "Tap an app to open it",
       "recents.title": "Open apps", "recents.empty": "Nothing open yet — open an app on your Mac to see it here",
-      "usage.title": "Usage", "usage.source": "Source: OpenUsage", "usage.localData": "Local data", "usage.updated": "updated", "usage.refresh": "Refresh", "usage.loading": "Reading limits...", "usage.primaryLimit": "Primary limit", "usage.focusHint": "See current usage and when the limit resets.", "usage.providers": "Monitored limits", "usage.unavailable": "OpenUsage unavailable", "usage.unavailableBody": "Start OpenUsage on the Mac so Dokke can read the limits locally. No number was invented.", "usage.noData": "No reliable limit", "usage.noDataBody": "Claude and Codex have not returned usable limits yet.", "usage.normal": "normal", "usage.attention": "attention", "usage.exhausted": "exhausted", "usage.unknown": "no data", "usage.fiveHour": "5-hour window", "usage.session": "Session", "usage.weekly": "Weekly", "usage.monthly": "Monthly", "usage.credits": "Credits", "usage.balance": "Balance", "usage.reset": "resets", "usage.resetUnknown": "reset unknown", "usage.used": "{value} used", "usage.usedShort": "used", "usage.remaining": "remaining", "usage.available": "available", "usage.moreLimits": "More limits", "usage.hideLimits": "Hide limits", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token is calm", "usage.pet.attentive": "Token is paying attention", "usage.pet.tired": "Token is tired", "usage.pet.exhausted": "Token needs a recharge", "usage.pet.neutral": "Token is waiting for data", "usage.pet.greeting": "Oops! I'm the token", "usage.pet.refreshing": "Refreshing...", "usage.pet.updated": "Updated", "usage.pet.interact": "Interact with Token",
+      "usage.title": "Usage", "usage.source": "Source: OpenUsage", "usage.localData": "Local data", "usage.updated": "updated", "usage.refresh": "Refresh", "usage.loading": "Reading limits...", "usage.primaryLimit": "Primary limit", "usage.focusHint": "See current usage and when the limit resets.", "usage.providers": "Monitored limits", "usage.openProvider": "Open {name} limits", "usage.unavailable": "OpenUsage unavailable", "usage.unavailableBody": "Start OpenUsage on the Mac so Dokke can read the limits locally. No number was invented.", "usage.noData": "No reliable limit", "usage.noDataBody": "Claude and Codex have not returned usable limits yet.", "usage.normal": "normal", "usage.attention": "attention", "usage.exhausted": "exhausted", "usage.unknown": "no data", "usage.fiveHour": "5-hour window", "usage.session": "Session", "usage.weekly": "Weekly", "usage.monthly": "Monthly", "usage.credits": "Credits", "usage.balance": "Balance", "usage.reset": "resets", "usage.resetUnknown": "reset unknown", "usage.used": "{value} used", "usage.usedShort": "used", "usage.remaining": "remaining", "usage.available": "available", "usage.moreLimits": "More limits", "usage.hideLimits": "Hide limits", "usage.provider.claude": "Claude", "usage.provider.codex": "Codex", "usage.pet.energized": "Token is calm", "usage.pet.attentive": "Token is paying attention", "usage.pet.tired": "Token is tired", "usage.pet.exhausted": "Token needs a recharge", "usage.pet.neutral": "Token is waiting for data", "usage.pet.greeting": "Oops! I'm the token", "usage.pet.refreshing": "Refreshing...", "usage.pet.updated": "Updated", "usage.pet.interact": "Interact with Token",
       "modal.pinTitle": "Pin apps as favorites",
       "dock.opened": "open", "dock.noOpenApps": "Nothing open yet — open an app on your Mac to see it here",
       "dock.pinApps": "Pin apps as favorites", "dock.pinSubtitle": "Choose the apps that appear in Launchpad.",
@@ -1585,12 +2748,12 @@
       "modal.removeAppBody": "\"{name}\" will be unpinned. The app stays in Launchpad.",
       "modal.cancel": "Cancel", "modal.removeConfirm": "Remove", "modal.stopAllTitle": "Stop broadcast?",
       "modal.stopAllBody": "OBS will stop recording and the live stream.", "modal.stopAll": "Stop everything",
-      "toast.macDisconnected": "Mac disconnected", "toast.deviceConnected": "Device connected",
+      "toast.macDisconnected": "Disconnected", "toast.deviceConnected": "Connected",
       "toast.pinAdded": "\"{name}\" added to favorites", "toast.removed": "\"{name}\" removed",
       "toast.pinFailed": "Failed to pin", "toast.openFailed": "Could not open \"{name}\"",
       "toast.removeFailed": "Failed to remove", "toast.dockChanged": "The dock changed; try again",
-      "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "OBS offline",
-      "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating…",
+      "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "Offline",
+      "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating",
       "error.PINNED_LIMIT_REACHED": "Limit of {pages} pages reached",
       "error.REVISION_CONFLICT": "The dock changed; try again",
       "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "This configuration requires an updated client",
@@ -1623,6 +2786,14 @@
   I18N["pt-BR"]["usage.offline"] = "Offline";
   I18N["pt-BR"]["usage.fiveHourShort"] = "5 horas";
   I18N["pt-BR"]["usage.weekShort"] = "semana";
+  I18N["pt-BR"]["usage.paceRawLabel"] = "Uso atual";
+  I18N["pt-BR"]["usage.resetInLabel"] = "Reset em";
+  I18N["pt-BR"]["usage.noDataShort"] = "Sem dados";
+  I18N["pt-BR"]["usage.paceAhead"] = "Seu uso está abaixo do ritmo do período.";
+  I18N["pt-BR"]["usage.paceOnTrack"] = "Pode chegar perto do limite no reset.";
+  I18N["pt-BR"]["usage.paceBehind"] = "Pode atingir o limite antes do reset.";
+  I18N["pt-BR"]["usage.paceSpent"] = "Limite atingido antes do reset.";
+  I18N["pt-BR"]["usage.paceUnavailable"] = "Indicador baseado no uso acumulado e no tempo até o reset.";
   I18N["pt-BR"]["usage.untilReset"] = "até resetar";
   I18N["pt-BR"]["usage.overLimitAtReset"] = "acima do limite no reset";
   I18N["pt-BR"]["usage.usedAtReset"] = "usado no reset";
@@ -1635,6 +2806,25 @@
   I18N["pt-BR"]["usage.showRemaining"] = "Mostrar restante";
   I18N["pt-BR"]["usage.showUsed"] = "Mostrar usado";
   I18N["pt-BR"]["usage.trend"] = "Tendência de uso";
+  I18N["pt-BR"]["usage.trendActivity"] = "Atividade de tokens";
+  I18N["pt-BR"]["usage.trendWindow"] = "últimos 30 dias";
+  I18N["pt-BR"]["usage.trendWindowToday"] = "hoje";
+  I18N["pt-BR"]["usage.trendWindow7d"] = "últimos 7 dias";
+  I18N["pt-BR"]["usage.trendWindow30d"] = "últimos 30 dias";
+  I18N["pt-BR"]["usage.trendPreviousDay"] = "vs. ontem";
+  I18N["pt-BR"]["usage.trendPreviousDays"] = "vs. {days} dias anteriores";
+  I18N["pt-BR"]["usage.trendPeriodToday"] = "Hoje";
+  I18N["pt-BR"]["usage.trendPeriod7d"] = "7D";
+  I18N["pt-BR"]["usage.trendPeriod30d"] = "30D";
+  I18N["pt-BR"]["usage.trendTotalLabel"] = "Total de tokens";
+  I18N["pt-BR"]["usage.trendAverage"] = "média/dia";
+  I18N["pt-BR"]["usage.trendBarsTitle"] = "Tokens por dia";
+  I18N["pt-BR"]["usage.trendTotal"] = "Total";
+  I18N["pt-BR"]["usage.trendPeakLabel"] = "pico";
+  I18N["pt-BR"]["usage.trendStreak"] = "sequência";
+  I18N["pt-BR"]["usage.trendActiveDays"] = "dias ativos";
+  I18N["pt-BR"]["usage.trendLess"] = "Menos";
+  I18N["pt-BR"]["usage.trendMore"] = "Mais";
   I18N["pt-BR"]["usage.source"] = "Fonte: Dokke";
   I18N["pt-BR"]["usage.loadingTitle"] = "Buscando limites";
   I18N["pt-BR"]["usage.loadingBody"] = "Aguardando os provedores retornarem o uso.";
@@ -1659,6 +2849,14 @@
   I18N["en"]["usage.offline"] = "Offline";
   I18N["en"]["usage.fiveHourShort"] = "5 hours";
   I18N["en"]["usage.weekShort"] = "week";
+  I18N["en"]["usage.paceRawLabel"] = "Current usage";
+  I18N["en"]["usage.resetInLabel"] = "Reset in";
+  I18N["en"]["usage.noDataShort"] = "No data";
+  I18N["en"]["usage.paceAhead"] = "Your use is below the pace for this period.";
+  I18N["en"]["usage.paceOnTrack"] = "You may approach the limit at reset.";
+  I18N["en"]["usage.paceBehind"] = "You may hit the limit before reset.";
+  I18N["en"]["usage.paceSpent"] = "Limit reached before reset.";
+  I18N["en"]["usage.paceUnavailable"] = "Based on accumulated use and time until reset.";
   I18N["en"]["usage.untilReset"] = "until reset";
   I18N["en"]["usage.overLimitAtReset"] = "over limit at reset";
   I18N["en"]["usage.usedAtReset"] = "used at reset";
@@ -1671,6 +2869,25 @@
   I18N["en"]["usage.showRemaining"] = "Show remaining";
   I18N["en"]["usage.showUsed"] = "Show used";
   I18N["en"]["usage.trend"] = "Usage Trend";
+  I18N["en"]["usage.trendActivity"] = "Token activity";
+  I18N["en"]["usage.trendWindow"] = "last 30 days";
+  I18N["en"]["usage.trendWindowToday"] = "today";
+  I18N["en"]["usage.trendWindow7d"] = "last 7 days";
+  I18N["en"]["usage.trendWindow30d"] = "last 30 days";
+  I18N["en"]["usage.trendPreviousDay"] = "vs. yesterday";
+  I18N["en"]["usage.trendPreviousDays"] = "vs. previous {days} days";
+  I18N["en"]["usage.trendPeriodToday"] = "Today";
+  I18N["en"]["usage.trendPeriod7d"] = "7D";
+  I18N["en"]["usage.trendPeriod30d"] = "30D";
+  I18N["en"]["usage.trendTotalLabel"] = "Total tokens";
+  I18N["en"]["usage.trendAverage"] = "Average/day";
+  I18N["en"]["usage.trendBarsTitle"] = "Tokens per day";
+  I18N["en"]["usage.trendTotal"] = "Total";
+  I18N["en"]["usage.trendPeakLabel"] = "Peak";
+  I18N["en"]["usage.trendStreak"] = "Streak";
+  I18N["en"]["usage.trendActiveDays"] = "Active days";
+  I18N["en"]["usage.trendLess"] = "Less";
+  I18N["en"]["usage.trendMore"] = "More";
   I18N["en"]["usage.source"] = "Source: Dokke";
   I18N["en"]["usage.loadingTitle"] = "Looking for limits";
   I18N["en"]["usage.loadingBody"] = "Waiting for providers to return usage.";
@@ -1748,6 +2965,7 @@
 
   // ---------- login wall (pin de acesso) ----------
   let authed = false, loginOpen = false, loginSubmitting = false;
+  let loginPreviousFocus = null;
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -1777,6 +2995,7 @@
   }
   function showLogin(){
     if (loginOpen) return;
+    loginPreviousFocus = document.activeElement;
     loginOpen = true;
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
@@ -1791,6 +3010,10 @@
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
     syncLoginOrientation();
+    if (loginPreviousFocus && loginPreviousFocus.isConnected && loginPreviousFocus.focus){
+      loginPreviousFocus.focus();
+    }
+    loginPreviousFocus = null;
   }
   function loginError(msg){
     const err = $("loginErr");
@@ -1821,6 +3044,24 @@
     } finally {
       loginSubmitting = false;
     }
+  }
+  const loginScrim = $("loginScrim");
+  if (loginScrim){
+    loginScrim.addEventListener("keydown", function(event){
+      if (!loginOpen || event.key !== "Tab") return;
+      const focusable = Array.from(loginScrim.querySelectorAll("button, input, summary, [href], select, textarea, [tabindex]:not([tabindex='-1'])"))
+        .filter(function(element){ return !element.disabled && element.getClientRects().length > 0; });
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first){
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last){
+        event.preventDefault();
+        first.focus();
+      }
+    });
   }
   $("loginGo").addEventListener("click", doLogin);
   $("loginPin").addEventListener("input", function(){
@@ -1956,10 +3197,14 @@
     control.setAttribute("tabindex", "0");
     control.title = state.usageSettings.display === "remaining" ? t("usage.showUsed") : t("usage.showRemaining");
     control.setAttribute("aria-label", control.title);
-    control.addEventListener("click", toggleUsageMeterDisplay);
+    control.addEventListener("click", function(event){
+      event.stopPropagation();
+      toggleUsageMeterDisplay();
+    });
     control.addEventListener("keydown", function(event){
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
+      event.stopPropagation();
       toggleUsageMeterDisplay();
     });
     return control;
@@ -1969,25 +3214,38 @@
     return usageTextNode("span", className, text);
   }
 
-  function usageResetChartControl(chart, reset, providerId){
-    if (!reset || !Number.isFinite(reset.time)) return chart;
+  function usageResetCardControl(card, reset, providerId, providerName){
+    if (!reset || !Number.isFinite(reset.time)) return card;
     const action = state.usageSettings.reset === "exact" ? t("usage.showResetCountdown") : t("usage.showExactReset");
-    chart.setAttribute("role", "button");
-    chart.setAttribute("tabindex", "0");
-    chart.dataset.resetMode = state.usageSettings.reset;
-    chart.title = action;
-    chart.setAttribute("aria-label", (chart.getAttribute("aria-label") || "") + ". " + action);
+    card.dataset.resetMode = state.usageSettings.reset;
     const toggle = function(){
       queueUsageMascotReaction(providerId, "chart");
       toggleUsageResetDisplay();
     };
-    chart.addEventListener("click", toggle);
-    chart.addEventListener("keydown", function(event){
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
+    const resetControl = card.querySelector(".usage-reset-block");
+    if (resetControl){
+      resetControl.setAttribute("role", "button");
+      resetControl.setAttribute("tabindex", "0");
+      resetControl.title = action;
+      resetControl.setAttribute("aria-label", (providerName || "") + ". " + action);
+      resetControl.addEventListener("click", function(event){
+        if (event.target !== resetControl) return;
+        event.stopPropagation();
+        toggle();
+      });
+      resetControl.addEventListener("keydown", function(event){
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        toggle();
+      });
+    }
+    card.addEventListener("click", function(event){
+      const target = event && event.target;
+      if (target && target.closest && target.closest(".usage-gauge-wrap, .usage-reset-block, .usage-limit-reset-value, .usage-five-reset-exact, .usage-week-reset")) return;
       toggle();
     });
-    return chart;
+    return card;
   }
 
   function pinnedLimitMessage(){
@@ -2110,10 +3368,17 @@
     }, { passive: true });
   }
   function bindHold(el, fn){
-    let timer = null, x = 0, y = 0;
-    function clear(){ if (timer){ clearTimeout(timer); timer = null; } }
+    let timer = null, x = 0, y = 0, pointerId = null;
+    function clear(e){
+      if (e && pointerId !== null && e.pointerId !== pointerId) return;
+      if (timer){ clearTimeout(timer); timer = null; }
+      pointerId = null;
+      window.removeEventListener("pointerup", clear, true);
+      window.removeEventListener("pointercancel", clear, true);
+    }
     el.addEventListener("pointerdown", function(e){
       clear();
+      pointerId = e.pointerId;
       x = e.clientX; y = e.clientY;
       timer = setTimeout(function(){
         timer = null;
@@ -2121,6 +3386,8 @@
         suppressClickUntil = Date.now() + 700;
         fn(el);
       }, 550);
+      window.addEventListener("pointerup", clear, true);
+      window.addEventListener("pointercancel", clear, true);
     });
     el.addEventListener("pointermove", function(e){
       if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) clear();
@@ -3390,6 +4657,14 @@
     return state.usageSettings.display === "remaining" ? t("usage.remaining") : t("usage.usedShort");
   }
 
+  function usagePaceMessage(pace){
+    if (!pace) return t("usage.paceUnavailable");
+    if (pace.status === "spent") return t("usage.paceSpent");
+    if (pace.status === "behind") return t("usage.paceBehind");
+    if (pace.status === "onTrack") return t("usage.paceOnTrack");
+    return t("usage.paceAhead");
+  }
+
   // Port of OpenUsage's Pace.evaluate. A reset timestamp alone is not enough;
   // without the window duration we stay silent instead of fabricating a forecast.
   function usagePace(entry){
@@ -3442,7 +4717,7 @@
   }
 
   function usagePaceTick(entry, pace){
-    if (!pace || pace.status !== "behind") return null;
+    if (!pace || ["ahead", "onTrack", "behind", "spent"].indexOf(pace.status) === -1) return null;
     const resource = entry && entry.resource || {};
     const resetTime = Date.parse(resource.resetsAt || "");
     const periodMs = typeof resource.periodDurationMs === "number" && Number.isFinite(resource.periodDurationMs)
@@ -3451,12 +4726,12 @@
     const now = Date.now();
     const elapsed = now - (resetTime - periodMs);
     const minimumElapsed = Math.max(60000, periodMs * 0.01);
-    if (elapsed < minimumElapsed || now >= resetTime) return null;
+    if (elapsed < minimumElapsed) return null;
     const elapsedFraction = Math.min(Math.max(elapsed / periodMs, 0), 1);
     return state.usageSettings.display === "remaining" ? 1 - elapsedFraction : elapsedFraction;
   }
 
-  function usagePaceNode(pace){
+  function usagePaceNode(pace, compact){
     if (!pace || (pace.status !== "behind" && pace.status !== "spent")) return null;
     const warning = usageTextNode("span", "usage-pace-warning", "");
     warning.dataset.pace = pace.status;
@@ -3473,6 +4748,7 @@
     path.setAttribute("d", "M12 23c-4.97 0-8-3.21-8-7.5 0-3.43 2.04-5.77 4.33-8.1.47 1.75 1.62 2.78 2.73 3.5-.15-2.45.91-5.36 3.73-8.9.12 3.18 1.44 4.77 2.58 6.24 1.18 1.52 2.31 2.97 2.31 5.76C19.68 19.77 16.68 23 12 23Z");
     flame.appendChild(path);
     warning.appendChild(flame);
+    if (compact) return warning;
     if (pace.status === "spent") {
       warning.appendChild(usageTextNode("span", "usage-pace-runout", t("usage.limitReached")));
     } else if (Number.isFinite(pace.runoutAt)) {
@@ -3894,14 +5170,15 @@
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 100 100");
       svg.setAttribute("role", "img");
-      svg.setAttribute("aria-label", usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel());
+      const usageLabel = usagePercentLabel();
+      svg.setAttribute("aria-label", usageLabel + ", " + percent + ". " + usagePaceMessage(pace));
       usagePaintGauge(svg, fraction == null ? null : fraction * 100, usageGaugeColor(limitStatus));
-      usageResetChartControl(svg, reset, providerId);
       gauge.appendChild(svg);
       const gaugeCopy = document.createElement("div");
       gaugeCopy.className = "usage-gauge-copy";
       const gaugeValue = document.createElement("strong");
-      gaugeValue.className = "usage-limit-value";
+      gaugeValue.className = "usage-limit-value usage-pace-score";
+      gaugeValue.dataset.metric = "usage";
       if (percent.endsWith("%")){
         gaugeValue.appendChild(document.createTextNode(percent.slice(0, -1)));
         gaugeValue.appendChild(usageTextNode("small", "usage-limit-unit", "%"));
@@ -3909,31 +5186,34 @@
       else {
         gaugeValue.textContent = percent;
       }
-      usageMeterControl(gaugeValue);
       gaugeCopy.appendChild(gaugeValue);
-      gaugeCopy.appendChild(usageTextNode("small", "usage-gauge-caption", usagePercentLabel()));
       gauge.appendChild(gaugeCopy);
+      usageMeterControl(gauge);
       metric.appendChild(gauge);
       const fiveCopy = document.createElement("div");
       fiveCopy.className = "usage-five-copy";
-      const labelRow = document.createElement("div");
-      labelRow.className = "usage-limit-label-row";
-      labelRow.appendChild(usageTextNode("b", "usage-limit-label", usageLimitLabel(entry)));
-      const paceWarning = usagePaceNode(pace);
-      if (paceWarning) labelRow.appendChild(paceWarning);
-      fiveCopy.appendChild(labelRow);
+      fiveCopy.appendChild(usageTextNode("span", "usage-limit-label usage-window-label", usageLimitLabel(entry)));
+      const resetBlock = document.createElement("div");
+      resetBlock.className = "usage-reset-block";
+      resetBlock.appendChild(usageTextNode("span", "usage-section-label", t("usage.resetInLabel")));
+      resetBlock.appendChild(usageResetLabel("usage-limit-reset-value", resetValue));
       if (state.usageSettings.reset === "exact"){
-        fiveCopy.appendChild(usageTextNode("small", "usage-limit-reset-label", ""));
+        resetBlock.appendChild(usageResetLabel("usage-five-caption usage-five-reset-exact", reset.date));
       } else {
-        fiveCopy.appendChild(usageResetLabel("usage-limit-reset-label", reset.date));
+        resetBlock.appendChild(usageResetLabel("usage-reset-date", reset.date));
       }
-      fiveCopy.appendChild(usageResetLabel("usage-limit-reset-value", resetValue));
-      const resetCaption = state.usageSettings.reset === "exact"
-        ? usageResetLabel("usage-five-caption usage-five-reset-exact", reset.date)
-        : usageTextNode("small", "usage-five-caption", t("usage.untilReset"));
-      fiveCopy.appendChild(resetCaption);
+      fiveCopy.appendChild(resetBlock);
       metric.appendChild(fiveCopy);
       limit.appendChild(metric);
+      if (pace){
+        const explanation = document.createElement("div");
+        explanation.className = "usage-pace-explanation";
+        explanation.dataset.pace = pace.status;
+        explanation.appendChild(usageTextNode("span", "usage-pace-explanation-copy", usagePaceMessage(pace)));
+        const paceIcon = usagePaceNode(pace, true);
+        if (paceIcon) explanation.insertBefore(paceIcon, explanation.firstChild);
+        limit.appendChild(explanation);
+      }
     } else {
       const metric = document.createElement("div");
       metric.className = "usage-metric-week";
@@ -3964,7 +5244,9 @@
         tick.className = "usage-week-pace-tick";
         tick.dataset.pace = pace.status;
         tick.style.left = (Math.round(paceTick * 1000) / 10) + "%";
-        tick.setAttribute("aria-hidden", "true");
+        tick.setAttribute("role", "img");
+        tick.setAttribute("aria-label", pace.tooltip || t("usage.usedAtReset"));
+        tick.title = pace.tooltip || t("usage.usedAtReset");
         meter.appendChild(tick);
       }
       const weekRow = document.createElement("div");
@@ -3976,52 +5258,240 @@
       limit.appendChild(metric);
     }
     limit.setAttribute("role", "group");
-    limit.setAttribute("aria-label", usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel() + ", " + resetValue + (pace && pace.tooltip ? ", " + pace.tooltip : ""));
+    const accessiblePacePercent = percent;
+    const accessiblePaceLabel = usagePercentLabel();
+    limit.setAttribute("aria-label", primary
+      ? usageLimitLabel(entry) + ", " + accessiblePaceLabel + ", " + accessiblePacePercent + ". " + usagePaceMessage(pace) + ". " + t("usage.resetInLabel") + " " + resetValue
+      : usageLimitLabel(entry) + ", " + percent + " " + usagePercentLabel() + ", " + resetValue + (pace && pace.tooltip ? ", " + pace.tooltip : ""));
     return limit;
+  }
+
+  const USAGE_TREND_PERIODS = [
+    { id: "today", days: 1, labelKey: "usage.trendPeriodToday", windowKey: "usage.trendWindowToday" },
+    { id: "7d", days: 7, labelKey: "usage.trendPeriod7d", windowKey: "usage.trendWindow7d" },
+    { id: "30d", days: 30, labelKey: "usage.trendPeriod30d", windowKey: "usage.trendWindow30d" },
+  ];
+
+  function usageTrendSummary(points){
+    const values = (Array.isArray(points) ? points : []).map(function(point){
+      return Math.max(0, Number(point && point.value) || 0);
+    });
+    let total = 0;
+    let peak = 0;
+    let activeDays = 0;
+    let currentStreak = 0;
+    let longestStreak = 0;
+    values.forEach(function(value){
+      total += value;
+      peak = Math.max(peak, value);
+      if (value > 0){
+        activeDays += 1;
+        currentStreak += 1;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    });
+    return { total, peak, activeDays, longestStreak, averageDaily: values.length ? total / values.length : 0 };
+  }
+
+  function usageTrendComparison(points, previousPoints){
+    const currentTotal = usageTrendSummary(points).total;
+    const previousTotal = usageTrendSummary(previousPoints).total;
+    if (!Array.isArray(previousPoints) || !previousPoints.length || previousTotal <= 0) return null;
+    const percent = Math.round(((currentTotal - previousTotal) / previousTotal) * 100);
+    return {
+      percent,
+      absolutePercent: Math.abs(percent),
+      direction: percent < 0 ? "down" : percent > 0 ? "up" : "flat",
+    };
+  }
+
+  function usageTrendComparisonLabel(period){
+    return period.days === 1
+      ? t("usage.trendPreviousDay")
+      : t("usage.trendPreviousDays", { days: period.days });
+  }
+
+  function usageTrendSummaryNode(points, period, previousPoints){
+    const summary = usageTrendSummary(points);
+    const summaryNode = document.createElement("section");
+    summaryNode.className = "usage-trend-summary";
+    summaryNode.setAttribute("aria-label", t("usage.trendActivity") + ", " + t(period.windowKey));
+    const summaryHead = document.createElement("div");
+    summaryHead.className = "usage-trend-summary-head";
+    summaryHead.appendChild(usageTextNode("strong", "usage-trend-summary-title", t("usage.trendActivity")));
+    summaryHead.appendChild(usageTextNode("span", "usage-trend-summary-window", t(period.windowKey)));
+    summaryNode.appendChild(summaryHead);
+    const total = document.createElement("div");
+    total.className = "usage-trend-summary-total-block";
+    total.appendChild(usageTextNode("span", "usage-trend-summary-total-label", t("usage.trendTotalLabel")));
+    total.appendChild(usageTextNode("strong", "usage-trend-summary-total", usageTrendCompactValue(summary.total)));
+    summaryNode.appendChild(total);
+    const comparison = usageTrendComparison(points, previousPoints);
+    if (comparison){
+      const comparisonNode = document.createElement("div");
+      comparisonNode.className = "usage-trend-summary-comparison";
+      comparisonNode.dataset.direction = comparison.direction;
+      comparisonNode.setAttribute("aria-label", (comparison.direction === "down" ? "↓" : comparison.direction === "up" ? "↑" : "→") + " " + comparison.absolutePercent + "% " + usageTrendComparisonLabel(period));
+      comparisonNode.appendChild(usageTextNode("span", "usage-trend-summary-comparison-arrow", comparison.direction === "down" ? "↓" : comparison.direction === "up" ? "↑" : "→"));
+      comparisonNode.appendChild(usageTextNode("strong", "usage-trend-summary-comparison-value", comparison.absolutePercent + "%"));
+      comparisonNode.appendChild(usageTextNode("span", "usage-trend-summary-comparison-label", usageTrendComparisonLabel(period)));
+      summaryNode.appendChild(comparisonNode);
+    }
+    const metrics = document.createElement("div");
+    metrics.className = "usage-trend-summary-metrics";
+    const metricValues = [
+      [t("usage.trendAverage"), usageTrendCompactValue(summary.averageDaily)],
+      [t("usage.trendPeakLabel"), usageTrendCompactValue(summary.peak)],
+      [t("usage.trendActiveDays"), String(summary.activeDays)],
+      [t("usage.trendStreak"), summary.longestStreak + "d"],
+    ];
+    metricValues.forEach(function(entry){
+      const metric = document.createElement("span");
+      metric.className = "usage-trend-summary-metric";
+      metric.appendChild(usageTextNode("strong", "usage-trend-summary-value", entry[1]));
+      metric.appendChild(usageTextNode("span", "usage-trend-summary-label", entry[0]));
+      metrics.appendChild(metric);
+    });
+    summaryNode.appendChild(metrics);
+    return summaryNode;
+  }
+
+  function usageTrendBarPanel(points, maxValue){
+    const panel = document.createElement("section");
+    panel.className = "usage-trend-bars-panel";
+    panel.setAttribute("aria-label", t("usage.trendBars", { count: points.length }));
+    const head = document.createElement("div");
+    head.className = "usage-trend-panel-head";
+    head.appendChild(usageTextNode("strong", "usage-trend-panel-title", t("usage.trendBarsTitle")));
+    head.appendChild(usageTextNode("span", "usage-trend-panel-chevron", "›"));
+    head.lastElementChild.setAttribute("aria-hidden", "true");
+    panel.appendChild(head);
+    const chart = document.createElement("div");
+    chart.className = "usage-trend-bar-chart";
+    chart.setAttribute("role", "group");
+    chart.setAttribute("aria-label", t("usage.trendBars", { count: points.length }));
+    const gridLines = document.createElement("div");
+    gridLines.className = "usage-trend-bar-gridlines";
+    ["50%", "25%"].forEach(function(position){
+      const line = document.createElement("i");
+      line.style.bottom = position;
+      line.setAttribute("aria-hidden", "true");
+      gridLines.appendChild(line);
+    });
+    const axisTop = usageTrendAxisMax(maxValue);
+    const yAxis = document.createElement("div");
+    yAxis.className = "usage-trend-bar-y-axis";
+    [axisTop, axisTop / 2, 0].forEach(function(value){
+      yAxis.appendChild(usageTextNode("span", "usage-trend-bar-y-axis-label", usageTrendAxisValue(value)));
+    });
+    chart.appendChild(yAxis);
+    chart.appendChild(gridLines);
+    const barList = document.createElement("div");
+    barList.className = "usage-trend-bar-list";
+    barList.setAttribute("role", "list");
+    const tooltip = document.createElement("output");
+    tooltip.className = "usage-trend-bar-tooltip";
+    tooltip.setAttribute("aria-live", "polite");
+    tooltip.hidden = true;
+    const selectBar = function(bar, point){
+      barList.querySelectorAll(".usage-trend-bar.is-selected").forEach(function(selected){ selected.classList.remove("is-selected"); });
+      bar.classList.add("is-selected");
+      tooltip.textContent = (point.valueLabel || usageTrendValue(point.value)) + " · " + point.label;
+      tooltip.hidden = false;
+      if (!chart.clientWidth){
+        tooltip.style.removeProperty("--bar-tooltip-x");
+        return;
+      }
+      const barRect = bar.getBoundingClientRect();
+      const chartRect = chart.getBoundingClientRect();
+      const rawTooltipX = barRect.left - chartRect.left + barRect.width / 2;
+      const tooltipHalf = tooltip.offsetWidth / 2;
+      const minTooltipX = tooltipHalf + 4;
+      const maxTooltipX = Math.max(minTooltipX, chart.clientWidth - tooltipHalf - 4);
+      const tooltipX = Math.max(minTooltipX, Math.min(maxTooltipX, rawTooltipX));
+      tooltip.style.setProperty("--bar-tooltip-x", Math.round(tooltipX) + "px");
+    };
+    points.forEach(function(point){
+      const bar = document.createElement("button");
+      bar.type = "button";
+      bar.className = "usage-trend-bar";
+      const value = Math.max(0, Number(point && point.value) || 0);
+      const ratio = Math.max(0, Math.min(1, value / maxValue));
+      bar.style.height = Math.max(4, Math.round(ratio * 100)) + "%";
+      bar.setAttribute("aria-label", point.label + " · " + (point.valueLabel || usageTrendValue(point.value)));
+      bar.title = point.label + " · " + (point.valueLabel || usageTrendValue(point.value));
+      bar.addEventListener("click", function(){ selectBar(bar, point); });
+      barList.appendChild(bar);
+    });
+    chart.appendChild(barList);
+    chart.appendChild(tooltip);
+    const axis = document.createElement("div");
+    axis.className = "usage-trend-bar-axis";
+    const axisPoints = points.filter(function(point){ return point && point.label; });
+    const middleIndex = Math.floor((axisPoints.length - 1) / 2);
+    [axisPoints[0], axisPoints[middleIndex], axisPoints[axisPoints.length - 1]].filter(function(point, index, all){ return point && all.indexOf(point) === index; }).forEach(function(point, index, all){
+      const label = usageTextNode("span", "usage-trend-axis-label", point.label);
+      label.dataset.position = index === 0 ? "start" : index === all.length - 1 ? "end" : "middle";
+      axis.appendChild(label);
+    });
+    panel.appendChild(chart);
+    panel.appendChild(axis);
+    return panel;
   }
 
   function usageTrendNode(provider){
     const trend = provider && provider.trend;
     const points = trend && Array.isArray(trend.points) ? trend.points : [];
     if (!points.length) return null;
-    const peak = points.reduce(function(best, point){ return !best || point.value > best.value ? point : best; }, null);
-    const maxValue = Math.max(1, ...points.map(function(point){ return point.value; }));
+    // Mantém duas janelas de 30 dias em memória para calcular a comparação,
+    // mas continua oferecendo somente Hoje, 7D e 30D na interface.
+    const trendHistoryDays = 60;
+    const recentPoints = points.slice(-trendHistoryDays);
+    const peak = recentPoints.reduce(function(best, point){ return !best || point.value > best.value ? point : best; }, null);
     const trendNode = document.createElement("section");
     trendNode.className = "usage-trend";
     trendNode.setAttribute("aria-label", t("usage.trend") + ", " + (peak && (peak.valueLabel || usageTrendValue(peak.value))));
-    const head = document.createElement("div");
-    head.className = "usage-trend-head";
-    head.appendChild(usageTextNode("strong", "usage-trend-title", t("usage.trend")));
-    head.appendChild(usageTextNode("span", "usage-trend-peak", peak ? t("usage.trendPeak", { value: peak.valueLabel || usageTrendValue(peak.value) }) : ""));
-    trendNode.appendChild(head);
-    const bars = document.createElement("div");
-    bars.className = "usage-trend-bars";
-    bars.setAttribute("role", "img");
-    bars.setAttribute("aria-label", t("usage.trendBars", { count: points.length }));
-    points.forEach(function(point){
-      const bar = document.createElement("i");
-      bar.className = "usage-trend-bar";
-      const value = Number(point.value);
-      bar.dataset.level = value > 0 ? "used" : "empty";
-      bar.dataset.peak = peak === point ? "true" : "false";
-      const trendHeight = value > 0 ? Math.max(1, Math.round((value / maxValue) * 100)) : 0;
-      bar.style.setProperty("--trend-height", trendHeight + "%");
-      bar.title = point.label + " · " + (point.valueLabel || usageTrendValue(point.value));
-      bars.appendChild(bar);
-    });
-    trendNode.appendChild(bars);
-    const axis = document.createElement("div");
-    axis.className = "usage-trend-axis";
-    const middleIndex = Math.floor((points.length - 1) / 2);
-    [0, middleIndex, points.length - 1].filter(function(index, position, indexes){
-      return indexes.indexOf(index) === position;
-    }).forEach(function(index){
-      const label = usageTextNode("span", "usage-trend-axis-label", points[index].label);
-      label.dataset.position = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
-      axis.appendChild(label);
-    });
-    trendNode.appendChild(axis);
+    const periods = document.createElement("div");
+    periods.className = "usage-trend-periods";
+    periods.setAttribute("role", "group");
+    periods.setAttribute("aria-label", t("usage.trendWindow"));
+    const summarySlot = document.createElement("div");
+    summarySlot.className = "usage-trend-summary-slot";
+    const plot = document.createElement("div");
+    plot.className = "usage-trend-plot";
+    const barSlot = document.createElement("div");
+    barSlot.className = "usage-trend-bars-slot";
+    plot.appendChild(barSlot);
+    trendNode.appendChild(periods);
+    trendNode.appendChild(summarySlot);
+    trendNode.appendChild(plot);
     if (trend.note) trendNode.appendChild(usageTextNode("small", "usage-trend-note", trend.note));
+
+    let activePeriod = "30d";
+    const renderPeriod = function(periodId){
+      const period = USAGE_TREND_PERIODS.find(function(item){ return item.id === periodId; }) || USAGE_TREND_PERIODS[2];
+      activePeriod = period.id;
+      periods.replaceChildren();
+      USAGE_TREND_PERIODS.forEach(function(item){
+        const button = usageTextNode("button", "usage-trend-period", t(item.labelKey));
+        button.type = "button";
+        button.dataset.period = item.id;
+        button.setAttribute("aria-pressed", item.id === activePeriod ? "true" : "false");
+        button.setAttribute("aria-label", t(item.windowKey));
+        button.addEventListener("click", function(){ renderPeriod(item.id); });
+        periods.appendChild(button);
+      });
+      const windowSize = Math.min(period.days, recentPoints.length);
+      const selectedPoints = recentPoints.slice(-windowSize);
+      const previousPoints = recentPoints.slice(-windowSize * 2, -windowSize);
+      const comparablePreviousPoints = previousPoints.length === selectedPoints.length ? previousPoints : [];
+      const maxValue = Math.max(1, ...selectedPoints.map(function(point){ return Math.max(0, Number(point && point.value) || 0); }));
+      summarySlot.replaceChildren(usageTrendSummaryNode(selectedPoints, period, comparablePreviousPoints));
+      barSlot.replaceChildren(usageTrendBarPanel(selectedPoints, maxValue));
+    };
+    renderPeriod(activePeriod);
     return trendNode;
   }
 
@@ -4030,6 +5500,26 @@
     if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, "") + "M tokens";
     if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + "K tokens";
     return Math.round(value) + " tokens";
+  }
+
+  function usageTrendAxisMax(value){
+    const safeValue = Math.max(1, Number(value) || 0);
+    const magnitude = Math.pow(10, Math.floor(Math.log10(safeValue)));
+    const normalized = safeValue / magnitude;
+    const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return step * magnitude;
+  }
+
+  function usageTrendAxisValue(value){
+    if (value <= 0) return "0";
+    if (value >= 1000000000) return (value / 1000000000).toFixed(1).replace(/\.0$/, "") + "B";
+    if (value >= 1000000) return (value / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+    if (value >= 1000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+    return Math.round(value).toString();
+  }
+
+  function usageTrendCompactValue(value){
+    return usageTrendValue(value).replace(/\s+tokens$/, "");
   }
 
   function usageStatusNode(state, title, body){
@@ -4098,6 +5588,11 @@
     const root = $("screenUsage");
     if (!root) return;
     const previousScrollTop = root.querySelector(".usage-scroll")?.scrollTop || 0;
+    const previousTrack = root.querySelector(".usage-provider-track");
+    const previousTrackWidth = previousTrack?.clientWidth || 0;
+    const previousUsageSlide = previousTrack && previousTrackWidth > 0
+      ? Math.max(0, Math.round(previousTrack.scrollLeft / previousTrackWidth))
+      : 0;
     const scroll = document.createElement("div");
     scroll.className = "usage-scroll";
     const content = document.createElement("div");
@@ -4108,7 +5603,8 @@
     head.className = "usage-head";
     const copy = document.createElement("div");
     copy.className = "usage-head-copy";
-    copy.appendChild(usageTextNode("h1", "usage-title", t("usage.title")));
+    const usageTitle = usageTextNode("h1", "usage-title", t("usage.title"));
+    copy.appendChild(usageTitle);
     const sync = document.createElement("div");
     sync.className = "usage-sync";
     const liveDot = usageTextNode("span", "usage-live-dot", "");
@@ -4121,6 +5617,13 @@
     const headMascot = document.createElement("div");
     headMascot.className = "usage-head-mascot";
     head.appendChild(headMascot);
+    const setUsageSlide = function(index){
+      const trendActive = index === 1;
+      usageTitle.textContent = trendActive ? t("usage.trend") : t("usage.title");
+      headMascot.hidden = trendActive;
+      head.dataset.view = trendActive ? "trend" : "providers";
+    };
+    setUsageSlide(0);
     content.appendChild(head);
 
     if (state.usageError) content.appendChild(usageTextNode("div", "usage-error", state.usageError));
@@ -4233,6 +5736,11 @@
     providerSlide.className = "usage-provider-slide";
     const stack = document.createElement("div");
     stack.className = "usage-stack";
+    const secondaryCount = Math.max(0, ordered.length - 1);
+    stack.dataset.secondaryCount = String(secondaryCount);
+    stack.style.setProperty("--usage-side-count", String(Math.max(1, secondaryCount)));
+    const side = document.createElement("div");
+    side.className = "usage-side";
     ordered.forEach(function(item){
       const provider = item.provider;
       const status = provider.status || "unknown";
@@ -4252,12 +5760,32 @@
       providerName.className = "usage-provider-name";
       if (item.id === "claude") providerName.appendChild(document.createTextNode("Claude"));
       else providerName.appendChild(document.createTextNode(item.provider.name || item.id));
-      if (provider.plan) providerName.appendChild(usageTextNode("span", "usage-provider-plan", provider.plan));
+      const providerPlan = provider.plan ? usageTextNode("span", "usage-provider-plan", provider.plan) : null;
+      if (providerPlan && !isOpen) providerName.appendChild(providerPlan);
       cardHead.appendChild(providerName);
       const peekFraction = usagePercent(primary);
       const peek = usageTextNode("b", "usage-peek", peekFraction == null ? "—" : Math.round(peekFraction * 100) + "%");
-      cardHead.appendChild(peek);
+      if (!isOpen){
+        cardHead.appendChild(peek);
+        const chevron = usageTextNode("span", "usage-card-chevron", "›");
+        chevron.setAttribute("aria-hidden", "true");
+        cardHead.appendChild(chevron);
+      } else if (providerPlan){
+        providerPlan.classList.add("usage-plan-corner");
+        cardHead.appendChild(providerPlan);
+      }
       card.appendChild(cardHead);
+
+      if (!isOpen && peekFraction != null){
+        const secondaryMeter = document.createElement("div");
+        secondaryMeter.className = "usage-secondary-meter";
+        secondaryMeter.setAttribute("role", "img");
+        secondaryMeter.setAttribute("aria-label", peek.textContent + " " + usagePercentLabel());
+        const secondaryFill = document.createElement("i");
+        secondaryFill.style.width = Math.round(peekFraction * 100) + "%";
+        secondaryMeter.appendChild(secondaryFill);
+        card.appendChild(secondaryMeter);
+      }
 
       const featured = document.createElement("div");
       featured.className = "usage-featured";
@@ -4274,6 +5802,8 @@
       featured.appendChild(limits);
       card.appendChild(featured);
       if (isOpen){
+        const reset = usageResetParts(primary && primary.resource && primary.resource.resetsAt);
+        usageResetCardControl(card, reset, item.id, provider.name || item.id);
         const mascotWrap = attachMascot(item, status);
         headMascot.appendChild(mascotWrap);
       }
@@ -4281,7 +5811,7 @@
         card.setAttribute("role", "button");
         card.setAttribute("tabindex", "0");
         card.setAttribute("aria-expanded", "false");
-        card.setAttribute("aria-label", (provider.name || item.id) + ", " + peek.textContent);
+        card.setAttribute("aria-label", t("usage.openProvider", { name: provider.name || item.id }) + ", " + peek.textContent);
         const promote = function(){
           const previousRects = new Map();
           const usageRoot = $("screenUsage");
@@ -4304,14 +5834,17 @@
           promote();
         });
       }
-      stack.appendChild(card);
+      if (isOpen) stack.appendChild(card);
+      else side.appendChild(card);
     });
+    if (secondaryCount) stack.appendChild(side);
     providerSlide.appendChild(stack);
     track.appendChild(providerSlide);
     const trendItem = ordered.find(function(item){
       const points = item.provider && item.provider.trend && item.provider.trend.points;
       return Array.isArray(points) && points.length > 0;
     });
+    let restoreUsageSlide = function(){};
     if (trendItem){
       const trendSlide = document.createElement("div");
       trendSlide.className = "usage-provider-slide usage-trend-slide";
@@ -4324,31 +5857,66 @@
       const dots = document.createElement("div");
       dots.className = "usage-provider-dots";
       const slideCount = 2;
+      const resetUsageTrackVerticalScroll = function(){
+        if (track.scrollTop !== 0) track.scrollTop = 0;
+      };
       for (let index = 0; index < slideCount; index++){
         const dot = usageTextNode("button", "usage-provider-dot", "");
         dot.type = "button";
         dot.setAttribute("aria-label", index === 0 ? t("usage.providers") : t("usage.trend"));
         dot.setAttribute("aria-current", index === 0 ? "true" : "false");
+        const hDotVisualGap = 20;
+        dot.style.setProperty("--hdot-x", (((slideCount - 1) / 2 - index) * (44 - hDotVisualGap)) + "px");
+        dot.addEventListener("pointerdown", resetUsageTrackVerticalScroll, { passive: true });
         dot.addEventListener("click", function(){
-          dots.querySelectorAll(".usage-provider-dot").forEach(function(otherDot, dotIndex){
-            otherDot.setAttribute("aria-current", dotIndex === index ? "true" : "false");
-          });
+          resetUsageTrackVerticalScroll();
+          syncUsageDot(index);
           const left = index * track.clientWidth;
-          if (typeof track.scrollTo === "function") track.scrollTo({ left: left, behavior: "smooth" });
+          if (typeof track.scrollTo === "function") track.scrollTo({ left: left, behavior: "auto" });
           else track.scrollLeft = left;
+          requestAnimationFrame(resetUsageTrackVerticalScroll);
         });
         dots.appendChild(dot);
       }
-      track.addEventListener("scroll", function(){
-        const index = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
+      let usageSnapTimer = null;
+      const syncUsageDot = function(index){
         dots.querySelectorAll(".usage-provider-dot").forEach(function(dot, dotIndex){
           dot.setAttribute("aria-current", dotIndex === index ? "true" : "false");
         });
+        setUsageSlide(index);
+      };
+      restoreUsageSlide = function(){
+        const index = previousUsageSlide === 1 ? 1 : 0;
+        if (index === 1 && track.clientWidth > 0) track.scrollLeft = track.clientWidth;
+        resetUsageTrackVerticalScroll();
+        syncUsageDot(index);
+      };
+      const snapUsageTrack = function(){
+        usageSnapTimer = null;
+        const width = track.clientWidth;
+        if (!width) return;
+        const index = Math.max(0, Math.min(slideCount - 1, Math.round(track.scrollLeft / width)));
+        const left = index * width;
+        if (Math.abs(track.scrollLeft - left) > 0.5) track.scrollLeft = left;
+        syncUsageDot(index);
+      };
+      const scheduleUsageSnap = function(){
+        if (usageSnapTimer) clearTimeout(usageSnapTimer);
+        usageSnapTimer = setTimeout(snapUsageTrack, 90);
+      };
+      track.addEventListener("scroll", function(){
+        const index = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
+        syncUsageDot(Math.max(0, Math.min(slideCount - 1, index)));
+        scheduleUsageSnap();
       }, { passive: true });
+      ["pointerup", "pointercancel", "touchend", "touchcancel", "scrollend"].forEach(function(eventName){
+        track.addEventListener(eventName, scheduleUsageSnap, { passive: true });
+      });
       slider.appendChild(dots);
     }
     content.appendChild(slider);
     root.replaceChildren(scroll);
+    restoreUsageSlide();
     scroll.scrollTop = previousScrollTop;
   }
 
@@ -4608,7 +6176,7 @@
     if (!v) return;
     if (uiVersionSeen === null){ uiVersionSeen = v; return; }
     if (uiVersionSeen !== v){
-      toast(t("toast.updated"), "");
+      toast(t("toast.updated"), "sync");
       setTimeout(function(){ location.reload(); }, 600);
     }
   }
@@ -4680,7 +6248,7 @@
     } catch (e) { ok = false; }
     state.online = ok;
     if (prev && !ok) toast(t("toast.macDisconnected"), "err");
-    if (!prev && ok) toast(t("toast.deviceConnected"));
+    if (!prev && ok) toast(t("toast.deviceConnected"), "ok");
     healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
     healthT = setTimeout(loadHealth, healthBackoff);
   }
@@ -4907,19 +6475,29 @@
     const v = $("vdots");
     if (!v) return;
     const names = screenNames();
+    const vDotVisualGap = 20;
     v.replaceChildren();
     names.forEach(function(name, i){
-      const d = document.createElement("span");
-      d.className = "d" + (i === 0 ? " on" : "");
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "d" + (name === state.screen ? " on" : "");
+      d.setAttribute("aria-label", t("screen." + name));
+      d.setAttribute("aria-current", name === state.screen ? "true" : "false");
+      d.style.setProperty("--vdot-y", (((names.length - 1) / 2 - i) * (44 - vDotVisualGap)) + "px");
       v.appendChild(d);
       d.dataset.screen = name;
+      d.addEventListener("click", function(){ goScreen(name); });
     });
   }
 
   function syncVDots(){
     const ds = $("vdots").querySelectorAll(".d");
     const names = screenNames();
-    ds.forEach(function(dot, index){ dot.classList.toggle("on", names[index] === state.screen); });
+    ds.forEach(function(dot, index){
+      const active = names[index] === state.screen;
+      dot.classList.toggle("on", active);
+      dot.setAttribute("aria-current", active ? "true" : "false");
+    });
   }
 
   function goScreen(name){
@@ -5626,7 +7204,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v29").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v31").catch(function() {});
   }
 })();</script>
 </body>

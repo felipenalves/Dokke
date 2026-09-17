@@ -37,7 +37,8 @@ test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () 
   assert.match(picker, /\("TikTok", "https:\/\/tiktok\.com"\)/);
   assert.match(picker, /\("LinkedIn", "https:\/\/linkedin\.com"\)/);
   assert.match(picker, /\("ChatGPT", "https:\/\/chatgpt\.com"\)/);
-  assert.match(picker, /\("Documente", "https:\/\/documenteclub\.vercel\.app"\)/);
+  assert.match(picker, /\("X", "https:\/\/x\.com"\)/);
+  assert.doesNotMatch(picker, /documenteclub\.vercel\.app/);
   assert.doesNotMatch(picker, /\("Notion", "https:\/\/notion\.so"\)/);
   assert.doesNotMatch(picker, /\("Figma", "https:\/\/figma\.com"\)/);
   assert.match(picker, /\("Pinterest", "https:\/\/pinterest\.com"\)/);
@@ -147,7 +148,9 @@ test("Mac prioriza favicons diretos de alta resolução antes do fallback", () =
 
 test("PWA e APK usam a mesma placa branca para favicon de website", () => {
   const tile = pwa.slice(pwa.indexOf("function buildTile"), pwa.indexOf("function replaceChildren"));
-  assert.match(pwa, /\.website-plate\{[\s\S]*background: rgba\(255,255,255,\.96\)/);
+  assert.match(pwa, /\.website-plate\{[\s\S]*width: 80%; height: 80%;[\s\S]*background: rgba\(255,255,255,\.96\)/);
+  assert.match(pwa, /\.atile \.aglass \.website-plate img\.aicon\{[\s\S]*width: calc\(100% \* var\(--tile-in\)\); height: calc\(100% \* var\(--tile-in\)\);/);
+  assert.match(pwa, /\.atile \.aglass \.website-plate \.gicon\{[\s\S]*width: calc\(100% \* var\(--tile-in\)\); height: calc\(100% \* var\(--tile-in\)\);/);
   assert.match(pwa, /\.website-plate img\.aicon[\s\S]*object-fit: cover;/);
   assert.match(tile, /const websitePlate = a\.type === "website"/);
   assert.match(tile, /websitePlate\.appendChild\(img\)/);

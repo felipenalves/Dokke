@@ -1,4 +1,4 @@
-import { HISTORY_DAYS } from "./models.js";
+import { HISTORY_DAYS, TREND_DAYS } from "./models.js";
 
 function localDateKey(value) {
   const date = value instanceof Date ? value : new Date(value);
@@ -172,7 +172,7 @@ export function buildUsageTrend(series, now = new Date()) {
   }
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const points = [];
-  for (let offset = HISTORY_DAYS; offset >= 0; offset -= 1) {
+  for (let offset = TREND_DAYS; offset >= 0; offset -= 1) {
     const date = new Date(today);
     date.setDate(today.getDate() - offset);
     const key = localDateKey(date);

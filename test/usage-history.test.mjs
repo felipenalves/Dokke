@@ -6,6 +6,7 @@ import {
   buildSpendSummary,
   buildUsageTrend,
 } from "../usage/history.js";
+import { TREND_DAYS } from "../usage/models.js";
 
 const now = new Date("2026-09-01T15:00:00.000Z");
 const pricing = createPricingCatalog({
@@ -48,7 +49,7 @@ test("agrega tokens por dia e exclui modelo sem preço sem contar como zero", ()
 test("tendência preserva dias vazios e retorna hoje mais 30 dias", () => {
   const series = { daily: [{ date: "2026-09-01", totalTokens: 15, costUSD: 0.1, models: [] }] };
   const trend = buildUsageTrend(series, now);
-  assert.equal(trend.length, 31);
+  assert.equal(trend.length, TREND_DAYS + 1);
   assert.equal(trend.at(-1).value, 15);
   assert.equal(trend.at(-2).value, 0);
 });
@@ -64,14 +65,14 @@ test("@spec:AC-346 consolida datas equivalentes e soma linhas do mesmo dia", () 
   };
   const trend = buildUsageTrend(series, now);
 
-  assert.equal(trend.length, 31);
+  assert.equal(trend.length, TREND_DAYS + 1);
   assert.equal(trend.at(-1).value, 5);
   assert.equal(trend.at(-2).value, 30);
   assert.equal(trend.at(0).value, 0);
 });
 
 test("@spec:AC-346 não exibe tendência quando todo o uso está fora da janela", () => {
-  const trend = buildUsageTrend({ daily: [{ date: "2026-07-01", totalTokens: 900 }] }, now);
+  const trend = buildUsageTrend({ daily: [{ date: "2025-07-01", totalTokens: 900 }] }, now);
 
   assert.deepEqual(trend, []);
 });

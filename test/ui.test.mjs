@@ -16,13 +16,24 @@ test("GET / serve as 3 telas (apps + apps abertos + usage) liquid glass", async 
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
     assert.match(html, /id="screenUsage"/, "html deve ter a tela Usage");
     assert.match(html, /<title>Dokke<\/title>/, "o título visível do PWA deve usar a marca correta");
+    assert.match(html, /\.ttitle\{[\s\S]*font-family: "Bricolage Grotesque", sans-serif;/, "o título de Apps abertos deve usar a fonte de display");
+    assert.match(html, /\.usage-title\{ font-family: "Bricolage Grotesque", sans-serif;/, "o título de Uso deve compartilhar a fonte de display");
     assert.match(
       html,
       /\.login-card\{[\s\S]*background: linear-gradient\(165deg, rgba\(255,255,255,\.18\), rgba\(255,255,255,\.07\) 55%, rgba\(255,255,255,\.12\)\);/,
       "painel de conexão deve ter opacidade suficiente para preservar a leitura"
     );
-    assert.match(html, /toast\(t\("toast\.deviceConnected"\)\)/, "o status deve identificar o dispositivo conectado");
+    assert.match(html, /toast\(t\("toast\.deviceConnected"\), "ok"\)/, "o status deve identificar o dispositivo conectado");
     assert.doesNotMatch(html, /toast\("Mac conectado"\)/, "o status não deve atribuir a conexão ao Mac");
+    assert.match(html, /\.toast\{[\s\S]*background:rgba\(37,18,11,\.9\);/, "avisos devem usar uma superfície quente e discreta");
+    assert.doesNotMatch(html, /\.toast\{[\s\S]*rgba\(28,34,54,\.94\)/, "avisos não devem usar o fundo azulado anterior");
+    assert.match(html, /toast\(t\("toast\.updated"\), "sync"\)/, "atualização deve usar o estado visual de sincronização");
+    assert.match(html, /\.toast\{[\s\S]*width:\s*fit-content;[\s\S]*max-width:\s*calc\(100vw - 24px\);[\s\S]*justify-content:\s*center;/, "avisos devem ser compactos e centralizados sem largura fixa");
+    assert.match(html, /\.toast::before\{[\s\S]*width:6px; height:6px;[\s\S]*box-shadow:none;/, "avisos devem usar apenas um indicador mínimo de estado");
+    assert.match(html, /"toast\.updated": "Atualizando"/, "aviso de atualização deve usar copy mínima sem reticências");
+    const robscardBlocks = html.match(/\.robscard\{[^}]*\}/g) || [];
+    assert.ok(robscardBlocks.length >= 2 && robscardBlocks.every(block => !block.includes("rgba(10,132,255")), "o card de status não deve usar azul frio");
+    assert.match(html, /\.usage-state\{[\s\S]*background: linear-gradient\(145deg, rgba\(255,255,255,\.09\)/, "estados de aviso do Usage devem seguir o glass quente");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
     assert.match(html, /\.vdots\{[\s\S]*safe-area-inset-right/, "V-Dots devem respeitar a safe area lateral");
     assert.doesNotMatch(html, /html\.land-secondary \.vdots\{/, "V-Dots não devem migrar para a esquerda em landscape-secondary");
@@ -69,18 +80,18 @@ test("GET / serve as 3 telas (apps + apps abertos + usage) liquid glass", async 
     assert.match(html, /\.page\{[\s\S]*overflow: hidden;/, "cada página deve cortar os slots do slide seguinte");
     assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(3vmin, 14px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
     assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
-    assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve usar a régua do landscape nos dois sentidos");
+    assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve preservar a régua vertical do slot sem mexer no gutter");
     assert.match(html, /@media \(min-width:700px\)[\s\S]*--app-tile: min\(max\(22vw,22vh\), min\(30vw,30vh\), 220px\);/, "telas maiores devem preservar o tamanho do landscape no portrait");
     assert.doesNotMatch(html, /--app-tile: min\(44vw,/, "portrait não deve ampliar os cards em relação ao landscape");
-    assert.match(html, /--tile-in: 0\.84;/, "ícones devem ficar um pouco menores dentro do card");
+    assert.match(html, /--tile-in: 0\.80;/, "ícones devem ficar levemente maiores na referência móvel após a normalização do PNG");
     assert.match(html, /\.atile \.aglass\{[\s\S]*width: 100%; height: 100%;/, "o Card Glass deve continuar preenchendo o slot");
-    assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;/, "somente o ícone da tela 1 deve diminuir");
+    assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 80%; height: 80%;/, "somente o ícone da tela 1 deve respeitar o padding visual da referência");
     assert.match(html, /\.dcard\{[\s\S]*container-type: inline-size;/, "cards da tela 2 devem usar a mesma régua de container da tela 1");
-    assert.match(html, /\.dcard \.aglass\{[\s\S]*border-radius: 29%;/, "glass da tela 2 deve usar o mesmo raio da tela 1");
-    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;[\s\S]*border-radius: 18%;/, "ícones da tela 2 devem usar a mesma escala da tela 1");
-    assert.match(html, /--tile-r: 0\.29;/, "cards glass devem ter um raio ligeiramente menor");
-    assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 29%;/, "fallback deve aplicar o mesmo raio menor aos cards");
-    assert.match(html, /\.atile \.aglass::before\{ border-radius: 29%; \}/, "o highlight deve acompanhar a nova curva do card");
+    assert.match(html, /\.dcard \.aglass\{[\s\S]*border-radius: 32%;/, "glass da tela 2 deve usar o raio reduzido");
+    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 80%; height: 80%;[\s\S]*border-radius: 27%;/, "ícones da tela 2 devem usar a mesma régua arredondada");
+    assert.match(html, /--tile-r: 0\.32;/, "cards glass devem usar o raio externo reduzido");
+    assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 32%;/, "fallback deve aplicar o raio reduzido do card");
+    assert.match(html, /\.atile \.aglass::before\{ border-radius: 32%; \}/, "o highlight deve acompanhar a curva reduzida do card");
     assert.match(html, /\.bg\{[\s\S]*rgba\(232, 111, 39, 0\.46\)[\s\S]*rgba\(184, 76, 20, 0\.28\)[\s\S]*#241106 0%[\s\S]*#150804 55%[\s\S]*#080301 100%/, "o fundo deve iluminar o glass sem perder profundidade");
     assert.doesNotMatch(html, /screen\.orientation\.lock/, "nenhum cliente deve forçar retrato");
     assert.doesNotMatch(html, /requestAppPortraitLock|appPortraitLockRequested|portraitLockRequested/, "nenhum estado de lock de retrato deve permanecer");
@@ -485,12 +496,40 @@ function overflowingUsagePayload() {
   };
 }
 
-async function openOverflowingUsagePage(port, browser, beforeNavigate) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 480 }, hasTouch: true });
+function trendUsagePayload() {
+  const payload = overflowingUsagePayload();
+  payload.providers.codex.trend = {
+    points: Array.from({ length: 60 }, (_, index) => {
+      const value = index < 30 ? 2_000_000 : 1_000_000;
+      return {
+        label: `Sep ${index + 1}`,
+        value,
+        valueLabel: `${(value / 1_000_000).toFixed(1)}M tokens`,
+      };
+    }),
+  };
+  return payload;
+}
+
+function threeProviderUsagePayload() {
+  const payload = overflowingUsagePayload();
+  payload.providers.claude = {
+    id: "claude",
+    name: "Claude",
+    status: "normal",
+    resources: {
+      weekly: { kind: "consumption", unit: "percent", remaining: 12, utilization: 0.12 },
+    },
+  };
+  return payload;
+}
+
+async function openOverflowingUsagePage(port, browser, beforeNavigate, viewport = { width: 390, height: 480 }, payload = overflowingUsagePayload()) {
+  const page = await browser.newPage({ viewport, hasTouch: true });
   await page.route("**/api/usage", route => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify(overflowingUsagePayload()),
+    body: JSON.stringify(payload),
   }));
   if (beforeNavigate) await beforeNavigate(page);
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
@@ -513,6 +552,365 @@ async function openOverflowingUsagePage(port, browser, beforeNavigate) {
   await page.waitForSelector(".usage-scroll", { timeout: 5000 });
   return page;
 }
+
+test("Usage landscape dá prioridade ao card principal e preenche o slide de tendência", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    for (const viewport of [
+      { width: 844, height: 390 },
+      { width: 1024, height: 572 },
+      { width: 1280, height: 800 },
+    ]) {
+      const page = await openOverflowingUsagePage(port, browser, null, viewport);
+      const metrics = await page.evaluate(() => {
+        const stack = document.querySelector(".usage-stack");
+        const stackRect = stack.getBoundingClientRect();
+        const usageHead = document.querySelector(".usage-head");
+        const headTitle = usageHead?.querySelector(".usage-title")?.getBoundingClientRect().toJSON() || null;
+        const headSync = usageHead?.querySelector(".usage-sync")?.getBoundingClientRect().toJSON() || null;
+        const cards = [...stack.querySelectorAll(".usage-card")].map(card => ({
+          className: card.className,
+          rect: card.getBoundingClientRect().toJSON(),
+          weekly: card.querySelector(".usage-metric-week")?.getBoundingClientRect().toJSON() || null,
+          landscapeParts: {
+            gauge: card.querySelector(".usage-gauge-wrap")?.getBoundingClientRect().toJSON() || null,
+            reset: card.querySelector(".usage-five-copy")?.getBoundingClientRect().toJSON() || null,
+            pace: card.querySelector(".usage-pace-explanation")?.getBoundingClientRect().toJSON() || null,
+            week: card.querySelector(".usage-metric-week")?.getBoundingClientRect().toJSON() || null,
+            weekBorderLeft: card.querySelector(".usage-metric-week")
+              ? getComputedStyle(card.querySelector(".usage-metric-week")).borderLeftWidth
+              : null,
+          },
+        }));
+        const open = cards.find(card => card.className.includes("is-open"));
+        const closed = cards.filter(card => card.className.includes("is-closed"));
+        return { stack: stackRect.toJSON(), open, closed, headTitle, headSync, scrollHeight: stack.scrollHeight, clientHeight: stack.clientHeight };
+      });
+      if (viewport.width > viewport.height) {
+        const widthRatio = metrics.open.rect.width / metrics.closed[0].rect.width;
+        assert.ok(widthRatio >= 1.35 && widthRatio <= 1.65, `o landscape deve priorizar o card aberto em uma divisão próxima de 60/40: ${JSON.stringify({ viewport, widthRatio, metrics })}`);
+      } else {
+        assert.ok(Math.abs(metrics.open.rect.width - metrics.closed[0].rect.width) <= 1, `o retrato deve manter a largura integral do card aberto: ${JSON.stringify({ viewport, metrics })}`);
+      }
+      assert.ok(!metrics.open.weekly || metrics.open.weekly.bottom <= metrics.open.rect.bottom + 1, `a régua semanal deve caber no card principal: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.open.rect.height < viewport.height * .8, `o card principal não deve reservar altura artificial: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.closed.every(card => card.rect.height < metrics.open.rect.height), `os cards fechados devem ser mais compactos: ${JSON.stringify({ viewport, metrics })}`);
+      if (viewport.width > viewport.height) {
+        assert.ok(metrics.open.rect.height >= Math.min(viewport.height * .55, 380) - 1, `o card principal deve usar melhor a altura útil do landscape: ${JSON.stringify({ viewport, metrics })}`);
+        assert.ok(metrics.headTitle && metrics.headSync && metrics.headSync.left >= metrics.headTitle.right - 1 && metrics.headSync.top < metrics.headTitle.bottom && metrics.headSync.bottom > metrics.headTitle.top, `o status deve ficar à frente do título no landscape: ${JSON.stringify({ viewport, metrics })}`);
+        const { gauge, reset, pace, week } = metrics.open.landscapeParts;
+        assert.ok(gauge && reset, `o card landscape deve manter o gauge e o reset visíveis: ${JSON.stringify({ viewport, metrics })}`);
+        if (week) {
+          assert.ok(gauge.left < reset.left, `gauge e reset devem seguir a ordem horizontal: ${JSON.stringify({ viewport, metrics })}`);
+          assert.ok(week.left <= gauge.left + 1 && week.right >= reset.right - 1, `a semana deve voltar para uma faixa abaixo do gauge e do reset: ${JSON.stringify({ viewport, metrics })}`);
+          if (pace) {
+            assert.ok(week.top >= pace.bottom - 1, `a semana deve voltar para baixo do aviso de ritmo: ${JSON.stringify({ viewport, metrics })}`);
+          } else {
+            assert.ok(week.top >= Math.max(gauge.bottom, reset.bottom) - 1, `a semana deve ficar abaixo da primeira faixa do card: ${JSON.stringify({ viewport, metrics })}`);
+          }
+          assert.equal(metrics.open.landscapeParts.weekBorderLeft, "0px", `a semana não deve ter uma divisória vertical própria: ${JSON.stringify({ viewport, metrics })}`);
+        }
+      }
+      assert.ok(metrics.closed.every(card => card.rect.top < metrics.stack.bottom && card.rect.bottom <= metrics.stack.bottom + 1), `os cards laterais devem ficar dentro da grade: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.scrollHeight <= metrics.clientHeight + 1, `a grade landscape não deve criar overflow vertical: ${JSON.stringify({ viewport, metrics })}`);
+      const initialSlideMetrics = await page.locator(".usage-provider-track").evaluate(track => ({
+        track: track.getBoundingClientRect().toJSON(),
+        slides: [...track.children].map(slide => slide.getBoundingClientRect().toJSON()),
+        scrollLeft: track.scrollLeft,
+      }));
+      const nextSlide = initialSlideMetrics.slides[1];
+      assert.ok(!nextSlide || nextSlide.left >= initialSlideMetrics.track.right - 1 || nextSlide.right <= initialSlideMetrics.track.left + 1, `o slide 2 não pode vazar no slide 1: ${JSON.stringify({ viewport, initialSlideMetrics })}`);
+      await page.locator(".usage-provider-dot").nth(1).click();
+      const trendMetrics = await page.locator(".usage-trend").evaluate(trend => ({
+        rect: trend.getBoundingClientRect().toJSON(),
+        slide: trend.closest(".usage-trend-slide").getBoundingClientRect().toJSON(),
+        summary: trend.closest(".usage-trend-slide").querySelector(".usage-trend-summary").getBoundingClientRect().toJSON(),
+        track: trend.closest(".usage-provider-track").getBoundingClientRect().toJSON(),
+        bars: trend.querySelector(".usage-trend-bar-chart").getBoundingClientRect().toJSON(),
+        activityCount: trend.querySelectorAll(".usage-trend-activity-panel, .usage-trend-grid").length,
+        viewportHeight: innerHeight,
+      }));
+      assert.ok(trendMetrics.rect.left >= trendMetrics.track.left + 7 && trendMetrics.rect.right <= trendMetrics.track.right - 7, `o frame deve respeitar o gutter do slide: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.summary.top >= trendMetrics.rect.top - 1 && trendMetrics.summary.bottom <= trendMetrics.rect.bottom + 1, `o resumo deve respeitar o padding do frame: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(Math.abs(trendMetrics.rect.bottom - trendMetrics.slide.bottom) <= 1, `o card da tendência deve terminar no fim do slide: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.summary.height + trendMetrics.rect.height >= trendMetrics.viewportHeight * .65, `a tendência não deve reservar altura vazia: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.rect.bottom <= trendMetrics.viewportHeight + 1, `o card da tendência deve caber na viewport: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.bars.height >= Math.min(64, trendMetrics.viewportHeight * .18), `as barras devem manter uma área legível no landscape: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.equal(trendMetrics.activityCount, 0, `o segundo slide deve ter somente o gráfico de tokens por dia: ${JSON.stringify({ viewport, trendMetrics })}`);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage portrait preenche o slide de tendência e amplia as barras", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
+      const page = await openOverflowingUsagePage(port, browser, null, viewport);
+      await page.locator(".usage-provider-dot").nth(1).click();
+      const trendMetrics = await page.locator(".usage-trend").evaluate(trend => ({
+        rect: trend.getBoundingClientRect().toJSON(),
+        slide: (() => {
+          const slide = trend.closest(".usage-trend-slide");
+          const rect = slide.getBoundingClientRect();
+          const styles = getComputedStyle(slide);
+          return {
+            ...rect.toJSON(),
+            contentHeight: rect.height - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom),
+          };
+        })(),
+        summary: trend.closest(".usage-trend-slide").querySelector(".usage-trend-summary").getBoundingClientRect().toJSON(),
+        track: trend.closest(".usage-provider-track").getBoundingClientRect().toJSON(),
+        bars: trend.querySelector(".usage-trend-bar-chart").getBoundingClientRect().toJSON(),
+        activityCount: trend.querySelectorAll(".usage-trend-activity-panel, .usage-trend-grid").length,
+        viewportHeight: innerHeight,
+      }));
+      assert.ok(trendMetrics.rect.left >= trendMetrics.track.left + 7 && trendMetrics.rect.right <= trendMetrics.track.right - 7, `o frame portrait deve respeitar o gutter do slide: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.summary.top >= trendMetrics.rect.top - 1 && trendMetrics.summary.bottom <= trendMetrics.rect.bottom + 1, `o resumo portrait deve respeitar o padding do frame: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.rect.bottom <= trendMetrics.slide.bottom + 1, `o card portrait deve caber no slide: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.rect.height < trendMetrics.viewportHeight * .8, `o card portrait não deve reservar altura vazia: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.bars.height >= 118, `as barras portrait devem manter uma área legível: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.equal(trendMetrics.activityCount, 0, `o segundo slide portrait deve ter somente o gráfico de tokens por dia: ${JSON.stringify({ viewport, trendMetrics })}`);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage trend filtra o periodo e atualiza o resumo e as barras", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 390, height: 844 }, trendUsagePayload());
+    await page.locator(".usage-provider-dot").nth(1).click();
+    assert.equal(await page.locator(".usage-provider-track").evaluate(track => track.scrollTop), 0, "trocar para a tendência não deve deslocar o track verticalmente pelo foco do pager");
+    assert.equal(await page.locator(".usage-trend-period").count(), 3, "a tendência deve oferecer somente Hoje, 7D e 30D");
+    assert.equal(await page.locator('.usage-trend-period[data-period="12m"]').count(), 0, "a tendência não deve oferecer uma janela de 12 meses");
+    assert.equal(await page.locator('.usage-trend-period[data-period="3m"]').count(), 0, "a tendência não deve oferecer uma janela de 3 meses");
+    assert.equal(await page.locator('.usage-trend-period[data-period="today"]').count(), 1, "a tendência deve oferecer o atalho de hoje");
+    assert.equal(await page.locator('.usage-trend-period[aria-pressed="true"]').getAttribute("data-period"), "30d", "30 dias deve ser o período inicial para preservar a leitura das barras");
+    assert.equal(await page.locator(".usage-trend-bar").count(), 30, "o período inicial deve exibir uma barra por dia sem comprimir o gráfico");
+    assert.equal(await page.locator(".usage-trend-summary-metric").count(), 4, "o resumo deve manter quatro métricas compactas");
+    assert.equal(await page.locator(".usage-trend-summary-metrics").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length), 4, "as quatro métricas devem permanecer em uma única faixa no mobile");
+    assert.deepEqual(await page.locator(".usage-trend-summary-metric").first().evaluate(el => [...el.children].map(child => child.className)), ["usage-trend-summary-value", "usage-trend-summary-label"], "cada métrica deve mostrar o valor antes da legenda");
+    assert.match((await page.locator(".usage-trend-summary-total").textContent()).trim(), /M$/, "o total deve ficar destacado em formato compacto");
+    assert.equal(await page.locator(".usage-trend-summary-comparison").count(), 1, "o resumo deve comparar o período atual com o anterior");
+    assert.match(await page.locator(".usage-trend-summary-comparison").textContent(), /↓\s*50%.*30 dias anteriores/, "a comparação deve mostrar a queda contra os 30 dias anteriores");
+    assert.deepEqual(await page.locator(".usage-trend-bar-y-axis-label").allTextContents(), ["1M", "500K", "0"], "o gráfico deve exibir a escala vertical com topo, meio e zero");
+    assert.equal(await page.locator(".usage-trend-panel-chevron").count(), 1, "o cabeçalho do gráfico deve manter a indicação de navegação");
+    assert.equal(await page.locator(".usage-trend-activity-panel").count(), 0, "a atividade deve sair do segundo slide");
+    assert.equal(await page.locator(".usage-trend-grid").count(), 0, "o heatmap não deve ser renderizado no segundo slide");
+    assert.equal(await page.locator(".usage-trend-bar-tooltip").isHidden(), true, "a quantidade diária só deve aparecer depois do clique");
+    const initialTooltip = await page.locator(".usage-trend-bar-tooltip").boundingBox();
+    assert.equal(initialTooltip, null, "o tooltip não deve ocupar o gráfico antes de uma interação");
+    const firstBar = page.locator(".usage-trend-bar").first();
+    const secondBar = page.locator(".usage-trend-bar").nth(1);
+    await firstBar.click();
+    const firstTooltip = await page.locator(".usage-trend-bar-tooltip").boundingBox();
+    const chartBounds = await page.locator(".usage-trend-bar-chart").boundingBox();
+    assert.equal(await firstBar.getAttribute("role"), null, "cada barra deve preservar a semântica nativa de botão");
+    assert.ok(firstTooltip && chartBounds && firstTooltip.x >= chartBounds.x - 1 && firstTooltip.x + firstTooltip.width <= chartBounds.x + chartBounds.width + 1, "o tooltip deve permanecer dentro do gráfico");
+    await secondBar.click();
+    const secondTooltip = await page.locator(".usage-trend-bar-tooltip").boundingBox();
+    assert.notEqual(firstTooltip?.x, secondTooltip?.x, "o tooltip deve acompanhar a barra selecionada");
+
+    await page.locator('.usage-trend-period[data-period="7d"]').click();
+    assert.equal(await page.locator('.usage-trend-period[aria-pressed="true"]').getAttribute("data-period"), "7d", "o período selecionado deve ser refletido no controle");
+    assert.equal(await page.locator(".usage-trend-bar").count(), 7, "o período de sete dias deve exibir uma barra por dia");
+    assert.equal(await page.locator(".usage-trend-summary-window").textContent(), "últimos 7 dias", "o resumo deve acompanhar o período selecionado");
+    await page.locator('.usage-trend-period[data-period="today"]').click();
+    assert.equal(await page.locator('.usage-trend-period[aria-pressed="true"]').getAttribute("data-period"), "today", "o atalho de hoje deve ser selecionável");
+    assert.equal(await page.locator(".usage-trend-bar").count(), 1, "o atalho de hoje deve exibir apenas o ponto atual");
+    assert.equal(await page.locator(".usage-trend-summary-window").textContent(), "hoje", "o resumo deve identificar a janela de hoje");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage trend encaixa resumo e barras sem overflow", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 1280, height: 800 },
+    ]) {
+      const page = await openOverflowingUsagePage(port, browser, null, viewport, trendUsagePayload());
+      await page.locator(".usage-provider-dot").nth(1).click();
+      const metrics = await page.locator(".usage-trend").evaluate(trend => {
+        const slide = trend.closest(".usage-trend-slide");
+        const card = trend.getBoundingClientRect();
+        const summary = trend.querySelector(".usage-trend-summary").getBoundingClientRect();
+        const bars = trend.querySelector(".usage-trend-bars-panel").getBoundingClientRect();
+        return {
+          card: card.toJSON(),
+          slide: slide.getBoundingClientRect().toJSON(),
+          summary: summary.toJSON(),
+          bars: bars.toJSON(),
+          activityCount: trend.querySelectorAll(".usage-trend-activity-panel, .usage-trend-grid").length,
+          cardScrollHeight: trend.scrollHeight,
+          cardClientHeight: trend.clientHeight,
+          slideScrollHeight: slide.scrollHeight,
+          slideClientHeight: slide.clientHeight,
+        };
+      });
+      assert.ok(metrics.bars.width > 0 && metrics.bars.height > 0, `o gráfico principal deve ter área própria: ${JSON.stringify({ viewport, metrics })}`);
+      assert.equal(metrics.activityCount, 0, `a atividade não deve mais ser renderizada: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.summary.bottom <= metrics.card.bottom + 1, `o resumo deve caber no frame: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.cardScrollHeight <= metrics.cardClientHeight + 1, `o card não pode criar scroll vertical: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.slideScrollHeight <= metrics.slideClientHeight + 1, `o slide não pode criar scroll vertical: ${JSON.stringify({ viewport, metrics })}`);
+      assert.ok(metrics.card.right <= metrics.slide.right + 1 && metrics.card.left >= metrics.slide.left - 1, `o frame deve respeitar a largura do slide: ${JSON.stringify({ viewport, metrics })}`);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage e Tendência compartilham gutters e escala responsiva", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 1280, height: 800 },
+    ]) {
+      const page = await openOverflowingUsagePage(port, browser, null, viewport, trendUsagePayload());
+      const usageMetrics = await page.locator(".usage-scroll").evaluate(scroll => {
+        const head = scroll.querySelector(".usage-head");
+        const stack = scroll.querySelector(".usage-stack");
+        const dots = scroll.querySelector(".usage-provider-dots");
+        const value = scroll.querySelector(".usage-card.is-open .usage-gauge-copy .usage-limit-value");
+        const rect = el => el?.getBoundingClientRect().toJSON() || null;
+        return {
+          head: rect(head),
+          stack: rect(stack),
+          dots: rect(dots),
+          value: rect(value),
+          valueFontSize: value ? getComputedStyle(value).fontSize : null,
+          scrollWidth: scroll.scrollWidth,
+          clientWidth: scroll.clientWidth,
+          scrollHeight: scroll.scrollHeight,
+          clientHeight: scroll.clientHeight,
+        };
+      });
+      const numericValueFontSize = Number.parseFloat(usageMetrics.valueFontSize || "0");
+      assert.ok(usageMetrics.head && usageMetrics.stack && usageMetrics.dots, `Usage deve expor uma régua única: ${JSON.stringify({ viewport, usageMetrics })}`);
+      assert.ok(Math.abs(usageMetrics.head.left - usageMetrics.stack.left) <= 1, `título e stack devem compartilhar o gutter esquerdo: ${JSON.stringify({ viewport, usageMetrics })}`);
+      assert.ok(Math.abs(usageMetrics.head.right - usageMetrics.stack.right) <= 1, `título e stack devem compartilhar o gutter direito: ${JSON.stringify({ viewport, usageMetrics })}`);
+      assert.ok(Math.abs(usageMetrics.dots.left - usageMetrics.stack.left) <= 1 && Math.abs(usageMetrics.dots.right - usageMetrics.stack.right) <= 1, `dots devem respeitar a mesma régua externa: ${JSON.stringify({ viewport, usageMetrics })}`);
+      assert.ok(usageMetrics.scrollWidth <= usageMetrics.clientWidth + 1 && usageMetrics.scrollHeight <= usageMetrics.clientHeight + 1, `Usage não pode criar overflow estrutural: ${JSON.stringify({ viewport, usageMetrics })}`);
+      if (viewport.width > viewport.height && viewport.height <= 520) {
+        assert.ok(numericValueFontSize <= 34, `o número do gauge deve acompanhar o gauge no landscape curto: ${JSON.stringify({ viewport, usageMetrics })}`);
+      }
+
+      await page.locator(".usage-provider-dot").nth(1).click();
+      const trendMetrics = await page.locator(".usage-trend").evaluate(trend => {
+        const slide = trend.closest(".usage-trend-slide");
+        const selectors = [".usage-trend-periods", ".usage-trend-summary", ".usage-trend-bars-panel"];
+        const rect = el => el?.getBoundingClientRect().toJSON() || null;
+        return {
+          slide: rect(slide),
+          frame: rect(trend),
+          periods: rect(trend.querySelector(".usage-trend-periods")),
+          summary: rect(trend.querySelector(".usage-trend-summary")),
+          panel: rect(trend.querySelector(".usage-trend-bars-panel")),
+          selectors,
+          gap: (() => {
+            const summary = trend.querySelector(".usage-trend-summary");
+            const panel = trend.querySelector(".usage-trend-bars-panel");
+            return summary && panel ? panel.getBoundingClientRect().top - summary.getBoundingClientRect().bottom : null;
+          })(),
+          scrollWidth: trend.scrollWidth,
+          clientWidth: trend.clientWidth,
+          scrollHeight: trend.scrollHeight,
+          clientHeight: trend.clientHeight,
+        };
+      });
+      assert.ok(trendMetrics.slide && trendMetrics.frame && trendMetrics.periods && trendMetrics.summary && trendMetrics.panel, `Tendência deve expor o frame completo: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.frame.left >= trendMetrics.slide.left + 7 && trendMetrics.frame.right <= trendMetrics.slide.right - 7, `o frame da tendência deve usar o mesmo gutter do Usage: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(Math.abs(trendMetrics.periods.left - trendMetrics.summary.left) <= 1 && Math.abs(trendMetrics.panel.left - trendMetrics.summary.left) <= 1, `seletor, resumo e gráfico devem compartilhar o padding interno: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(Math.abs(trendMetrics.periods.right - trendMetrics.summary.right) <= 1 && Math.abs(trendMetrics.panel.right - trendMetrics.summary.right) <= 1, `seletor, resumo e gráfico devem terminar na mesma régua: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok((trendMetrics.gap ?? Infinity) <= 24, `o gráfico não pode ficar separado por um vão artificial: ${JSON.stringify({ viewport, trendMetrics })}`);
+      assert.ok(trendMetrics.scrollWidth <= trendMetrics.clientWidth + 1 && trendMetrics.scrollHeight <= trendMetrics.clientHeight + 1, `Tendência não pode criar overflow estrutural: ${JSON.stringify({ viewport, trendMetrics })}`);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém o marcador de estimativa na semana quando o ritmo está adiantado", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const resetAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const payload = overflowingUsagePayload();
+    payload.providers.codex.resources.weekly = {
+      kind: "consumption",
+      unit: "percent",
+      used: 31,
+      limit: 100,
+      remaining: 69,
+      utilization: 0.31,
+      resetsAt: resetAt,
+      periodDurationMs: 7 * 24 * 60 * 60 * 1000,
+    };
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 390, height: 844 }, payload);
+    const weekly = page.locator(".usage-card.is-open .usage-limit:not(.primary)");
+    const paceTick = weekly.locator(".usage-week-pace-tick");
+    assert.equal(await weekly.getAttribute("data-pace"), "ahead");
+    assert.equal(await paceTick.count(), 1, "a semana deve manter o marcador mesmo quando o ritmo está adiantado");
+    assert.equal(await paceTick.getAttribute("data-pace"), "ahead");
+    assert.match(await paceTick.getAttribute("style") || "", /left:/, "o marcador deve indicar a posição estimada na régua");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage encaixa o track depois de um arrasto horizontal interrompido", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 844, height: 390 });
+    const result = await page.evaluate(async () => {
+      const track = document.querySelector(".usage-provider-track");
+      const width = track.clientWidth;
+      track.style.scrollSnapType = "none";
+      track.scrollLeft = Math.round(width * .45);
+      track.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 7, pointerType: "touch" }));
+      await new Promise(resolve => setTimeout(resolve, 180));
+      return {
+        scrollLeft: track.scrollLeft,
+        width,
+        currentIndex: [...document.querySelectorAll(".usage-provider-dot")].findIndex(dot => dot.getAttribute("aria-current") === "true"),
+      };
+    });
+    assert.ok(result.scrollLeft <= 1 || Math.abs(result.scrollLeft - result.width) <= 1, `o track não pode permanecer entre slides: ${JSON.stringify(result)}`);
+    assert.equal(result.currentIndex, 0, `o dot deve acompanhar o slide encaixado: ${JSON.stringify(result)}`);
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
 
 test("Usage mostra outros provedores abaixo e promove o card clicado", async () => {
   const { port, close } = await startServer({
@@ -663,7 +1061,7 @@ test("Usage não promove a IA preferida quando ela está sem dados utilizáveis"
   }
 });
 
-test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", async () => {
+test("Usage reage no card e na troca de IA sem duplicar a confirmação", async () => {
   const { port, close } = await startServer({
     port: 0,
     config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], usageProvider: "codex" },
@@ -683,7 +1081,7 @@ test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", as
       });
       observer.observe(root, { childList: true, subtree: true });
       window.__usageMascotTrace = { added, observer };
-      document.querySelector(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      document.querySelector(".usage-card.is-open").dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
     const trace = await page.evaluate(() => {
@@ -693,7 +1091,7 @@ test("Usage reage no gráfico e na troca de IA sem duplicar a confirmação", as
     assert.equal(trace.filter(text => text === "Atualizando...").length, 0, "o gráfico não deve disparar refresh da cota");
     assert.equal(trace.filter(text => text === "Atualizado").length, 0, "o gráfico não deve criar confirmação duplicada");
 
-    await page.locator(".usage-card.is-open .usage-gauge-wrap svg").dispatchEvent("click");
+    await page.locator(".usage-card.is-open").dispatchEvent("click");
     await page.waitForSelector('.usage-mascot-wrap[data-reaction="chart"]', { timeout: 1000 });
 
     await page.locator('article[data-provider="antigravity"]').dispatchEvent("click");
@@ -1085,9 +1483,9 @@ test("Usage mostra projeção acima do limite e alterna o formato do reset ao cl
     const primary = page.locator(".usage-card.is-open .usage-limit.primary");
     await primary.waitFor({ state: "visible" });
     assert.equal(await primary.getAttribute("data-pace"), "behind");
-    assert.equal(await primary.locator(".usage-pace-warning").getAttribute("data-pace"), "behind");
+    assert.equal(await primary.locator(".usage-pace-warning").count(), 1);
     assert.equal(await primary.locator(".usage-pace-flame").count(), 1);
-    assert.match(await primary.locator(".usage-pace-warning").textContent() || "", /limite/);
+    assert.match(await primary.locator(".usage-pace-explanation").textContent() || "", /limite/);
     const weekly = page.locator(".usage-card.is-open .usage-limit:not(.primary)");
     assert.equal(await weekly.locator(".usage-limit-label").textContent(), "semana");
     assert.equal(await weekly.locator(".usage-pace-flame").count(), 1, "a semana deve mostrar o fogo quando a projeção passa do limite");
@@ -1095,11 +1493,6 @@ test("Usage mostra projeção acima do limite e alterna o formato do reset ao cl
     assert.equal(await weeklyPaceTick.count(), 1, "a semana deve mostrar o risquinho do ritmo quando a projeção passa do limite");
     assert.equal(await weeklyPaceTick.getAttribute("data-pace"), "behind");
     assert.match(await weeklyPaceTick.getAttribute("style") || "", /left:/, "o risquinho deve ser posicionado na régua");
-
-    const percentage = primary.locator(".usage-gauge-copy .usage-limit-value");
-    assert.equal(await percentage.textContent(), "84%");
-    await percentage.click();
-    await page.waitForFunction(() => document.querySelector(".usage-gauge-copy .usage-limit-value")?.textContent === "16%");
 
     const reset = primary.locator(".usage-limit-reset-value");
     const countdown = await reset.textContent();
@@ -1109,6 +1502,13 @@ test("Usage mostra projeção acima do limite e alterna o formato do reset ao cl
     assert.equal(await reset.textContent(), countdown, "clicar no countdown não deve alternar o reset");
     const gaugeChart = primary.locator(".usage-gauge-wrap svg");
     await gaugeChart.click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(100);
+    assert.equal(await reset.textContent(), countdown, "clicar no gráfico não deve alternar o reset");
+    assert.equal(await primary.locator(".usage-five-reset-exact").count(), 0, "o gráfico não deve controlar a data exata");
+    const usageCard = page.locator(".usage-card.is-open");
+    assert.equal(await usageCard.getAttribute("role"), null, "o card aberto não deve ser um botão que contém outros controles");
+    assert.equal(await usageCard.locator(".usage-reset-block").getAttribute("role"), "button", "o reset deve ter um controle acessível próprio");
+    await usageCard.click({ position: { x: 20, y: 20 } });
     await page.waitForFunction(() => !!document.querySelector(".usage-five-reset-exact"));
     assert.match(await reset.textContent() || "", /^\d+h \d+m$/, "o countdown grande deve permanecer compacto");
     const exactCaption = primary.locator(".usage-five-reset-exact");
@@ -1118,8 +1518,154 @@ test("Usage mostra projeção acima do limite e alterna o formato do reset ao cl
     await exactCaption.click();
     await page.waitForTimeout(100);
     assert.ok(await exactCaption.isVisible(), "a data exata deve continuar visível após o clique");
-    await gaugeChart.click({ position: { x: 10, y: 10 } });
+    assert.ok(await exactCaption.isVisible(), "a data exata deve continuar visível após a troca do reset");
+    await usageCard.click({ position: { x: 20, y: 20 } });
     await page.waitForFunction(() => !document.querySelector(".usage-five-reset-exact"));
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage separa uso real, reset e aviso de ritmo", async () => {
+  const resetAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+  const payload = overflowingUsagePayload();
+  payload.providers.codex.resources.session = {
+    kind: "consumption",
+    unit: "percent",
+    used: 84,
+    limit: 100,
+    remaining: 16,
+    utilization: 0.84,
+    resetsAt: resetAt,
+    periodDurationMs: 10 * 60 * 60 * 1000,
+  };
+  payload.providers.codex.resources.weekly = {
+    kind: "consumption",
+    unit: "percent",
+    used: 69,
+    limit: 100,
+    remaining: 31,
+    utilization: 0.69,
+    resetsAt: resetAt,
+    periodDurationMs: 7 * 24 * 60 * 60 * 1000,
+  };
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usage: { enabled: true, display: "used", reset: "countdown" } },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 390, height: 844 }, payload);
+    const card = page.locator('.usage-card.is-open[data-provider="codex"]');
+    assert.equal(await card.locator(".usage-provider-name .usage-provider-plan").count(), 0);
+    assert.equal(await card.locator(".usage-card-head > .usage-provider-plan").textContent(), "Plus");
+    assert.equal(await card.locator(".usage-card-head > .usage-card-chevron").count(), 0);
+    const primary = page.locator('.usage-card.is-open[data-provider="codex"] .usage-limit.primary');
+    assert.equal(await primary.locator(".usage-pace-score").getAttribute("data-metric"), "usage");
+    assert.equal(await primary.locator(".usage-pace-score").textContent(), "84%");
+    assert.equal(await primary.locator(".usage-pace-label").count(), 0);
+    assert.equal(await primary.locator(".usage-gauge-wrap").getAttribute("role"), "button");
+    await primary.locator(".usage-pace-score").click();
+    await page.waitForFunction(() => document.querySelector(".usage-pace-score")?.textContent === "16%");
+    assert.match(await primary.locator(".usage-pace-explanation").textContent() || "", /antes do reset/);
+    assert.equal(await primary.locator(".usage-pace-explanation .usage-pace-flame").count(), 1);
+    assert.equal(await primary.locator(".usage-actual-block").count(), 0);
+    assert.equal(await primary.locator(".usage-actual-percent").count(), 0);
+    assert.match(await primary.locator(".usage-reset-block").textContent() || "", /Reset em/);
+    assert.match(await primary.locator('svg[role="img"]').getAttribute("aria-label") || "", /restante/i);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mostra estado útil nos cards fechados e mantém um único pager interno", async () => {
+  const payload = overflowingUsagePayload();
+  payload.providers.antigravity.resources = {};
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usage: { enabled: true, display: "used", reset: "countdown" } },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 390, height: 844 }, payload);
+    assert.equal(await page.locator('.usage-card.is-closed[data-provider="grok"] .usage-peek').textContent(), "28%");
+    assert.equal(await page.locator('.usage-card.is-closed[data-provider="grok"] .usage-secondary-meter').count(), 1);
+    assert.equal(await page.locator('.usage-card.is-closed[data-provider="antigravity"] .usage-peek').textContent(), "—");
+    assert.equal(await page.locator('.usage-card.is-closed[data-provider="antigravity"] .usage-secondary-meter').count(), 0);
+    const closedRow = await page.locator('.usage-card.is-closed[data-provider="grok"]').evaluate(card => {
+      const items = [...card.querySelectorAll(".usage-provider-logo, .usage-provider-name, .usage-peek, .usage-card-chevron, .usage-secondary-meter")];
+      const centers = items.map(item => {
+        const rect = item.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      });
+      return {
+        height: card.getBoundingClientRect().height,
+        headDisplay: getComputedStyle(card.querySelector(".usage-card-head")).display,
+        centerSpread: Math.max(...centers) - Math.min(...centers),
+      };
+    });
+    assert.equal(closedRow.headDisplay, "contents", "o cabeçalho fechado deve compartilhar a mesma linha do card");
+    assert.ok(closedRow.height <= 56, `card fechado deve economizar altura: ${JSON.stringify(closedRow)}`);
+    assert.ok(closedRow.centerSpread <= 1, `elementos do card fechado devem ficar centralizados: ${JSON.stringify(closedRow)}`);
+    assert.equal(await page.locator("#vdots").evaluate(node => getComputedStyle(node).display), "none");
+    assert.equal(await page.locator(".usage-provider-dots").count(), 1);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém escala e gutters responsivos no landscape e no portrait", async () => {
+  const payload = overflowingUsagePayload();
+  const { port, close } = await startServer({
+    port: 0,
+    config: { usage: { enabled: true, display: "used", reset: "countdown" } },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const landscape = await openOverflowingUsagePage(port, browser, null, { width: 844, height: 390 }, payload);
+    const compactMetrics = await landscape.locator('.usage-card.is-open[data-provider="codex"] .usage-pace-score').evaluate(node => {
+      const card = node.closest(".usage-card");
+      const gauge = node.closest(".usage-gauge-wrap");
+      const style = getComputedStyle(node);
+      return {
+        fontSize: Number.parseFloat(style.fontSize),
+        cardWidth: card.getBoundingClientRect().width,
+        gaugeWidth: gauge.getBoundingClientRect().width,
+        overflow: document.querySelector(".usage-scroll").scrollHeight - document.querySelector(".usage-scroll").clientHeight,
+      };
+    });
+    assert.ok(compactMetrics.fontSize <= 30, `percentual deve acompanhar o gauge no landscape curto: ${JSON.stringify(compactMetrics)}`);
+    assert.ok(compactMetrics.fontSize <= compactMetrics.gaugeWidth * 0.31, `percentual não pode dominar o gauge: ${JSON.stringify(compactMetrics)}`);
+    assert.ok(compactMetrics.overflow <= 1, `landscape curto não pode criar overflow: ${JSON.stringify(compactMetrics)}`);
+    await landscape.close();
+
+    const portrait = await openOverflowingUsagePage(port, browser, null, { width: 390, height: 844 }, payload);
+    const portraitGutters = await portrait.evaluate(() => {
+      const selectors = [".usage-head", ".usage-card.is-open", ".usage-provider-dots"];
+      return selectors.map(selector => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { selector, left: rect.left, right: innerWidth - rect.right };
+      });
+    });
+    assert.ok(portraitGutters.every(({ left, right }) => left >= 8 && right >= 8), `portrait deve usar gutter simétrico: ${JSON.stringify(portraitGutters)}`);
+    await portrait.locator(".usage-provider-dot").nth(1).click();
+    await portrait.waitForFunction(() => document.querySelector(".usage-trend-slide .usage-trend")?.getBoundingClientRect().width > 0);
+    const trendGutters = await portrait.evaluate(() => {
+      const selectors = [".usage-head", ".usage-trend", ".usage-trend-periods", ".usage-trend-plot"];
+      return selectors.map(selector => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { selector, left: rect.left, right: innerWidth - rect.right };
+      });
+    });
+    assert.ok(trendGutters.every(({ left, right }) => left >= 8 && right >= 8), `Tendência não deve sangrar até a borda: ${JSON.stringify(trendGutters)}`);
+    assert.equal(Math.round(trendGutters[0].left), Math.round(trendGutters[1].left), `head e frame da Tendência precisam compartilhar o gutter: ${JSON.stringify(trendGutters)}`);
+    assert.ok(trendGutters[2].left >= trendGutters[1].left, `seletor precisa respeitar o padding do frame: ${JSON.stringify(trendGutters)}`);
+    assert.ok(trendGutters[3].left >= trendGutters[1].left, `gráfico precisa respeitar o padding do frame: ${JSON.stringify(trendGutters)}`);
+    assert.equal(Math.round(trendGutters[2].left), Math.round(trendGutters[3].left), `seletor e gráfico precisam compartilhar o gutter interno: ${JSON.stringify(trendGutters)}`);
+    await portrait.close();
   } finally {
     await browser.close();
     await close();
@@ -1140,26 +1686,57 @@ test("Usage não exibe o sidecar Mais limites mesmo com recursos extras", async 
   }
 });
 
-test("Usage permite scroll vertical nativo sem trocar de tela", async () => {
+test("Usage não rola verticalmente e permanece dentro da viewport", async () => {
   const { port, close } = await startServer(0);
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   try {
-    const page = await openOverflowingUsagePage(port, browser);
-    const before = await page.evaluate(() => {
-      const scroll = document.querySelector(".usage-scroll");
-      return { clientHeight: scroll.clientHeight, scrollHeight: scroll.scrollHeight, scrollTop: scroll.scrollTop };
-    });
-    await page.mouse.move(195, 420);
-    await page.mouse.wheel(0, 500);
-    await page.waitForTimeout(220);
-    const after = await page.evaluate(() => ({
-      screen: document.body.classList.contains("is-usage") ? "usage" : "other",
-      scrollTop: document.querySelector(".usage-scroll").scrollTop,
-    }));
-    assert.ok(before.scrollHeight > before.clientHeight, "o cenário precisa ter conteúdo além da viewport");
-    assert.equal(after.screen, "usage", "scroll interno não deve navegar para outra tela");
-    assert.ok(after.scrollTop > 0, "scroll interno deve avançar");
-    await page.close();
+    const payload = threeProviderUsagePayload();
+    for (const viewport of [{ width: 390, height: 480 }, { width: 390, height: 844 }, { width: 393, height: 852 }]) {
+      const page = await openOverflowingUsagePage(port, browser, null, viewport, payload);
+      const before = await page.evaluate(() => {
+        const scroll = document.querySelector(".usage-scroll");
+        const dots = document.querySelector(".usage-provider-dots");
+        const track = document.querySelector(".usage-provider-track");
+        const stack = document.querySelector(".usage-stack");
+        const closed = [...document.querySelectorAll(".usage-card.is-closed")];
+        return {
+          clientHeight: scroll.clientHeight,
+          scrollHeight: scroll.scrollHeight,
+          scrollTop: scroll.scrollTop,
+          overflowY: getComputedStyle(scroll).overflowY,
+          pagerBottom: dots.getBoundingClientRect().bottom,
+          viewportBottom: scroll.getBoundingClientRect().bottom,
+          closedHeights: closed.map(card => card.getBoundingClientRect().height),
+          trackFlex: getComputedStyle(track).flex,
+          stackFlex: getComputedStyle(stack).flex,
+          cardBottoms: [...document.querySelectorAll(".usage-card")].map(card => card.getBoundingClientRect().bottom),
+          trackBottom: track.getBoundingClientRect().bottom,
+        };
+      });
+      await page.mouse.move(viewport.width / 2, viewport.height / 2);
+      await page.mouse.wheel(0, 500);
+      await page.waitForTimeout(220);
+      const after = await page.evaluate(() => ({
+        screen: document.body.classList.contains("is-usage") ? "usage" : "other",
+        scrollTop: document.querySelector(".usage-scroll").scrollTop,
+        scrollHeight: document.querySelector(".usage-scroll").scrollHeight,
+        clientHeight: document.querySelector(".usage-scroll").clientHeight,
+      }));
+      assert.equal(before.overflowY, "hidden", `Usage não deve oferecer rolagem vertical: ${JSON.stringify(viewport)}`);
+      assert.ok(before.scrollHeight <= before.clientHeight + 1, `todos os elementos devem caber na viewport: ${JSON.stringify({ viewport, before })}`);
+      assert.ok(before.pagerBottom >= before.viewportBottom - 64, `o pager deve acompanhar o fim da viewport: ${JSON.stringify({ viewport, before })}`);
+      assert.ok(before.pagerBottom >= before.viewportBottom - 12, `o pager visual deve ficar próximo do fim da viewport: ${JSON.stringify({ viewport, before })}`);
+      assert.ok(before.closedHeights.every(height => height <= 56), `os cards fechados devem ser compactos: ${JSON.stringify({ viewport, before })}`);
+      if (viewport.height > 520) {
+        assert.equal(before.trackFlex, "0 0 auto", `o track portrait não deve herdar a altura da viewport: ${JSON.stringify({ viewport, before })}`);
+        assert.equal(before.stackFlex, "0 0 auto", `a pilha portrait não deve esticar e esconder cards: ${JSON.stringify({ viewport, before })}`);
+      }
+      assert.ok(before.cardBottoms.every(bottom => bottom <= before.trackBottom + 1), `nenhum card pode ser cortado pelo track: ${JSON.stringify({ viewport, before })}`);
+      assert.equal(after.screen, "usage", `scroll interno não deve navegar para outra tela: ${JSON.stringify(viewport)}`);
+      assert.equal(after.scrollTop, 0, `a página não deve avançar verticalmente: ${JSON.stringify(viewport)}`);
+      assert.ok(after.scrollHeight <= after.clientHeight + 1, `o conteúdo não deve criar overflow vertical: ${JSON.stringify({ viewport, after })}`);
+      await page.close();
+    }
   } finally {
     await browser.close();
     await close();
@@ -1178,9 +1755,76 @@ test("Usage navega para a tendência no segundo slide", async () => {
       const track = document.querySelector(".usage-provider-track");
       return track.scrollLeft >= track.clientWidth - 1 && document.querySelectorAll(".usage-provider-dot")[1]?.getAttribute("aria-current") === "true";
     });
+    const hDotMetrics = await page.evaluate(() => Array.from(document.querySelectorAll(".usage-provider-dot")).map(dot => {
+      const rect = dot.getBoundingClientRect();
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(dot, "::before").transform);
+      return { width: rect.width, height: rect.height, visualCenter: rect.left + rect.width / 2 + matrix.e };
+    }));
+    assert.deepEqual(hDotMetrics.map(dot => [dot.width, dot.height]), [[44, 44], [44, 44]], "h-dots devem manter a área de toque padronizada");
+    assert.equal(Math.round(Math.abs(hDotMetrics[1].visualCenter - hDotMetrics[0].visualCenter)), 20, `h-dots visíveis devem seguir o espaçamento padrão: ${JSON.stringify(hDotMetrics)}`);
     assert.ok(await page.evaluate(() => document.querySelector(".usage-provider-track").scrollLeft > 0), "o track deve avançar para o segundo slide");
     assert.equal(await page.locator(".usage-provider-dot").nth(1).getAttribute("aria-current"), "true");
     assert.ok(await page.locator(".usage-trend-slide .usage-trend").isVisible(), "a tendência deve aparecer no segundo slide");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage mantém a tendência selecionada durante uma atualização do painel", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  let activityState = "idle";
+  try {
+    const page = await openOverflowingUsagePage(port, browser, async page => {
+      await page.route("**/api/usage/activity", route => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          source: "dokke",
+          sourceState: "available",
+          updatedAt: new Date().toISOString(),
+          providers: { codex: { state: activityState, since: "2026-09-16T10:00:00.000Z", detail: activityState, sessions: activityState === "working" ? 1 : 0 } },
+          errors: [],
+        }),
+      }));
+    }, { width: 844, height: 390 }, trendUsagePayload());
+    await page.locator(".usage-provider-dot").nth(1).click();
+    await page.waitForFunction(() => {
+      const track = document.querySelector(".usage-provider-track");
+      return track && track.scrollLeft >= track.clientWidth - 1
+        && document.querySelector(".usage-title")?.textContent === "Tendência de uso";
+    });
+
+    activityState = "working";
+    await page.waitForSelector('.usage-mascot-wrap[data-activity="working"]', { state: "attached", timeout: 3000 });
+
+    assert.equal(await page.locator(".usage-title").textContent(), "Tendência de uso", "a atualização não deve voltar o título para Uso");
+    assert.equal(await page.locator(".usage-provider-dot").nth(1).getAttribute("aria-current"), "true", "a atualização não deve reativar o primeiro dot");
+    assert.ok(await page.locator(".usage-provider-track").evaluate(track => track.scrollLeft >= track.clientWidth - 1), "a atualização deve preservar o segundo slide");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("V-Dots seguem o mesmo espaçamento visual dos h-dots", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.querySelectorAll("#vdots .d").length >= 2);
+    const metrics = await page.evaluate(() => Array.from(document.querySelectorAll("#vdots .d")).map(dot => {
+      const rect = dot.getBoundingClientRect();
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(dot, "::before").transform);
+      return { width: rect.width, height: rect.height, visualCenter: rect.top + rect.height / 2 + matrix.f };
+    }));
+    assert.deepEqual(metrics.map(dot => [dot.width, dot.height]), metrics.map(() => [44, 44]), "v-dots devem manter a área de toque padronizada");
+    assert.equal(Math.round(Math.abs(metrics[1].visualCenter - metrics[0].visualCenter)), 20, `v-dots visíveis devem seguir o espaçamento padrão: ${JSON.stringify(metrics)}`);
     await page.close();
   } finally {
     await browser.close();
@@ -1221,38 +1865,49 @@ test("Usage usa a régua da página sem cartão externo e a fonte padrão do app
       const frame = document.querySelector(".usage-content");
       const openCard = document.querySelector(".usage-card.is-open");
       const sideDots = document.querySelector("#vdots");
+      const visibleDot = document.querySelector("#vdots .d.on, #vdots .d");
+      const visibleDotStyle = visibleDot ? getComputedStyle(visibleDot, "::before") : null;
+      const visibleDotRect = visibleDot?.getBoundingClientRect();
+      const visibleDotTransform = visibleDotStyle?.transform.match(/^matrix\([^,]+,[^,]+,[^,]+,[^,]+,([^,]+)/);
+      const visibleDotShift = visibleDotTransform ? Number(visibleDotTransform[1]) : 0;
       const bodyFont = getComputedStyle(document.body).fontFamily;
       const textSelectors = [
-        ".usage-title",
         ".usage-five-copy .usage-limit-label",
         ".usage-five-copy .usage-limit-reset-value",
-        ".usage-five-caption",
+        ".usage-five-copy .usage-five-reset-exact, .usage-reset-date",
         ".usage-week-top b",
         ".usage-week-value .usage-limit-value",
         ".usage-week-reset",
       ];
+      const textFontEntries = textSelectors.map(selector => {
+        const element = document.querySelector(selector);
+        return { selector, font: element ? getComputedStyle(element).fontFamily : null };
+      });
       return {
         frameWidth: frame?.getBoundingClientRect().width || 0,
         frameLeft: frame?.getBoundingClientRect().left || 0,
         cardLeft: openCard?.getBoundingClientRect().left || 0,
         cardWidth: openCard?.getBoundingClientRect().width || 0,
         cardRight: openCard?.getBoundingClientRect().right || 0,
-        dotsLeft: sideDots?.getBoundingClientRect().left || 0,
+        dotsHidden: sideDots ? getComputedStyle(sideDots).display === "none" : false,
+        visibleDotsLeft: (visibleDotRect?.left || 0) + ((visibleDotRect?.width || 0) - parseFloat(visibleDotStyle?.width || "0")) / 2 + visibleDotShift,
         frameBackground: getComputedStyle(frame).backgroundImage,
         frameBorder: getComputedStyle(frame).borderStyle,
         bodyFont,
         interLoaded: document.fonts.check("16px Inter"),
-        textFonts: textSelectors.map(selector => getComputedStyle(document.querySelector(selector)).fontFamily),
+        textFonts: textFontEntries.map(entry => entry.font),
+        missingTextFonts: textFontEntries.filter(entry => !entry.font).map(entry => entry.selector),
       };
     });
-    assert.equal(metrics.frameWidth, 350, `o frame da Usage deve seguir a régua ampliada do esboço: ${JSON.stringify(metrics)}`);
-    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 0, `o card deve alinhar na borda do frame: ${JSON.stringify(metrics)}`);
-    assert.equal(Math.round(metrics.cardWidth), 342, `o card deve ocupar o frame com a folga mínima dos dots: ${JSON.stringify(metrics)}`);
-    assert.ok(metrics.cardRight < metrics.dotsLeft - 8, `o card não pode encostar nos dots laterais: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.frameWidth, 390, `o frame da Usage deve ocupar a largura útil do viewport: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardLeft - metrics.frameLeft), 8, `o card deve respeitar o gutter lateral do frame: ${JSON.stringify(metrics)}`);
+    assert.equal(Math.round(metrics.cardWidth), 374, `o card deve ocupar a largura útil descontando os gutters: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.dotsHidden, true, `o Usage deve usar somente o pager inferior: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.cardRight <= metrics.frameLeft + metrics.frameWidth + 1, `o card deve caber no frame sem os dots laterais: ${JSON.stringify(metrics)}`);
     assert.equal(metrics.frameBackground, "none", "a Usage não deve criar um cartão de fundo externo");
     assert.equal(metrics.frameBorder, "none", "a Usage não deve criar uma borda externa nova");
     assert.equal(metrics.interLoaded, true, "a fonte padrão do app deve estar disponível sem rede");
-    assert.deepEqual(metrics.textFonts, metrics.textFonts.map(() => metrics.bodyFont), "os textos da Usage devem usar a fonte padrão do app");
+    assert.deepEqual(metrics.textFonts, metrics.textFonts.map(() => metrics.bodyFont), `os textos da Usage devem usar a fonte padrão do app: ${JSON.stringify(metrics)}`);
     await page.close();
   } finally {
     await browser.close();
@@ -1285,6 +1940,78 @@ test("long press de website pede confirmação antes de remover o fixo", async (
     assert.match(favLong, /unpinPiece\(piece\.id\)/);
     assert.match(favLong, /\}, "confirm"\);/);
   } finally {
+    await close();
+  }
+});
+
+test("toque rápido em app não dispara o long press de remoção", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: ["Terminal"],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/apps/Terminal/activate", async route => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    const tile = page.locator('.atile[data-id="app:Terminal"]');
+    await tile.waitFor({ state: "visible", timeout: 15000 });
+    await tile.evaluate(el => {
+      el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, pointerType: "touch", isPrimary: true, clientX: 40, clientY: 40 }));
+      document.querySelector("#screens").dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, pointerType: "touch", isPrimary: true, clientX: 40, clientY: 40 }));
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForTimeout(700);
+    assert.equal(await page.locator("#sheet.confirm-sheet").count(), 0, "toque rápido não deve abrir remoção");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("PWA bloqueia seleção, callout e menu nativo em toda a superfície", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const safeguards = await page.evaluate(() => {
+      const root = document.querySelector("#dokke");
+      const target = document.querySelector(".atile") || root;
+      const selectstart = new Event("selectstart", { bubbles: true, cancelable: true });
+      const contextmenu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+      const touchCalloutRule = document.documentElement.innerHTML.includes("#dokke, #dokke *")
+        && document.documentElement.innerHTML.includes("-webkit-touch-callout: none");
+      return {
+        selectstartPrevented: !target.dispatchEvent(selectstart),
+        contextmenuPrevented: !target.dispatchEvent(contextmenu),
+        rootUserSelect: getComputedStyle(root).userSelect,
+        tileUserSelect: getComputedStyle(target).userSelect,
+        touchCalloutRule,
+      };
+    });
+    assert.equal(safeguards.selectstartPrevented, true, "a superfície não deve permitir seleção de texto");
+    assert.equal(safeguards.contextmenuPrevented, true, "a superfície não deve abrir menu nativo");
+    assert.equal(safeguards.rootUserSelect, "none", `a raiz deve bloquear seleção: ${JSON.stringify(safeguards)}`);
+    assert.equal(safeguards.tileUserSelect, "none", `os tiles devem bloquear seleção: ${JSON.stringify(safeguards)}`);
+    assert.equal(safeguards.touchCalloutRule, true, `o callout touch deve ficar desativado: ${JSON.stringify(safeguards)}`);
+    await page.close();
+  } finally {
+    await browser.close();
     await close();
   }
 });
@@ -1343,12 +2070,12 @@ test("Painel de Uso empilha limites no retrato e não repete um card externo", a
   const { port, close } = await startServer(0);
   try {
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-    const portraitStart = html.indexOf("@media (max-width: 699px)");
+    const portraitStart = html.indexOf("@media (max-width: 699px){", html.indexOf(".usage-limits"));
     const portraitEnd = html.indexOf("}", portraitStart);
     const portraitCss = html.slice(portraitStart, portraitEnd > portraitStart ? portraitEnd + 1 : portraitStart + 500);
 
     assert.match(portraitCss, /\.usage-limits\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/, "os limites devem ocupar a largura inteira no celular");
-    assert.match(html, /\.usage-card\.is-open\{[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.84\), rgba\(12,14,16,\.89\)\)/, "o provedor aberto deve usar a moldura grafite translúcida do esboço");
+    assert.match(html, /\.usage-card\.is-open\{[^}]*background:\s*linear-gradient\(145deg, rgba\(255,255,255,\.11\), rgba\(255,255,255,\.045\) 46%, rgba\(7,9,11,\.62\)\)/, "o provedor aberto deve usar a superfície liquid glass do esboço");
   } finally {
     await close();
   }
@@ -1461,9 +2188,150 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: light\)"[^>]*href="\/icon-192\.png"/, "favicon claro deve existir");
     assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: dark\)"[^>]*href="\/icon-192-dark\.png"/, "favicon escuro deve existir");
     assert.match(html, /viewport-fit=cover/, "viewport-fit=cover deve estar no viewport meta");
+    assert.match(html, /@media \(display-mode: standalone\)[\s\S]*--dokke-viewport-height:\s*100dvh;/, "o layout deve ter fallback para a viewport dinâmica do PWA standalone");
+    assert.match(html, /function syncDokkeViewport\(\)/, "o PWA deve sincronizar a altura real da viewport");
+    assert.match(html, /if \(DOKKE_STANDALONE\)[\s\S]*visualViewport\.addEventListener\("resize", syncDokkeViewport/, "mudanças da viewport visual devem recalcular somente o PWA");
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
   } finally { await close(); }
+});
+
+test("PWA usa a altura real do visualViewport para ignorar a barra do Safari", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(() => {
+      const visualViewport = new EventTarget();
+      Object.defineProperties(visualViewport, {
+        height: { configurable: true, value: 808 },
+        offsetTop: { configurable: true, value: 0 },
+      });
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: visualViewport,
+      });
+      Object.defineProperty(navigator, "standalone", {
+        configurable: true,
+        value: true,
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const layout = await page.evaluate(() => ({
+      viewportHeight: getComputedStyle(document.documentElement).getPropertyValue("--dokke-viewport-height").trim(),
+      mainHeight: getComputedStyle(document.querySelector("main")).height,
+      screenHeight: getComputedStyle(document.querySelector(".screen")).height,
+    }));
+    assert.equal(layout.viewportHeight, "808px", `a altura do visualViewport deve governar o PWA: ${JSON.stringify(layout)}`);
+    assert.equal(layout.mainHeight, "808px", `main deve ocupar a viewport real: ${JSON.stringify(layout)}`);
+    assert.equal(layout.screenHeight, "808px", `cada tela deve ocupar a viewport real: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Safari no navegador preserva a régua estrutural e não comprime os cards", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(() => {
+      const visualViewport = new EventTarget();
+      Object.defineProperties(visualViewport, {
+        height: { configurable: true, value: 808 },
+        offsetTop: { configurable: true, value: 0 },
+      });
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: visualViewport,
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const layout = await page.evaluate(() => ({
+      viewportHeight: getComputedStyle(document.documentElement).getPropertyValue("--dokke-viewport-height").trim(),
+      mainHeight: getComputedStyle(document.querySelector("main")).height,
+    }));
+    assert.equal(layout.viewportHeight, "100%", `o Safari no navegador não deve receber a altura visual reduzida: ${JSON.stringify(layout)}`);
+    assert.equal(layout.mainHeight, "852px", `a régua original do navegador deve permanecer intacta: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Safari portrait mantém proporção legível e alinha o gauge à esquerda", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await openOverflowingUsagePage(port, browser, null, { width: 393, height: 667 });
+    const layout = await page.evaluate(() => {
+      const card = document.querySelector(".usage-card.is-open");
+      const metric = document.querySelector(".usage-metric-5h");
+      const gauge = document.querySelector(".usage-gauge-wrap");
+      return {
+        browserMode: document.body.classList.contains("is-browser"),
+        cardHeight: card.getBoundingClientRect().height,
+        metricLeft: metric.getBoundingClientRect().left,
+        gaugeLeft: gauge.getBoundingClientRect().left,
+        gaugeHeight: gauge.getBoundingClientRect().height,
+      };
+    });
+    assert.equal(layout.browserMode, true, `o teste deve reproduzir o Safari no navegador: ${JSON.stringify(layout)}`);
+    assert.ok(layout.cardHeight >= 240, `o card não deve parecer achatado pela barra do Safari: ${JSON.stringify(layout)}`);
+    assert.ok(layout.gaugeHeight >= 120, `o gauge deve manter uma altura legível: ${JSON.stringify(layout)}`);
+    assert.ok(Math.abs(layout.gaugeLeft - layout.metricLeft) <= 1, `o gauge deve alinhar à esquerda da coluna: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("Usage ancora o pager no fim da viewport visual quando a viewport estrutural é maior", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await openOverflowingUsagePage(
+      port,
+      browser,
+      async currentPage => {
+        await currentPage.addInitScript(() => {
+          const visualViewport = new EventTarget();
+          Object.defineProperties(visualViewport, {
+            height: { configurable: true, value: 808 },
+            offsetTop: { configurable: true, value: 0 },
+          });
+          Object.defineProperty(window, "visualViewport", {
+            configurable: true,
+            value: visualViewport,
+          });
+          Object.defineProperty(navigator, "standalone", {
+            configurable: true,
+            value: true,
+          });
+        });
+      },
+      { width: 393, height: 852 },
+    );
+    const layout = await page.evaluate(() => {
+      const scroll = document.querySelector(".usage-scroll");
+      const dots = document.querySelector(".usage-provider-dots");
+      return {
+        viewportHeight: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--dokke-viewport-height")),
+        scrollBottom: scroll.getBoundingClientRect().bottom,
+        dotsBottom: dots.getBoundingClientRect().bottom,
+        scrollHeight: scroll.scrollHeight,
+        clientHeight: scroll.clientHeight,
+      };
+    });
+    assert.equal(layout.viewportHeight, 808, `a viewport visual simulada deve ser aplicada: ${JSON.stringify(layout)}`);
+    assert.ok(layout.scrollBottom <= 809, `o conteúdo não pode usar a altura estrutural antiga: ${JSON.stringify(layout)}`);
+    assert.ok(layout.dotsBottom >= 796 && layout.dotsBottom <= 809, `os dots devem terminar na viewport visual: ${JSON.stringify(layout)}`);
+    assert.ok(layout.scrollHeight <= layout.clientHeight + 1, `o Usage não pode criar overflow quando a barra do Safari muda a viewport: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
 });
 
 test("toque no app não revela um segundo glass durante a animação", async () => {
@@ -1529,9 +2397,9 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       return { background: computed.backgroundColor, border: computed.border, boxShadow: computed.boxShadow };
     });
     assert.equal(await page.locator(".atile.empty").count(), 38);
-    assert.equal(style.background, "rgba(255, 255, 255, 0.035)");
-    assert.match(style.border, /rgba\(240, 135, 55, 0\.18\)/);
-    assert.match(style.boxShadow, /rgba\(255, 255, 255, 0\.035\)/);
+    assert.equal(style.background, "rgba(255, 255, 255, 0.05)");
+    assert.match(style.border, /rgba\(255, 255, 255, 0\.08\)/);
+    assert.equal(style.boxShadow, "none");
   } finally {
     await browser.close();
     await close();
@@ -1715,7 +2583,7 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v29/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v31/, "service worker deve invalidar o cache antigo da UI");
     assert.match(js, /dokke-mascot-working-loop-strip\.webp\?v=20260909-11/, "sprites do mascote devem entrar no precache offline");
     assert.match(js, /dokke-mascot-idle-principal-strip\.webp\?v=20260909-11/, "o idle principal deve entrar no precache offline");
     assert.doesNotMatch(js, /dokke-mascot-idle-two-strip/, "o idleTwo removido não deve voltar ao precache");
@@ -1800,7 +2668,10 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
     await page.addStyleTag({ content: ":root{--dokke-safe-top:100px;--dokke-safe-bottom:100px}.screen{padding-top:100px !important}.dots{padding-bottom:100px !important}" });
     await page.waitForFunction(() => document.querySelectorAll(".atile").length === 40);
     await page.evaluate(() => window.dispatchEvent(new Event("resize")));
-    await page.waitForFunction(() => document.querySelector(".page-grid")?.style.transform.startsWith("scale("));
+    await page.waitForFunction(() => {
+      const grid = document.querySelector(".page-grid");
+      return Boolean(grid) && (grid.style.transform === "" || grid.style.transform.startsWith("scale("));
+    });
     const bounds = await page.evaluate(() => {
       const pager = document.querySelector(".launchpad");
       const firstPage = document.querySelector(".page");
@@ -1830,7 +2701,7 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
     assert.ok(bounds.slotGap <= 20.5, "o retrato não deve adicionar espaçamento entre os slots");
     assert.ok(bounds.first.top >= bounds.pager.top - 0.5, "o primeiro card não pode escapar pelo topo após a escala");
     assert.ok(bounds.last.bottom <= bounds.pager.bottom + 0.5, "o último card não pode ser cortado após a escala");
-    assert.match(bounds.scale, /^scale\(/, "a escala deve ser aplicada somente quando a safe area reduzir a altura útil");
+    assert.ok(bounds.scale === "" || /^scale\(/.test(bounds.scale), "a grade só deve escalar quando a safe area reduzir a altura útil");
     assert.ok(Math.abs(bounds.pageWidth - (bounds.pager.right - bounds.pager.left)) < 0.5, "a página deve conservar a largura integral do pager");
     assert.ok(Math.abs(bounds.scrollLeft) < 1, "a escala interna não pode deslocar o scroll horizontal inicial");
   } finally {

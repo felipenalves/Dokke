@@ -228,20 +228,23 @@ test("PWA usa loading minimalista e tendência legível no mobile", async () => 
   assert.match(loadingBlock, /usageLoadingNode\(\)/);
   assert.doesNotMatch(loadingBlock, /usage-empty/);
   assert.match(html, /\.usage-state\{/);
+  assert.match(html, /\.usage-state\[data-state="loading"\]\{[^}]*min-height:\s*0;[^}]*border:\s*0;[^}]*background:\s*transparent;/, "o loading deve ficar direto no canvas, sem card externo");
   assert.match(html, /\.usage-state-spinner\{/);
   assert.match(html, /@keyframes usageStateSpin/);
   assert.match(html, /prefers-reduced-motion:[^}]*usage-state-spinner/);
   assert.match(html, /\.usage-trend-slide\{[^}]*justify-content:\s*flex-start;/);
   assert.match(html, /\.usage-trend-slide\{[^}]*padding-top:\s*22px;/, "a tendência deve começar na mesma régua vertical do card principal");
   assert.match(html, /\.usage-provider-slider\{[^}]*clip-path:\s*inset\(0\)/, "o pager deve recortar a pintura do slide seguinte no limite da tela ativa");
-  assert.match(html, /\.usage-trend\{[^}]*border-radius:\s*32px;[^}]*background:\s*linear-gradient\(180deg, rgba\(22,24,27,\.84\), rgba\(12,14,16,\.89\)\)/, "a tendência deve compartilhar a superfície do card Codex");
-  assert.match(html, /\.usage-trend-bars\{[^}]*position:\s*relative;[^}]*height:\s*clamp/);
-  assert.match(html, /background-image:\s*linear-gradient/);
-  assert.match(html, /\.usage-trend-bar\[data-level="empty"\]/);
-  assert.match(html, /background:\s*var\(--ink\)/);
-  assert.match(html, /const middleIndex = Math\.floor/);
-  assert.match(html, /bar\.dataset\.level/);
-  assert.match(html, /bar\.dataset\.peak/);
+  assert.match(html, /\.usage-trend\{[^}]*border-radius:\s*32px;[^}]*background:\s*linear-gradient\(145deg, rgba\(255,255,255,\.11\), rgba\(255,255,255,\.045\) 46%, rgba\(7,9,11,\.62\)\);[^}]*backdrop-filter:\s*blur\(14px\) saturate\(1\.08\);/, "a tendência deve compartilhar o material translúcido do card Codex");
+  assert.match(html, /\.usage-trend-bar-chart\{/);
+  assert.match(html, /\.usage-trend-periods\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(html, /\.usage-trend-bar-list\{[^}]*display:\s*flex;[^}]*gap:\s*clamp\(3px, \.45vw, 5px\);/);
+  assert.match(html, /\.usage-trend-summary\{/);
+  assert.match(html, /\.usage-trend-summary-metric\{/);
+  assert.match(html, /\.usage-trend-bar-y-axis\{/);
+  assert.match(html, /\.usage-trend-bar-y-axis-label\{/);
+  assert.match(html, /\.usage-trend-panel-chevron\{/);
+  assert.match(html, /@media \(max-width: 620px\)\{[\s\S]*?\.usage-trend-summary-metrics\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/, "as métricas do resumo devem seguir em uma única faixa no mobile");
 });
 
 test("PWA diferencia busca de limites da ausência confirmada de dados", async () => {
@@ -258,26 +261,29 @@ test("PWA diferencia busca de limites da ausência confirmada de dados", async (
   assert.match(html, /function usageLoadingNode\(\)[\s\S]*?usageStatusNode\("loading",/);
   assert.match(renderSource, /usageStatusNode\("warning", t\("usage\.noData"\)/);
   assert.match(html, /\.usage-state\{[^}]*min-height:\s*190px;[^}]*padding:\s*42px 24px 40px;/);
+  assert.match(html, /\.usage-state\[data-state="loading"\]\{[^}]*min-height:\s*0;[^}]*border:\s*0;[^}]*background:\s*transparent;/, "somente o estado de loading deve perder a moldura");
   assert.match(html, /\.usage-state-spinner\{/);
   assert.match(html, /@keyframes usageStateSpin/);
   assert.match(html, /\.usage-state-warning\{/);
   assert.match(html, /prefers-reduced-motion:[^}]*usage-state-spinner/);
 });
 
-test("PWA não aplica sombra externa ao card de uso aberto", async () => {
+test("PWA aplica material translúcido leve ao card de uso aberto", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const ruleStart = html.indexOf("  .usage-card.is-open{\n    margin: 0; padding: 16px;");
   const ruleEnd = html.indexOf("\n  }", ruleStart);
   const rule = html.slice(ruleStart, ruleEnd);
 
   assert.notEqual(ruleStart, -1, "a regra visual final do card aberto deve existir");
-  assert.match(rule, /box-shadow:\s*none;/);
+  assert.match(rule, /background:\s*linear-gradient\(145deg, rgba\(255,255,255,\.11\), rgba\(255,255,255,\.045\) 46%, rgba\(7,9,11,\.62\)\);/);
+  assert.match(rule, /box-shadow:\s*inset 0 1px 0 rgba\(255,255,255,\.12\), 0 12px 24px rgba\(0,0,0,\.12\);/);
+  assert.match(rule, /backdrop-filter:\s*blur\(14px\) saturate\(1\.08\);/);
 });
 
 test("PWA desktop preserva a moldura vertical do mobile e invalida o shell", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  const desktopStart = html.indexOf("  @media (min-width: 700px){");
+  const desktopStart = html.indexOf("  @media (min-width: 700px) and (orientation: portrait){");
   const desktopEnd = html.indexOf("\n  /* ---- landscape", desktopStart);
   const desktopRule = html.slice(desktopStart, desktopEnd);
 
@@ -286,40 +292,32 @@ test("PWA desktop preserva a moldura vertical do mobile e invalida o shell", asy
   assert.match(desktopRule, /\.usage-provider-track\{[^}]*overflow-x:\s*auto;[^}]*overflow-y:\s*hidden;/);
   assert.match(desktopRule, /\.usage-stack\{[^}]*width:\s*100%;[^}]*margin:\s*22px 0 0;/);
   assert.match(desktopRule, /\.usage-card\.is-open\{[^}]*box-shadow:\s*none;[^}]*filter:\s*none;/);
-  assert.match(sw, /const CACHE = "dokke-v29"/);
-  assert.match(html, /serviceWorker\.register\("\/sw\.js\?rev=dokke-v29"\)/);
+  assert.match(sw, /const CACHE = "dokke-v31"/);
+  assert.match(html, /serviceWorker\.register\("\/sw\.js\?rev=dokke-v31"\)/);
 });
 
-test("@spec:AC-344 PWA mantém todas as barras da tendência na mesma cor opaca", async () => {
-  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-
-  assert.match(html, /\.usage-trend-bar\{[^}]*background:\s*var\(--ink\);/);
-  assert.doesNotMatch(html, /\.usage-trend-bar\{[^}]*opacity:/);
-  assert.doesNotMatch(html, /\.usage-trend-bar\[data-level="empty"\]\{[^}]*opacity:/);
-  assert.doesNotMatch(html, /\.usage-trend-bar\[data-peak="true"\]\{/);
-});
-
-test("@spec:AC-345 PWA calcula altura pela proporção dos tokens e preserva o valor do ponto", async () => {
+test("PWA replica o resumo de tokens do Codex e oculta o mascote na tendência", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const trendStart = html.indexOf("function usageTrendNode(provider){");
   const trendEnd = html.indexOf("function usageTrendValue", trendStart);
   const trendSource = html.slice(trendStart, trendEnd);
+  const renderStart = html.indexOf("function renderUsage(){");
+  const renderEnd = html.indexOf("async function loadUsage", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
 
-  assert.match(trendSource, /const maxValue = Math\.max\(1, \.\.\.points\.map/);
-  assert.match(trendSource, /value > 0 \? Math\.max\(1, Math\.round\(\(value \/ maxValue\) \* 100\)\) : 0/);
-  assert.match(trendSource, /point\.valueLabel \|\| usageTrendValue\(point\.value\)/);
-  assert.doesNotMatch(trendSource, /Math\.max\(5, Math\.round/);
-});
-
-test("@spec:AC-347 PWA expõe eixo cronológico e leitura contextual por data", async () => {
-  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-  const trendStart = html.indexOf("function usageTrendNode(provider){");
-  const trendEnd = html.indexOf("function usageTrendValue", trendStart);
-  const trendSource = html.slice(trendStart, trendEnd);
-
-  assert.match(trendSource, /const middleIndex = Math\.floor/);
-  assert.match(trendSource, /points\[index\]\.label/);
-  assert.match(trendSource, /bar\.title = point\.label \+ " · " \+ \(point\.valueLabel \|\| usageTrendValue\(point\.value\)\)/);
+  assert.match(html, /function usageTrendSummary\(points\)/, "o resumo deve ser calculado a partir da série real");
+  assert.match(trendSource, /summarySlot\.replaceChildren\(usageTrendSummaryNode\(selectedPoints, period, comparablePreviousPoints\)\)/, "o frame deve montar o resumo atual e a comparação no padding interno do gráfico");
+  assert.match(html, /usage-trend-summary-title.*t\("usage\.trendActivity"\)/, "o frame deve identificar os tokens do período");
+  assert.match(html, /function usageTrendComparison\(points, previousPoints\)/, "o resumo deve calcular a variação contra o período anterior");
+  assert.match(html, /usage-trend-summary-comparison/, "o resumo deve renderizar a comparação visual");
+  assert.doesNotMatch(html, /function usageTrendActivityPanel|usage-trend-activity-panel|usage-trend-grid/, "o heatmap e o painel de atividade devem permanecer removidos");
+  assert.doesNotMatch(trendSource, /usageTrendActivityPanel|usage-trend-activity-panel|usage-trend-grid/, "o segundo slide deve renderizar somente o resumo e o gráfico de barras");
+  assert.match(html, /const USAGE_TREND_PERIODS = \[[\s\S]*id: "today"[\s\S]*id: "7d"[\s\S]*id: "30d"/);
+  assert.doesNotMatch(html, /id: "3m"|trendPeriod3m|trendWindow3m/);
+  assert.match(renderSource, /usageTitle\.textContent\s*=\s*trendActive \? t\("usage\.trend"\) : t\("usage\.title"\)/, "o título da página deve acompanhar o slide ativo");
+  assert.match(renderSource, /headMascot\.hidden\s*=\s*trendActive/, "o mascote deve ficar oculto no segundo slide");
+  assert.match(html, /I18N\["pt-BR"\]\["usage\.trendActivity"\]\s*=\s*"Atividade de tokens"/);
+  assert.match(html, /I18N\["pt-BR"\]\["usage\.trendWindow"\]\s*=\s*"últimos 30 dias"/);
 });
 
 test("@spec:AC-348 PWA usa a cor de status sem transparência no preenchimento semanal", async () => {
@@ -418,6 +416,23 @@ test("PWA destaca janela de 5 horas e semanal com gráficos simples", async () =
   assert.doesNotMatch(html, /usage-island-source/);
 });
 
+test("PWA usa glyphs de Claude, Codex e Antigravity em branco", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const claude = await readFile(new URL("../public/claude.svg", import.meta.url), "utf8");
+  const antigravity = await readFile(new URL("../public/provider-icons/antigravity.svg", import.meta.url), "utf8");
+
+  assert.match(claude, /<path fill="#d97757"/, "Claude deve continuar usando o SVG oficial, normalizado pela interface");
+  assert.match(antigravity, /fill="#4285F4"/, "Antigravity deve continuar usando o SVG oficial, normalizado pela interface");
+  assert.match(html, /\.usage-provider-logo\[data-provider="claude"\]\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--ink\);/, "Claude não deve carregar a placa colorida da marca");
+  assert.match(html, /\.usage-provider-logo\[data-provider="antigravity"\]\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--ink\);/, "Antigravity deve compartilhar o tratamento neutro");
+  assert.match(html, /\.usage-provider-logo\[data-provider="claude"\] img\{[^}]*filter:\s*brightness\(0\) invert\(1\);/, "Claude deve ser exibido somente em branco");
+  assert.match(html, /\.usage-provider-logo\[data-provider="antigravity"\] img\{[^}]*filter:\s*brightness\(0\) invert\(1\);/, "Antigravity deve ser exibido somente em branco");
+  assert.match(html, /\.usage-provider-logo\[data-provider="codex"\]\{[^}]*color:\s*var\(--ink\);[^}]*background:\s*transparent;/, "Codex deve permanecer branco e sem fundo de marca");
+  assert.match(html, /\.usage-card\.is-closed \.usage-provider-logo\[data-provider="codex"\]\{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*box-shadow:\s*none;/, "o Codex fechado não deve carregar uma placa escura atrás do glyph");
+  assert.match(html, /\.usage-provider-logo\[data-provider="codex"\] svg\{[^}]*width:\s*22px;[^}]*height:\s*22px;/, "Codex deve usar o mesmo enquadramento óptico");
+  assert.match(html, /\.usage-provider-logo\[data-provider="antigravity"\] img\{[^}]*transform:\s*scale\(1\.12\);/, "Antigravity deve compensar a margem interna do SVG");
+});
+
 test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const renderStart = html.indexOf("function renderUsage()");
@@ -429,6 +444,8 @@ test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem
   assert.match(html, /usage-gauge-caption/, "o gauge deve dizer se a porcentagem é usada ou restante");
   assert.match(html, /\.usage-card\.is-open \.usage-gauge-copy \.usage-limit-value\{[^}]*font-size:\s*30px;/, "o percentual do gauge deve manter o tamanho do esboço");
   assert.match(html, /\.usage-card\.is-open \.usage-gauge-caption\{[^}]*display:\s*none;/, "o gauge não deve repetir a legenda usado no esboço");
+  assert.match(html, /\.usage-card\.is-open\{[^}]*backdrop-filter:\s*blur\(14px\) saturate\(1\.08\);/, "o card principal deve usar transparência controlada no material");
+  assert.match(html, /\.usage-week-bar\{[\s\S]*background:\s*linear-gradient\(180deg, rgba\(255,255,255,\.16\), rgba\(255,255,255,\.06\)\);/, "a barra semanal deve receber uma superfície translúcida");
   assert.match(html, /usage-week-caption/, "o semanal deve carregar a mesma semântica");
   assert.match(html, /\.usage-card\.is-open \.usage-week-value \.usage-limit-value\{[^}]*font-size:\s*18px;/, "o percentual semanal não deve herdar o tamanho do limite principal");
   assert.match(html, /\.usage-content\{[^}]*width:\s*min\(100%,\s*350px\);/, "o painel deve preservar a largura ampliada do frame do esboço");
@@ -454,7 +471,7 @@ test("PWA aplica o esboço com gauge radial e semântica visível da porcentagem
   assert.match(html, /\.usage-five-copy \.usage-limit-reset-value\{[^}]*font-weight:\s*600;/, "o valor do reset deve acompanhar a referência");
   assert.match(html, /\.usage-five-caption\{[^}]*font-weight:\s*500;/, "a legenda de reset deve ser mais leve");
   assert.doesNotMatch(html, /\.usage-head-mascot \.usage-token-dock\{[^}]*border:\s*1px solid[^}]*border-radius:\s*22px;[^}]*background:\s*rgba\(0,0,0,\.2\);/, "o mascote do cabeçalho não deve ficar dentro de uma caixa");
-  assert.match(html, /\.usage-provider-logo\[data-provider="claude"\]\{[^}]*background:\s*#f4e6d8;[^}]*color:\s*#d97757;/, "Claude deve usar a marca clara do esboço");
+  assert.match(html, /\.usage-provider-logo\[data-provider="claude"\]\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--ink\);/, "Claude deve usar a marca neutra do esboço");
   assert.match(html, /\.usage-card\.is-open\[data-status="attention"\]\{[^}]*--usage-accent:\s*#ff8a38;/, "o estado de atenção deve usar o laranja do esboço");
   assert.match(html, /I18N\["pt-BR"\]\["usage\.fiveHourShort"\]\s*=\s*"5 horas"/);
   assert.match(html, /I18N\["pt-BR"\]\["usage\.weekShort"\]\s*=\s*"semana"/);
@@ -560,7 +577,6 @@ test("PWA transforma o status em balão e mantém a animação normal dos olhos 
   assert.match(html, /@keyframes usageMascotProviderReaction/);
   assert.match(html, /\.usage-mascot-wrap\[data-reaction="chart"\] \.usage-token\{[^}]*animation:\s*usageTokenChartReaction/);
   assert.match(html, /\.usage-mascot-wrap\[data-reaction="provider"\] \.usage-token\{[^}]*animation:\s*usageTokenProviderReaction/);
-  assert.match(html, /\.usage-trend-bar\{[^}]*background:\s*var\(--ink\)/, "a tendência deve usar uma cor neutra única");
   assert.match(html, /\.usage-token\[data-mascot="energized"\] \.usage-token-eyes i\{[^}]*animation:\s*usageBlink/);
   assert.match(html, /\.usage-token\[data-mascot="tired"\] \.usage-token-eyes i\{[^}]*animation:\s*usageTiredEyes/);
   assert.doesNotMatch(html, /\.usage-mood-bubble::after\{[^}]*content:/, "o balão não deve ter bolinhas auxiliares");
@@ -722,8 +738,8 @@ test("PWA economiza espaço superior no Usage em landscape baixo", async () => {
   assert.match(html, /copy\.className\s*=\s*"usage-head-copy"/, "o cabeçalho deve ter uma área própria para compactação");
   assert.match(compactCss, /\.usage-head-copy\{[^}]*display:\s*block;[^}]*min-width:\s*0;/, "o cabeçalho deve empilhar o status abaixo do título");
   assert.match(compactCss, /\.usage-sync\{[^}]*gap:\s*5px;[^}]*margin-top:\s*4px;[^}]*min-height:\s*0;/, "o status deve ficar logo abaixo do título no landscape");
-  assert.match(compactCss, /\.usage-scroll\{[^}]*padding:\s*4px 10px calc\(3px \+ env\(safe-area-inset-bottom, 0px\)\);/, "o padding vertical superior deve ser reduzido");
-  assert.match(compactCss, /\.usage-head\{[^}]*margin:\s*0 8px 3px;/, "o cabeçalho não deve reservar espaço extra");
+  assert.match(compactCss, /\.usage-scroll\{[^}]*padding-top:\s*clamp\(10px,\s*2\.8vh,\s*16px\);[^}]*padding-bottom:\s*calc\(3px \+ env\(safe-area-inset-bottom, 0px\)\);/, "o landscape compacto deve conservar padding de página consistente");
+  assert.match(compactCss, /\.usage-head\{[^}]*margin:\s*0 8px 6px;/, "o cabeçalho deve manter padding consistente com a página");
   assert.match(compactCss, /\.usage-card\{[^}]*padding:\s*8px 10px 10px;/, "o card do provedor deve manter respiro interno");
   assert.match(compactCss, /\.usage-card-head\{[^}]*margin:\s*0 2px 4px;/, "o cabeçalho do provedor deve ficar compacto");
   assert.match(compactCss, /\.usage-limit\.primary\{[^}]*height:\s*clamp\(144px,\s*47vh,\s*172px\);[^}]*min-height:\s*0;/, "o limite principal deve aproveitar melhor a altura horizontal");
@@ -733,21 +749,42 @@ test("PWA economiza espaço superior no Usage em landscape baixo", async () => {
   assert.match(compactCss, /\.usage-limit:not\(.primary\) \.usage-limit-value\{[^}]*font-size:\s*clamp\(28px,\s*6\.6vw,\s*38px\);[^}]*font-weight:\s*700;[^}]*margin-top:\s*6px;/, "a porcentagem semanal deve crescer com peso maior");
   assert.match(html, /\.usage-limit \.usage-limit-reset-label\{[^}]*margin-top:\s*auto;/, "o reset deve continuar preso ao rodapé dos cards");
   assert.match(compactCss, /\.usage-trend\{[^}]*margin-top:\s*0;[^}]*padding:\s*14px 13px 11px;[^}]*border-radius:\s*32px;/, "a tendência deve manter o card padronizado");
-  assert.match(compactCss, /\.usage-trend-bars\{[^}]*height:\s*clamp\(34px,\s*12vh,\s*48px\);/, "as barras devem caber no landscape");
   assert.match(html, /\.usage-stack\{[^}]*gap:\s*12px;/, "os cards empilhados devem manter o respiro no landscape");
 });
 
 test("PWA reorganiza o Usage em duas colunas no landscape mobile", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-  const landscapeUsageStart = html.indexOf("@media (orientation: landscape) and (max-height: 760px) and (pointer: coarse)");
+  const landscapeUsageStart = html.indexOf("/* Usage landscape: composição responsiva para mobile, tablet e desktop. */");
+  const landscapeUsageEnd = html.indexOf("/* ---- landscape: grade 4x2", landscapeUsageStart);
+  const landscapeUsageCss = html.slice(landscapeUsageStart, landscapeUsageEnd);
+  const renderStart = html.indexOf("function renderUsage()");
+  const renderEnd = html.indexOf("async function loadUsage", renderStart);
+  const renderSource = html.slice(renderStart, renderEnd);
+
+  assert.ok(landscapeUsageStart >= 0 && landscapeUsageEnd > landscapeUsageStart, "o Usage deve ter uma régua própria para landscape em todos os clientes");
+  assert.match(landscapeUsageCss, /\.usage-content\{[^}]*max-width:\s*1180px;/, "o painel deve aproveitar a largura horizontal sem ficar estreito no desktop");
+  assert.match(landscapeUsageCss, /\.usage-content\{[^}]*height:\s*100%;[^}]*min-height:\s*0;[^}]*flex:\s*1 1 auto;[^}]*justify-content:\s*center;/, "o conjunto deve usar a altura útil sem criar sobra vertical");
+  assert.match(html, /@media \(orientation: landscape\)\{[\s\S]*?\.usage-head-copy\{[^}]*display:\s*flex;[^}]*align-items:\s*baseline;[^}]*gap:\s*clamp\(8px,\s*1vw,\s*14px\);/, "título e atualização devem compartilhar a mesma linha no landscape");
+  assert.match(html, /@media \(orientation: landscape\)\{[\s\S]*?\.usage-sync\{[^}]*min-height:\s*0;[^}]*margin-top:\s*0;/, "a atualização não deve voltar para baixo do título no landscape");
+  assert.match(landscapeUsageCss, /\.usage-provider-track\{[^}]*height:\s*100%;[^}]*flex:\s*1 1 auto;/, "o track deve ocupar a altura útil em landscape");
+  assert.match(landscapeUsageCss, /\.usage-stack\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,1\.2fr\) minmax\(0,\.8fr\);[^}]*grid-template-rows:\s*minmax\(0,1fr\);[^}]*height:\s*clamp\(228px,\s*62vh,\s*420px\);/, "a linha única deve priorizar o card aberto em 60/40 e aproveitar a altura disponível");
+  assert.match(landscapeUsageCss, /\.usage-stack\{[^}]*width:\s*calc\(100% - 16px\);[^}]*margin:\s*0 8px;/, "a grade da página 1 deve alinhar com o gutter do cabeçalho");
+  assert.match(landscapeUsageCss, /\.usage-side\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*gap:\s*clamp\(12px,\s*1vw,\s*16px\);/, "os provedores secundários devem seguir o respiro do retrato");
+  assert.match(landscapeUsageCss, /\.usage-card\.is-open\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/, "o provedor aberto deve ocupar a coluna principal");
+  assert.match(landscapeUsageCss, /\.usage-side\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/, "os provedores fechados devem ocupar a coluna lateral");
+  assert.match(html, /\.usage-card\.is-open \.usage-limits\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\);[^}]*grid-template-rows:\s*minmax\(0, 1fr\) auto auto;/, "o card aberto deve reservar a primeira faixa para gauge/reset e levar a semana para baixo");
+  assert.match(html, /\.usage-card\.is-open \.usage-metric-week\{[^}]*border-left:\s*0;/, "a semana não deve criar uma linha vertical no landscape");
+  assert.match(renderSource, /stack\.style\.setProperty\("--usage-side-count",/i, "a quantidade de linhas deve acompanhar os provedores reais");
+});
+
+test("PWA isola a pintura de cada slide da tendência", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const landscapeUsageStart = html.indexOf("/* Usage landscape: composição responsiva para mobile, tablet e desktop. */");
   const landscapeUsageEnd = html.indexOf("/* ---- landscape: grade 4x2", landscapeUsageStart);
   const landscapeUsageCss = html.slice(landscapeUsageStart, landscapeUsageEnd);
 
-  assert.ok(landscapeUsageStart >= 0 && landscapeUsageEnd > landscapeUsageStart, "o Usage deve ter uma régua própria para landscape mobile de viewport alto");
-  assert.match(landscapeUsageCss, /\.usage-content\{[^}]*max-width:\s*620px;/, "o painel deve aproveitar a largura horizontal");
-  assert.match(landscapeUsageCss, /\.usage-stack\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,1fr\) minmax\(0,1fr\);/, "os provedores devem formar duas colunas");
-  assert.match(landscapeUsageCss, /\.usage-card\.is-open\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1 \/ span 3;/, "o provedor aberto deve ocupar a coluna esquerda");
-  assert.match(landscapeUsageCss, /\.usage-card\.is-closed\{[^}]*grid-column:\s*2;/, "os provedores fechados devem ocupar a coluna direita");
+  assert.match(landscapeUsageCss, /\.usage-provider-track\{[^}]*contain:\s*paint;[^}]*isolation:\s*isolate;/, "o track deve recortar a pintura que pertence ao slide ativo");
+  assert.match(landscapeUsageCss, /\.usage-provider-slide\{[^}]*contain:\s*layout paint;[^}]*scroll-snap-stop:\s*always;/, "cada slide deve conter sua própria pintura e parar em uma página");
 });
 
 test("PWA encosta os dots verticais no canto direito em landscape", async () => {
@@ -768,7 +805,9 @@ test("PWA mantém marca e plano do provedor no cabeçalho do card", async () => 
 
   assert.match(renderSource, /const primaryLimit = primary \? usageLimitNode\(primary, status, true, item\.id\) : null;/, "o limite principal deve ser criado separadamente");
   assert.match(renderSource, /cardHead\.appendChild\(usageProviderLogo\(item\.id\)\)/, "cada card deve identificar seu provedor");
-  assert.match(renderSource, /if \(provider\.plan\) providerName\.appendChild\(usageTextNode\("span", "usage-provider-plan", provider\.plan\)\)/, "o plano deve aparecer no cabeçalho quando a fonte o informar");
+  assert.match(renderSource, /const providerPlan = provider\.plan \? usageTextNode\("span", "usage-provider-plan", provider\.plan\) : null;/, "o plano deve aparecer no cabeçalho quando a fonte o informar");
+  assert.match(renderSource, /if \(providerPlan && !isOpen\) providerName\.appendChild\(providerPlan\)/, "o plano deve acompanhar o nome nos cards fechados");
+  assert.match(renderSource, /providerPlan\.classList\.add\("usage-plan-corner"\)/, "o plano deve ocupar o canto do card aberto");
   assert.match(renderSource, /document\.createTextNode\("Claude"\)/, "Claude deve manter a identificação curta do esboço");
   assert.match(renderSource, /providerName\.appendChild\(document\.createTextNode\(item\.provider\.name \|\| item\.id\)\)/, "o nome do Codex deve acompanhar o logo");
   assert.doesNotMatch(renderSource, /primaryLimit\.appendChild\(usageProviderLogo/, "o logo não deve ficar duplicado dentro do limite");

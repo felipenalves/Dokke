@@ -3,6 +3,7 @@ export const DAY_PERIOD_MS = 24 * 60 * 60 * 1000;
 export const WEEK_PERIOD_MS = 7 * DAY_PERIOD_MS;
 export const MONTH_PERIOD_MS = 30 * DAY_PERIOD_MS;
 export const HISTORY_DAYS = 30;
+export const TREND_DAYS = 364;
 
 export function finiteNumber(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;

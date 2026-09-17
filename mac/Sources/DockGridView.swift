@@ -340,14 +340,12 @@ private struct AddSlotButton: View {
             )
             .frame(width: size, height: size)
 
-          if isHovered {
-            Image(systemName: "plus")
-              .font(.system(size: 18, weight: .semibold))
-              .foregroundStyle(.white.opacity(0.88))
-          }
+          Image(systemName: "plus")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.white.opacity(isHovered ? 0.94 : 0.72))
         }
 
-        Text(isHovered ? I18n.text("picker.add", language: languageStore.selected) : " ")
+        Text(I18n.text("picker.add", language: languageStore.selected))
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(.white.opacity(0.78))
           .frame(height: 13)

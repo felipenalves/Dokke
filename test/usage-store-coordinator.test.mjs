@@ -95,6 +95,31 @@ test("coordenador atualiza providers em paralelo e retorna partial sem apagar da
   coordinator.close();
 });
 
+test("coordenador busca histórico suficiente para comparar os últimos 30 dias", async () => {
+  const root = await makeRoot("trend-lookback");
+  let historySince = null;
+  const codex = {
+    ...provider("codex", { resource: true }),
+    async readHistory({ since }) {
+      historySince = since;
+      return { events: [] };
+    },
+  };
+  const coordinator = createUsageCoordinator({
+    providers: [codex],
+    store: createUsageStore({ file: join(root, "usage-cache.json") }),
+    now: () => now,
+    refreshMs: 60_000,
+    intervalMs: 0,
+  });
+
+  await coordinator.refresh({ force: true });
+
+  assert.ok(historySince instanceof Date);
+  assert.equal(now.getTime() - historySince.getTime(), 60 * 24 * 60 * 60 * 1000);
+  coordinator.close();
+});
+
 test("coordenador reaproveita cache durante backoff e força nova tentativa", async () => {
   const root = await makeRoot("backoff");
   let fail = false;

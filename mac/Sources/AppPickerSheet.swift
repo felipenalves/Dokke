@@ -7,6 +7,7 @@ struct AppPickerSheet: View {
   @Environment(\.dismiss) private var dismiss
   let insertAt: Int?
   @State private var search = ""
+  @FocusState private var isSearchFocused: Bool
   @State private var selectedTab = "Apps"
   @State private var websiteURL = ""
   @State private var pendingWebsiteURL = ""
@@ -22,7 +23,7 @@ struct AppPickerSheet: View {
     ("TikTok", "https://tiktok.com"),
     ("LinkedIn", "https://linkedin.com"),
     ("ChatGPT", "https://chatgpt.com"),
-    ("Documente", "https://documenteclub.vercel.app"),
+    ("X", "https://x.com"),
   ]
 
   init(insertAt: Int? = nil) {
@@ -98,6 +99,7 @@ struct AppPickerSheet: View {
               .foregroundStyle(.secondary)
             TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
               .textFieldStyle(.plain)
+              .focused($isSearchFocused)
             if !search.isEmpty {
               Button { search = "" } label: {
                 Image(systemName: "xmark.circle.fill")
@@ -111,7 +113,7 @@ struct AppPickerSheet: View {
           .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
           .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-              .stroke(Color.accentColor.opacity(0.8), lineWidth: 1.2)
+              .stroke(isSearchFocused ? Color.accentColor.opacity(0.75) : Color.white.opacity(0.14), lineWidth: 1)
           )
         }
         .padding(.horizontal, 16)

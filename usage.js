@@ -9,6 +9,7 @@ import { createAntigravityProvider } from "./usage/providers/antigravity.js";
 import { createClaudeProvider } from "./usage/providers/claude.js";
 import { createCodexProvider } from "./usage/providers/codex.js";
 import { createGrokProvider } from "./usage/providers/grok.js";
+import { TREND_DAYS } from "./usage/models.js";
 
 const OPENUSAGE_URL = "http://127.0.0.1:6736/v1/limits";
 const OPENUSAGE_USAGE_URL = "http://127.0.0.1:6736/v1/usage";
@@ -128,7 +129,7 @@ function normalizeResource(id, raw) {
 
 function normalizeTrendPoints(points) {
   if (!Array.isArray(points)) return [];
-  return points.slice(-31).map(point => {
+  return points.slice(-(TREND_DAYS + 1)).map(point => {
     if (!point || typeof point !== "object") return null;
     const value = finiteNumber(point.value);
     const label = typeof point.label === "string" ? point.label.trim().slice(0, 40) : "";
@@ -136,7 +137,10 @@ function normalizeTrendPoints(points) {
     const valueLabel = typeof point.valueLabel === "string" && point.valueLabel.trim()
       ? point.valueLabel.trim().slice(0, 80)
       : null;
-    return { label, value, valueLabel };
+    const date = typeof point.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(point.date.trim())
+      ? point.date.trim()
+      : null;
+    return { ...(date ? { date } : {}), label, value, valueLabel };
   }).filter(Boolean);
 }
 
