@@ -1,0 +1,117 @@
+name: macOS DMG builds
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/macos-dmg.yml"
+      - "mac/**"
+      - "package.json"
+      - "package-lock.json"
+      - "server.js"
+      - "apps.js"
+      - "actions.js"
+      - "config.js"
+      - "config.json"
+      - "auth.js"
+      - "obs.js"
+      - "obs-ws.js"
+      - "public/**"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: macOS ${{ matrix.display_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display_name: Intel
+            runner: macos-26-intel
+            expected_arch: x86_64
+            artifact_suffix: intel-x86_64
+          - display_name: Apple Silicon
+            runner: macos-26
+            expected_arch: arm64
+            artifact_suffix: apple-silicon-arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Verify runner and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_arch="$(uname -m)"
+          echo "Runner architecture: ${actual_arch}"
+          test "${actual_arch}" = "${{ matrix.expected_arch }}"
+          xcodebuild -version
+          swift --version
+          xcrun --sdk macosx --show-sdk-version
+
+      - name: Build app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash mac/install.sh --build-only
+
+      - name: Verify bundled native architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_bin="mac/dist/Dokke.app/Contents/MacOS/Dokke"
+          node_bin="mac/dist/Dokke.app/Contents/Resources/node-bin/node"
+          expected="${{ matrix.expected_arch }}"
+
+          test -x "${app_bin}"
+          test -x "${node_bin}"
+
+          app_archs="$(lipo -archs "${app_bin}")"
+          node_archs="$(lipo -archs "${node_bin}")"
+
+          echo "Dokke binary architectures: ${app_archs}"
+          echo "Embedded Node architectures: ${node_archs}"
+
+          grep -qw "${expected}" <<<"${app_archs}"
+          grep -qw "${expected}" <<<"${node_archs}"
+
+      - name: Package DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash mac/package-dmg.sh "mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg"
+
+      - name: Create checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd mac/dist
+          shasum -a 256 "Dokke-macOS-${{ matrix.artifact_suffix }}.dmg" \
+            > "Dokke-macOS-${{ matrix.artifact_suffix }}.dmg.sha256"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dokke-macOS-${{ matrix.artifact_suffix }}
+          path: |
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg.sha256
+          if-no-files-found: error
