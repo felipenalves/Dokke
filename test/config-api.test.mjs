@@ -1,12 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startServer } from "../server.js";
 import { MAX_PINNED_APPS, pinnedLimits } from "../config.js";
-
-const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact", showPace: true };
 
 async function startTemp(extra = {}) {
   const dir = await mkdtemp(join(tmpdir(), "j5api-"));
@@ -21,6 +19,54 @@ async function startTemp(extra = {}) {
 
 const base = s => `http://127.0.0.1:${s.port}`;
 
+test("respostas públicas omitem Uso e seus endpoints não existem", async () => {
+  const s = await startTemp({ configFile: null, config: { usage: { enabled: true }, usageProvider: "codex" } });
+  try {
+    for (const path of ["/api/config", "/api/apps", "/api/status"]) {
+      const response = await fetch(`${base(s)}${path}`);
+      assert.equal(response.status, 200, path);
+      const body = await response.json();
+      const payload = path === "/api/config" || path === "/api/status" ? body.config : body;
+      assert.equal(Object.hasOwn(payload, "usage"), false, path);
+      assert.equal(Object.hasOwn(payload, "usageProvider"), false, path);
+    }
+    for (const path of ["/api/usage", "/api/usage/activity", "/api/usage/activity/event", "/api/config/usage", "/api/config/usage/provider"]) {
+      const method = path.endsWith("/event") ? "POST" : path.startsWith("/api/config/") ? "PUT" : "GET";
+      const response = await fetch(`${base(s)}${path}`, { method });
+      assert.equal(response.status, 404, path);
+    }
+  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("pin preserva preferências antigas no disco sem expô-las na API", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "j5api-"));
+  const configFile = join(dir, "config.json");
+  const usage = { enabled: false, display: "remaining", reset: "countdown", showPace: false };
+  await writeFile(configFile, JSON.stringify({ pieces: [], pinned: [], usage, usageProvider: "claude" }));
+  const server = await startServer({ port: 0, configFile, appTools: { listAppProcesses: async () => [] } });
+  try {
+    const origin = `http://127.0.0.1:${server.port}`;
+    const pin = await fetch(`${origin}/api/config/pinned`, {
+      method: "POST", body: JSON.stringify({ app: "Figma" }),
+    });
+    assert.equal(pin.status, 200);
+    assert.equal(Object.hasOwn((await pin.json()).config, "usage"), false);
+
+    const stored = JSON.parse(await readFile(configFile, "utf8"));
+    assert.deepEqual(stored.usage, usage);
+    assert.equal(stored.usageProvider, "claude");
+    assert.deepEqual(stored.pinned, ["Figma"]);
+    for (const path of ["/api/config", "/api/apps", "/api/status"]) {
+      const response = await fetch(`${origin}${path}`);
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      const payload = path === "/api/apps" ? body : body.config;
+      assert.equal(Object.hasOwn(payload, "usage"), false, path);
+      assert.equal(Object.hasOwn(payload, "usageProvider"), false, path);
+    }
+  } finally { await server.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
 test("GET /api/config vazio retorna pinned vazio", async () => {
   const s = await startTemp();
   try {
@@ -28,148 +74,11 @@ test("GET /api/config vazio retorna pinned vazio", async () => {
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), {
       ok: true,
-      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits(), usage: DEFAULT_USAGE },
+      config: { schemaVersion: 2, revision: 0, pieces: [], pinned: [], limits: pinnedLimits() },
     });
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 
-test("PUT /api/config/usage salva preferências e expõe no /api/apps", async () => {
-  const s = await startTemp();
-  try {
-    const r = await fetch(`${base(s)}/api/config/usage`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: { enabled: false, display: "remaining", reset: "exact", showPace: false } }),
-    });
-    assert.equal(r.status, 200);
-    const body = await r.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.pushed, true);
-    assert.deepEqual(body.config.usage, { enabled: false, display: "remaining", reset: "exact", showPace: false });
-
-    const apps = await fetch(`${base(s)}/api/apps`);
-    assert.deepEqual((await apps.json()).usage, { enabled: false, display: "remaining", reset: "exact", showPace: false });
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("PUT /api/config/usage preserva o modo de contagem regressiva", async () => {
-  const s = await startTemp();
-  try {
-    const r = await fetch(`${base(s)}/api/config/usage`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "countdown" } }),
-    });
-    assert.equal(r.status, 200);
-    assert.equal((await r.json()).config.usage.reset, "countdown");
-
-    const apps = await fetch(`${base(s)}/api/apps`);
-    assert.equal((await apps.json()).usage.reset, "countdown");
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("PUT /api/config/usage rejeita preferência inválida sem alterar a atual", async () => {
-  const s = await startTemp();
-  try {
-    for (const usage of [
-      { enabled: "no", display: "used", reset: "countdown" },
-      { enabled: true, display: "invalid", reset: "countdown" },
-      { enabled: true, display: "used", reset: "invalid" },
-      { enabled: true, display: "used" },
-    ]) {
-      const r = await fetch(`${base(s)}/api/config/usage`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usage }),
-      });
-      assert.equal(r.status, 400, JSON.stringify(usage));
-      assert.equal((await r.json()).ok, false);
-    }
-    const current = await fetch(`${base(s)}/api/config`);
-    assert.deepEqual((await current.json()).config.usage, DEFAULT_USAGE);
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("PUT /api/config/usage idempotente não incrementa revisão", async () => {
-  const s = await startTemp();
-  try {
-    const r = await fetch(`${base(s)}/api/config/usage`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: DEFAULT_USAGE }),
-    });
-    assert.equal(r.status, 200);
-    assert.equal((await r.json()).config.revision, 0);
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("/api/usage e /api/usage/activity respeitam as IAs habilitadas @spec:AC-353", async () => {
-  const usageSource = {
-    async getUsage() {
-      return { ok: true, source: "dokke", sourceState: "available", providers: { claude: { name: "Claude" }, codex: { name: "Codex" } }, errors: [] };
-    },
-    async getActivity() {
-      return { ok: true, source: "dokke", sourceState: "available", providers: { claude: { state: "idle" }, codex: { state: "working" } }, errors: [] };
-    },
-  };
-  const s = await startTemp({ usage: usageSource });
-  try {
-    const save = await fetch(`${base(s)}/api/config/usage`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "exact", providers: ["codex"] } }),
-    });
-    assert.equal(save.status, 200);
-
-    const usage = await fetch(`${base(s)}/api/usage`).then(response => response.json());
-    const activity = await fetch(`${base(s)}/api/usage/activity`).then(response => response.json());
-    assert.deepEqual(Object.keys(usage.providers), ["codex"]);
-    assert.deepEqual(Object.keys(activity.providers), ["codex"]);
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("/api/usage preserva o alias anthropic quando Claude está habilitado", async () => {
-  const usageSource = {
-    async getUsage() {
-      return { ok: true, source: "dokke", sourceState: "available", providers: { anthropic: { name: "Claude" }, codex: { name: "Codex" } }, errors: [] };
-    },
-  };
-  const s = await startTemp({ usage: usageSource });
-  try {
-    const save = await fetch(`${base(s)}/api/config/usage`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usage: { enabled: true, display: "used", reset: "exact", providers: ["claude"] } }),
-    });
-    assert.equal(save.status, 200);
-
-    const usage = await fetch(`${base(s)}/api/usage`).then(response => response.json());
-    assert.deepEqual(Object.keys(usage.providers), ["anthropic"]);
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
-
-test("PUT /api/config/usage/provider compartilha a última IA selecionada", async () => {
-  const s = await startTemp();
-  try {
-    const r = await fetch(`${base(s)}/api/config/usage/provider`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "Codex" }),
-    });
-    assert.equal(r.status, 200);
-    assert.equal((await r.json()).config.usageProvider, "codex");
-
-    const config = await fetch(`${base(s)}/api/config`);
-    assert.equal((await config.json()).config.usageProvider, "codex");
-
-    const invalid = await fetch(`${base(s)}/api/config/usage/provider`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "not a provider" }),
-    });
-    assert.equal(invalid.status, 400);
-  } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
-});
 
 test("POST /api/config/pinned adiciona app fixa", async () => {
   const s = await startTemp();
@@ -215,8 +124,8 @@ test("GET /api/status retorna devices e pinned", async () => {
     assert.equal(typeof j.devices, "number");
     assert.equal(j.pinned, 1);
     assert.deepEqual(j.config.pinned, ["Notes"]);
-    assert.deepEqual(j.config.usage, { enabled: false, display: "remaining", reset: "exact", showPace: true });
-    assert.equal(j.config.usageProvider, "codex");
+    assert.equal(Object.hasOwn(j.config, "usage"), false);
+    assert.equal(Object.hasOwn(j.config, "usageProvider"), false);
   } finally { await s.close(); await rm(s.dir, { recursive: true, force: true }); }
 });
 

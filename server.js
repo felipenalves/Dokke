@@ -41,13 +41,8 @@ import {
   PINNED_LIMIT_CODE,
   PINNED_LIMIT_MESSAGE,
   pinnedLimits,
-  normalizeUsageSettings,
-  normalizeUsageProviderIds,
-  normalizeUsageProvider,
 } from "./config.js";
 import { connectOBS } from "./obs-ws.js";
-import { createDokkeUsageSource } from "./usage.js";
-import { normalizeHookEvent } from "./usage/mascot-hook.js";
 import { ensurePin, newPin, isLoopback, sessionCookie, tokenFromCookie, clearLegacyPinCookie, createSessionStore, createPinLocks, safeEqual, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
@@ -65,23 +60,6 @@ const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const PING_MIN_INTERVAL_MS = 1500;
 /** Detecta conexões WebSocket quebradas sem adicionar tráfego HTTP. */
 const WS_HEARTBEAT_MS = 30_000;
-
-function filterUsageProviders(payload, enabledProviders) {
-  if (!payload || typeof payload !== "object" || !Array.isArray(enabledProviders)) return payload;
-  const canonicalId = id => {
-    const normalized = typeof id === "string" ? id.trim().toLowerCase() : id;
-    return normalized === "anthropic" ? "claude" : normalized;
-  };
-  const allowed = new Set(enabledProviders.map(canonicalId));
-  if (Array.isArray(payload.providers)) {
-    return { ...payload, providers: payload.providers.filter(provider => allowed.has(canonicalId(provider?.id))) };
-  }
-  if (!payload.providers || typeof payload.providers !== "object") return payload;
-  return {
-    ...payload,
-    providers: Object.fromEntries(Object.entries(payload.providers).filter(([id]) => allowed.has(canonicalId(id)))),
-  };
-}
 
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
@@ -278,8 +256,6 @@ function createStatusFeed({ readConfig, listProcesses, version = null }) {
       devices: clients.size,
       ...(version ? { v: version() } : {}),
       limits: pinnedLimits(),
-      usage: cfg.usage,
-      ...(cfg.usageProvider ? { usageProvider: cfg.usageProvider } : {}),
     };
     const encoded = JSON.stringify(payload);
     if (!force && encoded === last) return;
@@ -319,7 +295,6 @@ export function makeApp(deps = {}) {
     appTools = { listAppProcesses, listInstalledApps },
     actions = { activateApp, openWebsite },
     obs = null,
-    usage = null,
     iconService = realIconService(),
     onStatusChange = null,
     getDeviceCount = null,
@@ -330,7 +305,6 @@ export function makeApp(deps = {}) {
     return normalizeConfig(deps.config || {});
   };
   const appVersion = deps.version || (() => uiVersion(root));
-  const usageSource = usage || createDokkeUsageSource({ dataDir: deps.dataDir });
   const persistConfig = async cfg => {
     const safe = normalizeConfig(cfg);
     if (configFile) await saveConfig(configFile, safe);
@@ -362,8 +336,6 @@ export function makeApp(deps = {}) {
         pieces: safe.pieces,
         pinned: safe.pinned,
         limits: pinnedLimits(),
-        usage: safe.usage,
-        ...(safe.usageProvider ? { usageProvider: safe.usageProvider } : {}),
       };
     };
     const respondError = (status, body) => {
@@ -426,28 +398,6 @@ export function makeApp(deps = {}) {
     const authed = () =>
       (trustLoopback && isLoopback(ipOf)) ||
       (!!auth && typeof auth.checkSession === "function" && auth.checkSession(tokenFromCookie(req.headers.cookie)));
-    if (url.pathname === "/api/usage/activity/event" && req.method === "POST") {
-      // O hook local não recebe cookie nem PIN. A proteção é deliberadamente
-      // mais estreita: somente o processo local pode publicar atividade.
-      if (!isLoopback(ipOf)) {
-        respondError(403, { error: "atividade somente local" });
-        return;
-      }
-      readBody(req, res).then(body => {
-        if (body === BODY_TOO_BIG || body === BODY_INVALID) {
-          respondError(400, { error: "evento inválido" });
-          return;
-        }
-        const event = normalizeHookEvent(body, { now: new Date() });
-        if (!event || typeof usageSource.ingestActivityEvent !== "function" || !usageSource.ingestActivityEvent(event)) {
-          respondError(400, { error: "evento inválido" });
-          return;
-        }
-        res.writeHead(204, SEC_HEADERS);
-        res.end();
-      }).catch(err => fail(res, err));
-      return;
-    }
     if (auth && url.pathname === "/api/auth" && req.method === "POST") {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG || body === BODY_INVALID) {
@@ -514,36 +464,12 @@ export function makeApp(deps = {}) {
       res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
       return;
     }
-    if (url.pathname === "/api/usage/activity" && req.method === "GET") {
-      Promise.resolve()
-        .then(async () => {
-          const cfg = await readConfig();
-          const data = usageSource.getActivity
-            ? await usageSource.getActivity({ enabledProviders: cfg.usage.providers })
-            : { ok: true, source: "dokke", sourceState: "available", updatedAt: new Date().toISOString(), providers: {}, errors: [] };
-          return filterUsageProviders(data, cfg.usage.providers);
-        })
-        .then(data => ok(data))
-        .catch(err => fail(res, err));
-      return;
-    }
-    if (url.pathname === "/api/usage" && req.method === "GET") {
-      Promise.resolve()
-        .then(async () => {
-          const cfg = await readConfig();
-          const data = await usageSource.getUsage({ enabledProviders: cfg.usage.providers });
-          return filterUsageProviders(data, cfg.usage.providers);
-        })
-        .then(data => ok(data))
-        .catch(err => fail(res, err));
-      return;
-    }
     if (url.pathname === "/api/apps") {
       Promise.resolve()
         .then(() => readConfig())
         .then(cfg => appTools.listAppProcesses()
-          .then(running => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits(), usage: cfg.usage, ...(cfg.usageProvider ? { usageProvider: cfg.usageProvider } : {}) }))
-          .catch(() => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits(), usage: cfg.usage, ...(cfg.usageProvider ? { usageProvider: cfg.usageProvider } : {}) })))
+          .then(running => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running, v: appVersion(), limits: pinnedLimits() }))
+          .catch(() => ok({ pieces: cfg.pieces, revision: cfg.revision, pinned: cfg.pinned, running: [], v: appVersion(), limits: pinnedLimits() })))
         .catch(err => fail(res, err));
       return;
     }
@@ -552,80 +478,6 @@ export function makeApp(deps = {}) {
         .then(() => readConfig())
         .then(cfg => ok({ ok: true, config: publicCfg(cfg) }))
         .catch(err => fail(res, err));
-      return;
-    }
-    if (url.pathname === "/api/config/usage" && req.method === "PUT") {
-      readBody(req, res).then(body => {
-        if (body === BODY_TOO_BIG) return;
-        if (body === BODY_INVALID) {
-          respondError(400, { error: "corpo inválido" });
-          return;
-        }
-        const usage = body?.usage;
-        const valid = usage && typeof usage === "object" && !Array.isArray(usage)
-          && typeof usage.enabled === "boolean"
-          && (usage.display === "used" || usage.display === "remaining")
-          && (usage.reset === "countdown" || usage.reset === "exact")
-          && (!Object.prototype.hasOwnProperty.call(usage, "showPace") || typeof usage.showPace === "boolean")
-          && (!Object.prototype.hasOwnProperty.call(usage, "providers") || (
-            Array.isArray(usage.providers)
-            && normalizeUsageProviderIds(usage.providers).length === usage.providers.length
-            && new Set(normalizeUsageProviderIds(usage.providers)).size === usage.providers.length
-          ))
-          && (!Object.prototype.hasOwnProperty.call(usage, "providerOrder") || (
-            Array.isArray(usage.providerOrder)
-            && normalizeUsageProviderIds(usage.providerOrder).length === usage.providerOrder.length
-            && new Set(normalizeUsageProviderIds(usage.providerOrder)).size === usage.providerOrder.length
-          ));
-        if (!valid) {
-          respondError(400, { error: "preferências de uso inválidas" });
-          return;
-        }
-        const nextUsage = normalizeUsageSettings(usage);
-        withConfigLock(() => Promise.resolve()
-          .then(() => readConfig())
-          .then(cfg => {
-            const changed = JSON.stringify(cfg.usage) !== JSON.stringify(nextUsage);
-            if (changed) {
-              cfg.usage = nextUsage;
-              cfg.revision += 1;
-            }
-            return persistConfig(cfg).then(next => ({ cfg: next, changed }));
-          })
-          .then(result => {
-            ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
-            if (result.changed && onStatusChange) onStatusChange();
-          })
-          .catch(err => fail(res, err)));
-      });
-      return;
-    }
-    if (url.pathname === "/api/config/usage/provider" && req.method === "PUT") {
-      readBody(req, res).then(body => {
-        if (body === BODY_TOO_BIG || body === BODY_INVALID) {
-          respondError(400, { error: "corpo inválido" });
-          return;
-        }
-        const hasProvider = Object.prototype.hasOwnProperty.call(body || {}, "providerId");
-        const providerId = normalizeUsageProvider(body?.providerId);
-        if (!hasProvider || (body.providerId !== null && !providerId)) {
-          respondError(400, { error: "provider de uso inválido" });
-          return;
-        }
-        withConfigLock(() => Promise.resolve()
-          .then(() => readConfig())
-          .then(cfg => {
-            const changed = (cfg.usageProvider || null) !== providerId;
-            if (providerId) cfg.usageProvider = providerId;
-            else delete cfg.usageProvider;
-            return persistConfig(cfg).then(next => ({ cfg: next, changed }));
-          })
-          .then(result => {
-            ok({ ok: true, config: publicCfg(result.cfg), pushed: true });
-            if (result.changed && onStatusChange) onStatusChange();
-          })
-          .catch(err => fail(res, err)));
-      });
       return;
     }
     // POST = adiciona um; PUT = substitui a lista inteira (app Mac / bulk)
@@ -931,8 +783,6 @@ export function makeApp(deps = {}) {
             pieces: cfg.pieces,
             pinned: cfg.pinned,
             limits: pinnedLimits(),
-            usage: cfg.usage,
-            ...(cfg.usageProvider ? { usageProvider: cfg.usageProvider } : {}),
           },
         }))
         .catch(err => fail(res, err));
@@ -1056,7 +906,6 @@ export function makeApp(deps = {}) {
     })
       .catch(() => { res.writeHead(404); res.end("not found"); });
   };
-  handler.usageSource = usageSource;
   return handler;
 }
 
@@ -1134,7 +983,6 @@ export async function startServer(arg = {}) {
     onStatusChange: () => feed.ping(),
     getDeviceCount: () => feed.clientCount(),
   });
-  const usageSource = handler.usageSource;
   const server = makeServer();
   server.on("request", handler);
   // path /ws é o default do upgrade no mesmo server; clients conectam em ws://host:port/
@@ -1217,14 +1065,12 @@ export async function startServer(arg = {}) {
       closed = true;
       stopHeartbeat();
       feed.close();
-      try { usageSource?.close?.(); } catch {}
       try { wss.close(); } catch (e) {}
       return resolve();
     }
     closed = true;
     stopHeartbeat();
     feed.close();
-    try { usageSource?.close?.(); } catch {}
     try { wss.close(); } catch (e) {}
     server.close(e => e ? reject(e) : resolve());
   });

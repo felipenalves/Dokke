@@ -22,16 +22,6 @@ test("login do PWA mantém foco dentro do diálogo e devolve foco ao fechar", ()
   assert.match(pwa, /loginPreviousFocus\.focus\(\)/);
 });
 
-test("PWA dá área de toque real aos indicadores e sinaliza providers recolhidos", () => {
-  assert.match(pwa, /\.usage-provider-dot\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
-  assert.match(pwa, /usage-card-chevron/);
-  const renderStart = pwa.indexOf("function renderUsage(){");
-  const renderEnd = pwa.indexOf("async function loadUsage", renderStart);
-  const usageSource = pwa.slice(renderStart, renderEnd);
-  assert.match(usageSource, /usage-card-chevron/);
-  assert.match(usageSource, /dot\.style\.setProperty\("--hdot-x"/);
-});
-
 test("navegação lateral do PWA tem controles nomeados e estado atual", () => {
   const navStart = pwa.indexOf("function renderVDots()");
   const navEnd = pwa.indexOf("function goScreen", navStart);

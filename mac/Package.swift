@@ -11,8 +11,7 @@ let package = Package(
   targets: [
     .executableTarget(
       name: "Dokke",
-      path: "Sources",
-      resources: [.process("Resources")]
+      path: "Sources"
     ),
     .executableTarget(
       name: "DokkeIconHelper",

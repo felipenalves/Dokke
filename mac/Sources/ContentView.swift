@@ -5,7 +5,6 @@ import CoreImage.CIFilterBuiltins
 
 enum SidebarItem: String, CaseIterable, Identifiable {
   case apps = "Slots"
-  case usage = "Usage"
   case about = "Conectar"
 
   var id: String { rawValue }
@@ -13,7 +12,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
   var icon: String {
     switch self {
     case .apps: return "square.grid.2x2.fill"
-    case .usage: return "chart.bar.xaxis"
     case .about: return "info.circle"
     }
   }
@@ -196,7 +194,6 @@ struct ContentView: View {
   private func sidebarLabel(for item: SidebarItem) -> String {
     switch item {
     case .apps: return I18n.text("sidebar.slots", language: languageStore.selected)
-    case .usage: return I18n.text("sidebar.usageSettings", language: languageStore.selected)
     case .about: return I18n.text("sidebar.connect", language: languageStore.selected)
     }
   }
@@ -206,8 +203,6 @@ struct ContentView: View {
     switch selection {
     case .apps:
       DockGridView()
-    case .usage:
-      UsageSettingsView(store: store)
     case .about:
       AboutView()
     case .none:

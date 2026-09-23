@@ -2,10 +2,7 @@ import { readFile, writeFile, rename } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 
-const DEFAULT_USAGE = { enabled: true, display: "used", reset: "exact", showPace: true };
-export const USAGE_PROVIDER_IDS = Object.freeze(["claude", "codex", "antigravity", "grok"]);
-const USAGE_PROVIDER_SET = new Set(USAGE_PROVIDER_IDS);
-const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [], usage: DEFAULT_USAGE };
+const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
 export const MAX_DOCK_SLOTS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES;
@@ -176,55 +173,16 @@ function safeRevision(value) {
   return Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
-/** Normaliza preferências compartilhadas entre o app Mac e o PWA/Android. */
-export function normalizeUsageProviderIds(raw) {
-  if (!Array.isArray(raw)) return undefined;
-  const out = [];
-  const seen = new Set();
-  for (const item of raw) {
-    if (typeof item !== "string") continue;
-    const id = item.trim().toLowerCase();
-    if (!USAGE_PROVIDER_SET.has(id) || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
-
-export function normalizeUsageSettings(raw) {
-  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-  const providers = normalizeUsageProviderIds(source.providers);
-  const providerOrder = normalizeUsageProviderIds(source.providerOrder);
-  return {
-    enabled: typeof source.enabled === "boolean" ? source.enabled : DEFAULT_USAGE.enabled,
-    display: source.display === "remaining" ? "remaining" : DEFAULT_USAGE.display,
-    reset: source.reset === "countdown" ? "countdown" : "exact",
-    showPace: typeof source.showPace === "boolean" ? source.showPace : DEFAULT_USAGE.showPace,
-    ...(providers ? { providers } : {}),
-    ...(providerOrder ? { providerOrder } : {}),
-  };
-}
-
-/** Normaliza o identificador do provider escolhido no Mac para compartilhar com o PWA. */
-export function normalizeUsageProvider(raw) {
-  if (typeof raw !== "string") return null;
-  const value = raw.trim().toLowerCase();
-  return /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(value) ? value : null;
-}
-
 /** Converte legado e formato v2 para uma representação canônica em memória. */
 export function normalizeConfig(raw) {
   const source = raw && typeof raw === "object" ? raw : {};
   const legacy = normalizePinned(source.pinned).map(name => ({ type: "app", name }));
   const pieces = normalizePieces(Array.isArray(source.pieces) ? source.pieces : legacy);
-  const usageProvider = normalizeUsageProvider(source.usageProvider);
   return {
     schemaVersion: 2,
     revision: safeRevision(source.revision),
     pieces,
     pinned: piecesToPinned(pieces),
-    usage: normalizeUsageSettings(source.usage),
-    ...(usageProvider ? { usageProvider } : {}),
   };
 }
 
@@ -236,6 +194,16 @@ export async function loadConfig(file) {
 
 export async function saveConfig(file, cfg) {
   const safe = normalizeConfig(cfg);
+  // Conserva as preferências legadas no arquivo para a branch arquivada, sem
+  // reintroduzi-las na configuração ativa nem nas respostas da API.
+  try {
+    const previous = JSON.parse(await readFile(file, "utf8"));
+    if (previous && typeof previous === "object" && !Array.isArray(previous)) {
+      for (const key of ["usage", "usageProvider"]) {
+        if (Object.hasOwn(previous, key)) safe[key] = previous[key];
+      }
+    }
+  } catch { /* arquivo novo ou ilegível: não há preferências para preservar */ }
   // tmp único por escrita: escritas concorrentes (kiosk + app Mac) não colidem
   const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   await writeFile(tmp, JSON.stringify(safe, null, 2));

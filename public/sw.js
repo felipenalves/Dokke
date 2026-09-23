@@ -1,15 +1,6 @@
-const CACHE = "dokke-v31";
+const CACHE = "dokke-v32";
 const PRECACHE = [
-  "/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest",
-  "/mascot/dokke-mascot-working-start-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-working-loop-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-working-end-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-thinking-start-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-thinking-loop-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-thinking-end-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-idle-principal-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-idle-one-strip.webp?v=20260909-11",
-  "/mascot/dokke-mascot-idle-coffee-strip.webp?v=20260909-11"
+  "/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest"
 ];
 
 self.addEventListener("install", function(e) {

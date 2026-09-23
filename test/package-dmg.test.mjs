@@ -14,15 +14,12 @@ const backgroundSvgPath = path.join(projectRoot, 'mac', 'dmg-background.svg');
 const backgroundFileName = 'dmg-background.png';
 const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
 const expectedPublicFiles = [
-  'anthropic.svg',
   'dokke.apk',
   'icon-192-dark.png',
   'icon-192.png',
   'icon-512.png',
   'index.html',
   'manifest.webmanifest',
-  'mascot',
-  'openai.svg',
   'sw.js',
   'version.json'
 ];
@@ -193,7 +190,7 @@ test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   const script = fs.readFileSync(installScriptPath, 'utf8');
   assert.match(script, /PUBLIC_FILES=\(/);
   assert.match(script, /public_file/);
-  assert.match(script, /cp -R "\$\{ROOT\}\/\.\.\/public\/mascot" "\$\{SRV_DIR\}\/public\/mascot"/);
+  assert.doesNotMatch(script, /public\/mascot|usage\.js/);
   assert.doesNotMatch(script, /cp -R "\$\{ROOT\}\/\.\.\/public" "\$\{SRV_DIR\}\/public"/);
 });
 
@@ -205,10 +202,11 @@ test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Rel
   assert.match(script, /bundle_kib.*MAX_BUNDLE_SIZE_MB/);
 });
 
-test('install.sh leva o bundle de recursos SwiftUI para o app empacotado', () => {
+test('pacote macOS não exige bundle de recursos vazio', () => {
   const script = fs.readFileSync(installScriptPath, 'utf8');
-  assert.match(script, /Dokke_Dokke\.bundle/);
-  assert.match(script, /cp -R .*RESOURCE_BUNDLE/);
+  const manifest = fs.readFileSync(path.join(projectRoot, 'mac', 'Package.swift'), 'utf8');
+  assert.doesNotMatch(manifest, /resources:\s*\[\.process\("Resources"\)\]/);
+  assert.doesNotMatch(script, /Dokke_Dokke\.bundle|RESOURCE_BUNDLE/);
 });
 
 test('builder do DMG não usa appdmg nem image-size vulneráveis', () => {

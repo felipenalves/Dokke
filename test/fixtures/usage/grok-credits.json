@@ -1,4 +1,0 @@
-{
-  "weekly": { "used_percent": 21, "reset_at": "2026-09-07T18:00:00.000Z" },
-  "pay_as_you_go": { "enabled": true, "used_credits": 250, "monthly_limit": 1000 }
-}
