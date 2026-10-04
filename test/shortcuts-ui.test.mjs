@@ -58,10 +58,15 @@ test("Adicionar abre a escolha de emoji e só fixa após confirmação", () => {
   assert.match(picker, /guard store\.busyName != pendingShortcutName else \{ return \}/);
 });
 
-test("emoji abre o seletor ao clicar e mouse é o padrão", () => {
+test("mouse é o emoji padrão e o campo só recebe foco quando o seletor é aberto", () => {
   const prompt = picker.slice(picker.indexOf("private var shortcutEmojiPrompt"), picker.indexOf("private func appRow"));
+  const begin = picker.slice(picker.indexOf("private func beginShortcutAdd"), picker.indexOf("private func confirmShortcutAdd"));
+  const open = picker.slice(picker.indexOf("private func openShortcutEmojiPalette"), picker.indexOf("private func cancelWebsiteAdd"));
   assert.match(picker, /@State private var pendingShortcutEmoji = "🖱️"/);
   assert.match(picker, /pendingShortcutEmoji = "🖱️"/);
+  assert.doesNotMatch(begin, /isShortcutEmojiFocused = true|DispatchQueue\.main\.async/);
+  assert.match(open, /isShortcutEmojiFocused = true/);
+  assert.match(open, /NSApp\.orderFrontCharacterPalette/);
   assert.match(prompt, /\.simultaneousGesture\(TapGesture\(\)\.onEnded \{ openShortcutEmojiPalette\(\) \}\)/);
   assert.match(picker, /firstResponder as\? NSTextView\)\?\.selectAll\(nil\)/);
   assert.match(model, /json\["emoji"\] as\? String \?\? "🖱️"/);
@@ -69,17 +74,15 @@ test("emoji abre o seletor ao clicar e mouse é o padrão", () => {
   assert.match(pwa, /emoji \|\| "🖱️"/);
 });
 
-test("botões do prompt de emoji mantêm cápsulas em tamanho compacto", () => {
+test("botões do prompt de emoji usam o tamanho compacto nativo do macOS", () => {
   const prompt = picker.slice(picker.indexOf("private var shortcutEmojiPrompt"), picker.indexOf("private func appRow"));
   const button = picker.slice(picker.indexOf("private func shortcutEmojiActionButton"), picker.indexOf("private func appRow"));
   assert.match(prompt, /shortcutEmojiActionButton\([\s\S]*?confirm\.cancel/);
   assert.match(prompt, /shortcutEmojiActionButton\([\s\S]*?picker\.add/);
-  assert.match(prompt, /minWidth: 70/);
-  assert.match(prompt, /minWidth: 54/);
-  assert.match(button, /\.font\(\.system\(size: 14, weight: \.semibold\)\)/);
-  assert.match(button, /\.frame\(height: 30\)/);
-  assert.match(button, /\.background\(prominent \? Color\.accentColor : Color\.white\.opacity\(0\.10\), in: Capsule\(\)\)/);
-  assert.match(button, /minWidth: CGFloat/);
+  assert.match(button, /\.controlSize\(\.small\)/);
+  assert.match(button, /\.buttonStyle\(\.bordered\)/);
+  assert.match(button, /\.buttonStyle\(\.borderedProminent\)/);
+  assert.doesNotMatch(button, /minWidth:|\.frame\(height: 30\)|\.background\(prominent/);
 });
 
 test("modelo Swift decodifica e preserva o emoji das peças de atalho", () => {

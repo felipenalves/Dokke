@@ -480,7 +480,6 @@ struct AppPickerSheet: View {
     pendingShortcutName = name
     pendingShortcutEmoji = "🖱️"
     showShortcutEmojiPrompt = true
-    DispatchQueue.main.async { isShortcutEmojiFocused = true }
   }
 
   private func confirmShortcutAdd() {
@@ -630,14 +629,12 @@ struct AppPickerSheet: View {
         shortcutEmojiActionButton(
           I18n.text("confirm.cancel", language: languageStore.selected),
           prominent: false,
-          minWidth: 70,
           disabled: store.busyName == pendingShortcutName,
           action: cancelShortcutAdd
         )
         shortcutEmojiActionButton(
           I18n.text("picker.add", language: languageStore.selected),
           prominent: true,
-          minWidth: 54,
           disabled: pendingShortcutEmoji.isEmpty || store.busyName != nil,
           action: confirmShortcutAdd
         )
@@ -653,23 +650,24 @@ struct AppPickerSheet: View {
     .shadow(color: .black.opacity(0.28), radius: 22, y: 12)
   }
 
+  @ViewBuilder
   private func shortcutEmojiActionButton(
     _ title: String,
     prominent: Bool,
-    minWidth: CGFloat,
     disabled: Bool,
     action: @escaping () -> Void
   ) -> some View {
-    Button(action: action) {
-      Text(title)
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(Color.white.opacity(prominent ? 1 : 0.9))
-        .frame(minWidth: minWidth)
-        .frame(height: 30)
-        .background(prominent ? Color.accentColor : Color.white.opacity(0.10), in: Capsule())
+    if prominent {
+      Button(action: action) { Text(title) }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(disabled)
+    } else {
+      Button(action: action) { Text(title) }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(disabled)
     }
-    .buttonStyle(.plain)
-    .disabled(disabled)
   }
 
   private func appRow(_ app: InstalledApp) -> some View {
