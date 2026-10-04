@@ -36,7 +36,7 @@ Para instalar sem terminal, abra a [página de instalação](https://dokke.verce
 
 ### Mac — host principal
 
-[Baixar Dokke para macOS](https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg) → abra o `.dmg` → arraste o Dokke para Aplicativos → abra o app.
+[Baixar os releases do Dokke](https://github.com/felipenalves/Dokke/releases/latest) e escolha o pacote para seu Mac: `Dokke-macOS-apple-silicon-arm64.dmg` para Apple Silicon (M1, M2, M3 ou M4) ou `Dokke-macOS-intel-x86_64.dmg` para Intel. Abra o `.dmg`, arraste o Dokke para Aplicativos e abra o app.
 
 O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros dispositivos na mesma rede.
 

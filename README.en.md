@@ -19,7 +19,7 @@ For a no-terminal installation, open the [installation page](https://dokke.verce
 
 ### Mac — main host
 
-[Download Dokke for macOS](https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg), open the `.dmg`, drag Dokke to Applications, and launch it.
+[Open the latest Dokke release](https://github.com/felipenalves/Dokke/releases/latest) and choose the package for your Mac: `Dokke-macOS-apple-silicon-arm64.dmg` for Apple Silicon (M1, M2, M3, or M4), or `Dokke-macOS-intel-x86_64.dmg` for Intel. Open the `.dmg`, drag Dokke to Applications, and launch it.
 
 The Mac is the host: it runs the server and makes the dock available to other devices on the same network.
 

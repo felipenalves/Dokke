@@ -30,6 +30,7 @@ fi
 WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/dokke-dmg.XXXXXX")"
 TEMP_IMAGE="${WORKSPACE}/Dokke-raw.dmg"
 MOUNT_POINT=""
+PREBUILT_APP="${DOKKE_APP_BUNDLE:-}"
 
 cleanup() {
   if [[ -n "${MOUNT_POINT}" ]]; then
@@ -48,9 +49,16 @@ done
 
 cd "${PROJECT_ROOT}"
 export DOKKE_DIST_DIR="${DIST_DIR}"
-"${MAC_ROOT}/install.sh" --build-only >/dev/null
+if [[ -n "${PREBUILT_APP}" ]]; then
+  if [[ "${PREBUILT_APP}" != /* ]]; then
+    PREBUILT_APP="${PROJECT_ROOT}/${PREBUILT_APP}"
+  fi
+  APP_BUNDLE="${PREBUILT_APP}"
+else
+  "${MAC_ROOT}/install.sh" --build-only >/dev/null
+  APP_BUNDLE="${DIST_DIR}/${APP_NAME}.app"
+fi
 
-APP_BUNDLE="${DIST_DIR}/${APP_NAME}.app"
 if [[ ! -d "${APP_BUNDLE}" || ! -x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" ]]; then
   echo "error: built app bundle is missing or not executable" >&2
   exit 1
@@ -62,7 +70,7 @@ fi
 
 mkdir -p "$(dirname "${OUTPUT}")"
 echo "==> create DMG staging image"
-hdiutil create "${TEMP_IMAGE}" -ov -fs HFS+ -size 200m -volname "Dokke Installer" >/dev/null
+hdiutil create "${TEMP_IMAGE}" -ov -fs HFS+ -size 300m -volname "Dokke Installer" >/dev/null
 
 ATTACH_OUTPUT="$(hdiutil attach "${TEMP_IMAGE}" -nobrowse -noautoopen 2>&1)"
 MOUNT_POINT="$(printf '%s\n' "${ATTACH_OUTPUT}" | sed -n 's#.*\(/Volumes/.*\)$#\1#p' | tail -n 1)"

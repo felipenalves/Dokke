@@ -1,7 +1,7 @@
 import "./style.css";
 
 const downloads = {
-  mac: "https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg",
+  mac: "https://github.com/felipenalves/Dokke/releases/latest",
   android: "https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk",
 };
 const communityUrl = "https://documenteclub.vercel.app/";

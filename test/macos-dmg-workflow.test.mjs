@@ -1,0 +1,168 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const readText = async (url) => {
+  try {
+    return await readFile(url, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return "";
+    throw error;
+  }
+};
+
+const [workflow, releaseWorkflow, updater, website, readme, englishReadme, verifyDmg, smokeServer, packageDmg, mergeArchitectures] = await Promise.all([
+  readText(new URL("../.github/workflows/macos-dmg.yml", import.meta.url)),
+  readText(new URL("../.github/workflows/release-macos.yml", import.meta.url)),
+  readText(new URL("../mac/Sources/DokkeUpdateManager.swift", import.meta.url)),
+  readText(new URL("../docs/src/main.js", import.meta.url)),
+  readText(new URL("../README.md", import.meta.url)),
+  readText(new URL("../README.en.md", import.meta.url)),
+  readText(new URL("../mac/verify-dmg.sh", import.meta.url)),
+  readText(new URL("../mac/smoke-packaged-server.mjs", import.meta.url)),
+  readText(new URL("../mac/package-dmg.sh", import.meta.url)),
+  readText(new URL("../mac/merge-app-architectures.sh", import.meta.url)),
+]);
+
+test("macOS matrix builds native Intel and Apple Silicon targets", () => {
+  for (const buildWorkflow of [workflow, releaseWorkflow]) {
+    assert.match(buildWorkflow, /runner:\s*macos-26-intel\s*\n\s*target_arch:\s*x86_64/);
+    assert.match(buildWorkflow, /runner:\s*macos-26\s*\n\s*target_arch:\s*arm64/);
+    assert.match(buildWorkflow, /DOKKE_TARGET_ARCH:\s*\$\{\{\s*matrix\.target_arch\s*\}\}/);
+    assert.match(buildWorkflow, /mac\/verify-dmg\.sh/);
+  }
+});
+
+test("native builds archive app bundles for the universal compatibility package", () => {
+  for (const buildWorkflow of [workflow, releaseWorkflow]) {
+    assert.match(buildWorkflow, /tar -czf[^\n]*Dokke\.app/);
+    assert.match(buildWorkflow, /Dokke-macOS-\$\{\{ matrix\.artifact_suffix \}\}-app\.tar\.gz/);
+    assert.match(buildWorkflow, /build-legacy-universal:/);
+    const universalJob = buildWorkflow.slice(buildWorkflow.indexOf("build-legacy-universal:"));
+    assert.match(universalJob, /run: npm ci/);
+    assert.match(universalJob, /\(cd mac\/dist && shasum -a 256 Dokke-macOS\.dmg/);
+    assert.doesNotMatch(universalJob, /shasum -a 256 mac\/dist\/Dokke-macOS\.dmg/);
+    assert.match(buildWorkflow, /merge-app-architectures\.sh/);
+    assert.match(buildWorkflow, /verify-dmg\.sh[^\n]* universal/);
+    assert.match(buildWorkflow, /node-version:\s*24\.21\.0/);
+  }
+});
+
+test("macOS workflow reruns when app, web, server, or adaptive icon inputs change", () => {
+  for (const path of [
+    "mac/**",
+    "assets/branding/dokke-icon/**",
+    "server.js",
+    "package.json",
+    "package-lock.json",
+    "public/**",
+  ]) {
+    assert.ok(workflow.includes(path), `workflow does not watch ${path}`);
+  }
+});
+
+test("third-party Actions are pinned to immutable commit SHAs", () => {
+  const uses = [...`${workflow}\n${releaseWorkflow}`.matchAll(/^\s*uses: (.+)$/gm)].map((match) => match[1]);
+  assert.ok(uses.length >= 7, `expected pinned CI and release Actions; found ${uses.length}`);
+  for (const action of uses) {
+    assert.match(action, /^actions\/[a-z-]+@[a-f0-9]{40} # v\d+\.\d+\.\d+$/);
+  }
+});
+
+test("native CI has no PR trigger that could run edited workflow permissions", () => {
+  assert.match(workflow, /^permissions:\n  contents: read$/m);
+  assert.doesNotMatch(workflow, /contents:\s*write|gh release create|publish-release/);
+  assert.match(workflow, /push:/);
+  assert.doesNotMatch(workflow, /pull_request(?:_target)?:/);
+  assert.match(workflow, /actions\/upload-artifact@/);
+});
+
+test("macOS release is manually dispatched from main and validates a main tag", () => {
+  assert.match(releaseWorkflow, /workflow_dispatch:/);
+  assert.match(releaseWorkflow, /if:\s*github\.ref == 'refs\/heads\/main'/);
+  assert.match(releaseWorkflow, /permissions:\n  contents: read/);
+  assert.match(releaseWorkflow, /git merge-base --is-ancestor/);
+  assert.match(releaseWorkflow, /RELEASE_TAG/);
+  assert.match(releaseWorkflow, /package\.json/);
+  assert.match(releaseWorkflow, /needs:\s*validate-release/);
+  assert.match(releaseWorkflow, /pattern:\s*['"]\*['"]/);
+  assert.match(releaseWorkflow, /Dokke-macOS\.dmg/);
+  assert.match(releaseWorkflow, /dokke\.apk/);
+  assert.match(releaseWorkflow, /dump badging public\/dokke\.apk/);
+  assert.match(releaseWorkflow, /keytool -printcert -jarfile/);
+  assert.match(releaseWorkflow, /apksigner verify --print-certs/);
+  assert.match(releaseWorkflow, /\(cd public && shasum -a 256 dokke\.apk > dokke\.apk\.sha256\)/);
+  assert.doesNotMatch(releaseWorkflow, /shasum -a 256 public\/dokke\.apk > public\/dokke\.apk\.sha256/);
+  assert.match(releaseWorkflow, /previous_version_code/);
+  assert.match(releaseWorkflow, /previous_signers/);
+  assert.match(releaseWorkflow, /android_version_code/);
+  assert.match(releaseWorkflow, /2100000000/);
+  assert.match(releaseWorkflow, /latest_apk_version_code/);
+  assert.match(releaseWorkflow, /group:\s*dokke-release-publisher/);
+  assert.match(releaseWorkflow, /queue:\s*max/);
+  assert.match(releaseWorkflow, /EXPECTED_SHA/);
+  assert.match(releaseWorkflow, /android\/app\/build\.gradle/);
+  assert.match(releaseWorkflow, /public\/version\.json/);
+  assert.match(releaseWorkflow, /refs\/tags\/\$\{RELEASE_TAG\}/);
+  assert.match(releaseWorkflow, /permissions:\n\s+contents:\s*write/);
+  assert.match(releaseWorkflow, /gh release create/);
+  assert.doesNotMatch(releaseWorkflow, /pull_request:/);
+});
+
+test("Mac download entry points direct users to the Intel or Apple Silicon package", () => {
+  assert.match(website, /releases\/latest/);
+  assert.doesNotMatch(website, /releases\/latest\/download\/Dokke-macOS\.dmg/);
+  for (const content of [readme, englishReadme]) {
+    assert.match(content, /releases\/latest/);
+    assert.match(content, /Dokke-macOS-intel-x86_64\.dmg/);
+    assert.match(content, /Dokke-macOS-apple-silicon-arm64\.dmg/);
+    assert.doesNotMatch(content, /releases\/latest\/download\/Dokke-macOS\.dmg/);
+  }
+});
+
+test("updater selects the DMG matching the running app and supports legacy releases", () => {
+  assert.match(updater, /#if arch\(arm64\)[\s\S]*Dokke-macOS-apple-silicon-arm64\.dmg/);
+  assert.match(updater, /#elseif arch\(x86_64\)[\s\S]*Dokke-macOS-intel-x86_64\.dmg/);
+  assert.match(updater, /architectureSpecificDMGAssetName/);
+  const architectureAssetIndex = updater.indexOf("$0.name == Self.architectureSpecificDMGAssetName");
+  const legacyAssetIndex = updater.indexOf('$0.name == "Dokke-macOS.dmg"');
+  assert.ok(architectureAssetIndex >= 0, "architecture-specific asset lookup is missing");
+  assert.ok(legacyAssetIndex > architectureAssetIndex, "legacy package must only be a fallback");
+});
+
+test("DMG is verified and its bundled app passes smoke checks before artifact upload", () => {
+  const verifyStep = workflow.indexOf("mac/verify-dmg.sh");
+  const uploadStep = workflow.indexOf("actions/upload-artifact@");
+  assert.ok(verifyStep >= 0, "DMG verification step is missing");
+  assert.ok(uploadStep > verifyStep, "artifact upload must follow DMG verification");
+  assert.match(verifyDmg, /hdiutil verify/);
+  assert.match(verifyDmg, /hdiutil attach[^\n]*-readonly/);
+  assert.match(verifyDmg, /shasum -a 256 -c/);
+  assert.match(verifyDmg, /lipo -archs/);
+  assert.match(verifyDmg, /node-bin\/node/);
+  assert.match(verifyDmg, /smoke-packaged-server\.mjs/);
+  assert.match(verifyDmg, /universal/);
+  assert.match(verifyDmg, /DOKKE_SKIP_RUNTIME_SMOKE/);
+  assert.doesNotMatch(`${workflow}\n${releaseWorkflow}`, /DOKKE_SKIP_RUNTIME_SMOKE/);
+  assert.match(mergeArchitectures, /lipo -create/);
+  assert.match(mergeArchitectures, /lipo "\$\{temporary_binary\}" -verify_arch x86_64/);
+  assert.match(mergeArchitectures, /lipo "\$\{temporary_binary\}" -verify_arch arm64/);
+  assert.match(mergeArchitectures, /MAX_UNIVERSAL_BUNDLE_MB=256/);
+  assert.match(mergeArchitectures, /codesign --verify --deep --strict/);
+  assert.match(packageDmg, /DOKKE_APP_BUNDLE/);
+  assert.match(packageDmg, /-size 300m/);
+});
+
+test("macOS matrix installs the Playwright browser before running the full suite", () => {
+  const installBrowser = workflow.indexOf("npx playwright install chromium");
+  const runTests = workflow.indexOf("run: npm test");
+  assert.ok(installBrowser >= 0, "Chromium installation step is missing");
+  assert.ok(runTests > installBrowser, "Playwright browser must be installed before npm test");
+});
+
+test("packaged server smoke starts the embedded server and checks the Dokke health response", () => {
+  assert.match(smokeServer, /startServer\(/);
+  assert.match(smokeServer, /\/health/);
+  assert.match(smokeServer, /service:\s*["']Dokke["']/);
+  assert.match(smokeServer, /await server\.close\(\)/);
+});
