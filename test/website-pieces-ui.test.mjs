@@ -8,11 +8,11 @@ const grid = await readFile(new URL("../mac/Sources/DockGridView.swift", import.
 const icon = await readFile(new URL("../mac/Sources/DockIcon.swift", import.meta.url), "utf8");
 const store = await readFile(new URL("../mac/Sources/DockStore.swift", import.meta.url), "utf8");
 
-test("@spec:AC-310 PWA monta site a partir de pieces sem inventário de apps", () => {
+test("@spec:AC-310 PWA monta sites e atalhos a partir de pieces sem inventário de apps", () => {
   const render = pwa.slice(pwa.indexOf("function renderLaunchpad"), pwa.indexOf("function renderDots"));
   assert.match(render, /state\.pieces\.length/);
   assert.match(render, /piece\.type === "website"/);
-  assert.match(render, /piece\.type === "website"\) byPosition\.set\(position, piece\)/);
+  assert.match(render, /piece\.type === "website" \|\| piece\.type === "shortcut"\) byPosition\.set\(position, piece\)/);
   assert.doesNotMatch(render, /if \(!state\.installedReady\)/);
 });
 
@@ -26,11 +26,16 @@ test("@spec:AC-311 companion abre site somente por ID remoto e permanece no Dokk
   assert.doesNotMatch(tile, /<a|href/);
 });
 
-test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () => {
+test("@spec:AC-320 picker preserva Apps e Website Links", () => {
   assert.match(picker, /I18n\.text\("picker\.apps"/);
   assert.match(picker, /I18n\.text\("picker\.websites"/);
-  assert.match(picker, /pickerStyle\(\.segmented\)/);
-  assert.match(picker, /labelsHidden\(\)/);
+  assert.match(picker, /private var pickerTabSelector/);
+  assert.match(picker, /private func pickerTabButton/);
+  assert.match(picker, /selection: "Apps"/);
+  assert.match(picker, /selection: "Website Links"/);
+  assert.match(picker, /selection: "Shortcuts"/);
+  assert.match(picker, /accessibilityAddTraits\(isSelected \? \.isSelected : \[\]\)/);
+  assert.match(picker, /frame\(height: 72\)/);
   assert.match(picker, /frame\(maxWidth: \.infinity\)/);
   assert.match(picker, /websiteSuggestions/);
   assert.match(picker, /\("WhatsApp", "https:\/\/whatsapp\.com"\)/);
@@ -47,7 +52,6 @@ test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () 
   assert.match(picker, /WebsiteFaviconView\(rawURL: rawURL/);
   assert.match(picker, /LazyVStack\(spacing: 0\)/);
   assert.match(picker, /Button\(I18n\.text\("picker\.add"/);
-  assert.doesNotMatch(picker, /Apple Shortcuts/);
 });
 
 test("picker Apps usa a mesma linguagem de cards e ações azuis", () => {

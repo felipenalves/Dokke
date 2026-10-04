@@ -6,7 +6,27 @@ set -euo pipefail
 MAC_ROOT="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${MAC_ROOT}/.." && pwd)"
 APP_NAME="Dokke"
-OUTPUT="${1:-${MAC_ROOT}/dist/Dokke-macOS.dmg}"
+DIST_DIR="${DOKKE_DIST_DIR:-${MAC_ROOT}/dist}"
+if [[ "${DIST_DIR}" != /* ]]; then
+  DIST_DIR="${PROJECT_ROOT}/${DIST_DIR}"
+fi
+if [[ -n "${1:-}" ]]; then
+  OUTPUT="${1}"
+elif [[ -n "${DOKKE_TARGET_ARCH:-}" ]]; then
+  case "${DOKKE_TARGET_ARCH}" in
+    arm64) OUTPUT="${DIST_DIR}/Dokke-macOS-apple-silicon-arm64.dmg" ;;
+    x86_64) OUTPUT="${DIST_DIR}/Dokke-macOS-intel-x86_64.dmg" ;;
+    *)
+      echo "error: DOKKE_TARGET_ARCH deve ser arm64 ou x86_64; recebido: ${DOKKE_TARGET_ARCH}" >&2
+      exit 1
+      ;;
+  esac
+else
+  OUTPUT="${DIST_DIR}/Dokke-macOS.dmg"
+fi
+if [[ "${OUTPUT}" != /* ]]; then
+  OUTPUT="${PROJECT_ROOT}/${OUTPUT}"
+fi
 WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/dokke-dmg.XXXXXX")"
 TEMP_IMAGE="${WORKSPACE}/Dokke-raw.dmg"
 MOUNT_POINT=""
@@ -27,9 +47,10 @@ for command_name in hdiutil node swift; do
 done
 
 cd "${PROJECT_ROOT}"
+export DOKKE_DIST_DIR="${DIST_DIR}"
 "${MAC_ROOT}/install.sh" --build-only >/dev/null
 
-APP_BUNDLE="${MAC_ROOT}/dist/${APP_NAME}.app"
+APP_BUNDLE="${DIST_DIR}/${APP_NAME}.app"
 if [[ ! -d "${APP_BUNDLE}" || ! -x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" ]]; then
   echo "error: built app bundle is missing or not executable" >&2
   exit 1

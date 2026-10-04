@@ -9,6 +9,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "${ROOT}/.." && pwd)"
 APP_NAME="Dokke"
 BIN_NAME="Dokke"
 DEST_DIR="${HOME}/Applications"
@@ -17,6 +18,21 @@ BUILD_ONLY=0
 MAX_BUNDLE_SIZE_MB=121
 VERIFY_BUNDLE=""
 SWIFT_SDK_ARGS=()
+TARGET_ARCH="${DOKKE_TARGET_ARCH:-$(uname -m)}"
+
+case "${TARGET_ARCH}" in
+  arm64) TARGET_TRIPLE="arm64-apple-macosx14.0" ;;
+  x86_64) TARGET_TRIPLE="x86_64-apple-macosx14.0" ;;
+  *)
+    echo "error: DOKKE_TARGET_ARCH deve ser arm64 ou x86_64; recebido: ${TARGET_ARCH}" >&2
+    exit 1
+    ;;
+esac
+
+DIST_DIR="${DOKKE_DIST_DIR:-${ROOT}/dist}"
+if [[ "${DIST_DIR}" != /* ]]; then
+  DIST_DIR="${PROJECT_ROOT}/${DIST_DIR}"
+fi
 
 # SwiftUI in the Command Line Tools 26 SDK family includes the macro runtime
 # used by this package. Newer SDKs can expose the State macro declaration
@@ -45,7 +61,53 @@ else
 fi
 
 swift_build() {
-  swift build "${SWIFT_SDK_ARGS[@]}" "$@"
+  swift build "${SWIFT_SDK_ARGS[@]}" --triple "${TARGET_TRIPLE}" "$@"
+}
+
+verify_architecture() {
+  local binary_path="$1" archs
+  if ! command -v lipo >/dev/null 2>&1; then
+    echo "error: lipo é necessário para verificar a arquitetura de ${binary_path}" >&2
+    exit 1
+  fi
+  archs="$(lipo -archs "${binary_path}" 2>/dev/null)" || {
+    echo "error: não foi possível ler a arquitetura de ${binary_path}" >&2
+    exit 1
+  }
+  if [[ " ${archs} " != *" ${TARGET_ARCH} "* ]]; then
+    echo "error: ${binary_path} tem arquitetura(s) ${archs}; esperado ${TARGET_ARCH}" >&2
+    exit 1
+  fi
+}
+
+verify_node_dependencies() {
+  local binary_path="$1" dependencies line dependency
+  if ! command -v otool >/dev/null 2>&1; then
+    echo "error: otool é necessário para verificar as bibliotecas do Node embutido" >&2
+    return 1
+  fi
+  if ! dependencies="$(otool -L "${binary_path}" 2>/dev/null)"; then
+    echo "error: não foi possível inspecionar as bibliotecas de ${binary_path}" >&2
+    return 1
+  fi
+
+  while IFS= read -r line; do
+    [[ "${line}" == *" (compatibility version "* ]] || continue
+    dependency="${line%% (*}"
+    dependency="${dependency#"${dependency%%[![:space:]]*}"}"
+    [[ -n "${dependency}" ]] || continue
+    case "${dependency}" in
+      *"/../"*|*"/..")
+        echo "warn: Node depende de biblioteca fora do sistema (${dependency}); use outro runtime" >&2
+        return 1
+        ;;
+      /System/Library/*|/usr/lib/*) ;;
+      *)
+        echo "warn: Node depende de biblioteca fora do sistema (${dependency}); use outro runtime" >&2
+        return 1
+        ;;
+    esac
+  done < <(printf '%s\n' "${dependencies}")
 }
 
 find_actool() {
@@ -87,6 +149,10 @@ validate_bundle_budget() {
     echo "error: expected exactly one embedded Node runtime, found ${node_count}" >&2
     exit 1
   fi
+
+  verify_architecture "${bundle_path}/Contents/MacOS/${BIN_NAME}"
+  verify_architecture "${bundle_path}/Contents/Resources/Dokke/bin/DokkeIconHelper.app/Contents/MacOS/DokkeIconHelper"
+  verify_architecture "$(find "${bundle_path}/Contents/Resources" -type f -path '*/node-bin/node' -perm -111 -print -quit)"
 
   bundle_kib="$(du -sk "${bundle_path}" | awk '{print $1}')"
   max_bundle_kib="$((MAX_BUNDLE_SIZE_MB * 1024))"
@@ -227,9 +293,10 @@ fi
 # roda em Mac sem Node instalado. Homebrew Node costuma depender de dylibs em
 # /opt/homebrew/opt, então prefere uma cópia estática do nvm quando disponível.
 find_relocatable_node() {
-  local candidate
+  local candidate node_archs host_arch
   local -a candidates=()
   local nvm_root="${NVM_DIR:-${HOME}/.nvm}/versions/node"
+  host_arch="$(uname -m)"
 
   if [[ -n "${DOKKE_NODE:-}" ]]; then
     candidates+=("${DOKKE_NODE}")
@@ -247,10 +314,21 @@ find_relocatable_node() {
 
   for candidate in "${candidates[@]}"; do
     [[ -x "${candidate}" ]] || continue
-    if command -v otool >/dev/null 2>&1 && otool -L "${candidate}" | grep -Eq '(@rpath/libnode|/opt/homebrew/opt/|/usr/local/opt/)'; then
-      continue
+    node_archs="$(lipo -archs "${candidate}" 2>/dev/null || true)"
+    [[ " ${node_archs} " == *" ${TARGET_ARCH} "* ]] || continue
+    verify_node_dependencies "${candidate}" || continue
+    if [[ "${TARGET_ARCH}" == "${host_arch}" ]] && "${candidate}" --version >/dev/null 2>&1; then
+      printf '%s' "${candidate}"
+      return 0
     fi
-    if "${candidate}" --version >/dev/null 2>&1; then
+    if [[ "${TARGET_ARCH}" == x86_64 && "${host_arch}" == arm64 ]] && command -v arch >/dev/null 2>&1 && arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+      if arch -x86_64 "${candidate}" --version >/dev/null 2>&1; then
+        printf '%s' "${candidate}"
+        return 0
+      fi
+    fi
+    if [[ "${TARGET_ARCH}" != "${host_arch}" ]]; then
+      echo "info: runtimes Node ${TARGET_ARCH} não são executados neste host; arquitetura será validada no bundle" >&2
       printf '%s' "${candidate}"
       return 0
     fi
@@ -273,13 +351,10 @@ if [[ -n "${NODE_SRC}" ]]; then
     fi
   fi
   chmod +x "${NODE_BIN}"
-  if ! "${NODE_BIN}" --version >/dev/null 2>&1; then
-    echo "error: node embutido não executa fora do ambiente de origem" >&2
-    exit 1
-  fi
+  verify_architecture "${NODE_BIN}"
   echo "==> node embutido (${NODE_SRC}; $(du -sh "${NODE_BIN}" | cut -f1))"
 else
-  echo "error: nenhum node relocável encontrado para o bundle" >&2
+  echo "error: nenhum Node relocável compatível com ${TARGET_ARCH}; instale-o ou defina DOKKE_NODE=/caminho/para/node" >&2
   exit 1
 fi
 
@@ -291,11 +366,10 @@ if command -v codesign >/dev/null 2>&1; then
 fi
 
 if [[ "${BUILD_ONLY}" -eq 1 ]]; then
-  DIST="${ROOT}/dist"
-  mkdir -p "${DIST}"
-  rm -rf "${DIST}/${APP_NAME}.app"
-  cp -R "${APP_BUNDLE}" "${DIST}/${APP_NAME}.app"
-  echo "OK ${DIST}/${APP_NAME}.app (dev only — not installed)"
+  mkdir -p "${DIST_DIR}"
+  rm -rf "${DIST_DIR}/${APP_NAME}.app"
+  cp -R "${APP_BUNDLE}" "${DIST_DIR}/${APP_NAME}.app"
+  echo "OK ${DIST_DIR}/${APP_NAME}.app (dev only — not installed)"
   exit 0
 fi
 

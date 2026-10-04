@@ -21,6 +21,8 @@ final class DockStore: ObservableObject {
   }
   @Published var online = false
   @Published var lastError: String?
+  @Published var pieceActionError: String?
+  @Published private(set) var pieceActionErrorRevision = 0
   @Published var lastSyncNote: String?
   /// Fonte de verdade tipada do dock. `pinned` permanece como projeção legada.
   @Published private(set) var pieces: [DockPiece] = []
@@ -29,6 +31,9 @@ final class DockStore: ObservableObject {
   @Published var installed: [InstalledApp] = []
   @Published private(set) var installedReady = false
   @Published private(set) var installedLoading = false
+  @Published private(set) var shortcuts: [String] = []
+  @Published private(set) var shortcutsReady = false
+  @Published private(set) var shortcutsLoading = false
   @Published var filter = ""
   @Published var loading = false
   @Published var devices = 0
@@ -39,6 +44,7 @@ final class DockStore: ObservableObject {
   @Published var maxPinnedPieces: Int = 40
   private var timer: Timer?
   private var refreshTask: Task<Void, Never>?
+  private var shortcutLoadGeneration = 0
   private var iconCache: [String: Image] = [:]
   private var nativeIconCache: [String: NSImage] = [:]
   private var iconAppearanceObservers: [NSObjectProtocol] = []
@@ -150,6 +156,10 @@ final class DockStore: ObservableObject {
 
   func isPinned(_ name: String) -> Bool {
     pieces.contains { $0.type == .app && $0.name == name }
+  }
+
+  func isShortcutPinned(_ name: String) -> Bool {
+    pieces.contains { $0.type == .shortcut && $0.name == name }
   }
 
   var isPinnedLimitReached: Bool {
@@ -366,6 +376,41 @@ final class DockStore: ObservableObject {
     }
   }
 
+  func loadShortcuts() async {
+    shortcutLoadGeneration += 1
+    let generation = shortcutLoadGeneration
+    guard let url = URL(string: baseURL + "/api/shortcuts") else {
+      if generation == shortcutLoadGeneration {
+        shortcutsLoading = false
+        lastError = I18n.text("error.invalidURL", language: language)
+      }
+      return
+    }
+    shortcutsLoading = true
+    defer {
+      if generation == shortcutLoadGeneration { shortcutsLoading = false }
+    }
+    do {
+      var request = URLRequest(url: url)
+      request.setValue("dokke-macos-picker", forHTTPHeaderField: "X-Dokke-Client")
+      let (data, response) = try await session.data(for: request)
+      guard generation == shortcutLoadGeneration, !Task.isCancelled else { return }
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      guard (response as? HTTPURLResponse)?.statusCode == 200,
+            let names = object?["shortcuts"] as? [String] else {
+        lastError = localizedServerError(object, fallbackKey: "error.shortcuts")
+        return
+      }
+      shortcutsReady = true
+      shortcuts = Array(Set(names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }))
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+      lastError = nil
+    } catch {
+      guard generation == shortcutLoadGeneration, !Task.isCancelled else { return }
+      lastError = I18n.text("error.network", language: language)
+    }
+  }
+
   func togglePin(_ name: String) async {
     if isPinned(name) {
       await unpin(name)
@@ -438,7 +483,7 @@ final class DockStore: ObservableObject {
   }
 
   func unpin(_ name: String) async {
-    if name.hasPrefix("website:") {
+    if name.hasPrefix("website:") || name.hasPrefix("shortcut:") {
       await removePiece(name)
       return
     }
@@ -543,6 +588,45 @@ final class DockStore: ObservableObject {
     } catch { lastError = I18n.text("error.network", language: language) }
   }
 
+  func addShortcut(_ name: String, emoji: String, at index: Int? = nil) async -> Bool {
+    guard !isShortcutPinned(name) else { return false }
+    guard !isPinnedLimitReached else {
+      lastError = I18n.text("error.PINNED_LIMIT_REACHED", language: language)
+      return false
+    }
+    lastError = nil
+    busyName = name
+    defer { busyName = nil }
+    guard let endpoint = URL(string: baseURL + "/api/config/pieces") else { return false }
+    let position = min(max(index ?? firstAvailablePosition, 0), 39)
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: [
+      "type": "shortcut", "name": name, "emoji": emoji, "position": position,
+    ])
+    req.timeoutInterval = 4
+    do {
+      let (data, response) = try await session.data(for: req)
+      let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+      guard code == 200,
+            let object,
+            let cfg = object["config"] as? [String: Any],
+            let pieceObject = object["piece"] as? [String: Any],
+            DockPiece(json: pieceObject) != nil else {
+        lastError = localizedServerError(object, fallbackKey: "error.addShortcut")
+        return false
+      }
+      applyConfig(cfg)
+      await afterPinPush()
+      return true
+    } catch {
+      lastError = I18n.text("error.network", language: language)
+      return false
+    }
+  }
+
   func removePiece(_ id: String) async {
     guard let endpoint = URL(string: baseURL + "/api/config/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)) else { return }
     var req = URLRequest(url: endpoint)
@@ -561,6 +645,24 @@ final class DockStore: ObservableObject {
   }
 
   func openWebsite(_ id: String) async {
+    await openPiece(id, fallbackKey: "error.openWebsite")
+  }
+
+  func openShortcut(_ id: String) async {
+    await openPiece(id, fallbackKey: "error.openShortcut")
+  }
+
+  func clearPieceActionError() {
+    pieceActionError = nil
+  }
+
+  private func showPieceActionError(_ message: String) {
+    lastError = message
+    pieceActionError = message
+    pieceActionErrorRevision &+= 1
+  }
+
+  private func openPiece(_ id: String, fallbackKey: String) async {
     guard let endpoint = URL(string: baseURL + "/api/pieces/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id) + "/open") else { return }
     var req = URLRequest(url: endpoint)
     req.httpMethod = "POST"
@@ -569,11 +671,16 @@ final class DockStore: ObservableObject {
       let (data, response) = try await session.data(for: req)
       guard (response as? HTTPURLResponse)?.statusCode == 200 else {
         let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        lastError = localizedServerError(object, fallbackKey: "error.openWebsite")
+        let message = localizedServerError(object, fallbackKey: fallbackKey)
+        showPieceActionError(message)
         return
       }
       lastError = nil
-    } catch { lastError = I18n.text("error.network", language: language) }
+      pieceActionError = nil
+    } catch {
+      let message = I18n.text("error.network", language: language)
+      showPieceActionError(message)
+    }
   }
 
   @discardableResult

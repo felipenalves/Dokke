@@ -1048,8 +1048,9 @@
       "dock.opened": "aberto", "dock.noOpenApps": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
       "dock.pinApps": "Fixar apps como favoritos", "dock.pinSubtitle": "Escolha os apps que aparecem no Launchpad.",
       "dock.pinnedLabel": "fixado", "dock.limit": "limite", "dock.pin": "+ fixar", "dock.close": "Fechar",
-      "modal.removeWebsite": "Remover website dos favoritos?", "modal.removeApp": "Remover dos favoritos?",
+      "modal.removeWebsite": "Remover website dos favoritos?", "modal.removeShortcut": "Remover atalho dos favoritos?", "modal.removeApp": "Remover dos favoritos?",
       "modal.removeWebsiteBody": "\"{name}\" sai dos fixos.",
+      "modal.removeShortcutBody": "\"{name}\" sai dos fixos.",
       "modal.removeAppBody": "\"{name}\" sai dos fixos. O app continua no Launchpad.",
       "modal.cancel": "Cancelar", "modal.removeConfirm": "Remover", "modal.stopAllTitle": "Encerrar transmissão?",
       "modal.stopAllBody": "O OBS vai parar a gravação e a live.", "modal.stopAll": "Encerrar tudo",
@@ -1068,6 +1069,7 @@
       "error.PIECE_NOT_WEBSITE": "Essa peça não é um website",
       "error.PIECE_NOT_FOUND": "Peça não encontrada",
       "error.INVALID_REQUEST": "Solicitação inválida",
+      "error.SHORTCUT_ALREADY_RUNNING": "Este atalho já está em execução no Mac.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — abra o OBS para liberar as cenas",
       "obs.unavailable": "OBS indisponível — verifique o WebSocket", "obs.live": "AO VIVO", "obs.connected": "conectado",
       "obs.startRecording": "Gravar", "obs.stopRecording": "Parar", "obs.startLive": "Live", "obs.stopLive": "Parar live", "obs.stopAll": "Encerrar",
@@ -1092,8 +1094,9 @@
       "dock.opened": "open", "dock.noOpenApps": "Nothing open yet — open an app on your Mac to see it here",
       "dock.pinApps": "Pin apps as favorites", "dock.pinSubtitle": "Choose the apps that appear in Launchpad.",
       "dock.pinnedLabel": "pinned", "dock.limit": "limit", "dock.pin": "+ pin", "dock.close": "Close",
-      "modal.removeWebsite": "Remove website from favorites?", "modal.removeApp": "Remove from favorites?",
+      "modal.removeWebsite": "Remove website from favorites?", "modal.removeShortcut": "Remove shortcut from favorites?", "modal.removeApp": "Remove from favorites?",
       "modal.removeWebsiteBody": "\"{name}\" will be unpinned.",
+      "modal.removeShortcutBody": "\"{name}\" will be unpinned.",
       "modal.removeAppBody": "\"{name}\" will be unpinned. The app stays in Launchpad.",
       "modal.cancel": "Cancel", "modal.removeConfirm": "Remove", "modal.stopAllTitle": "Stop broadcast?",
       "modal.stopAllBody": "OBS will stop recording and the live stream.", "modal.stopAll": "Stop everything",
@@ -1112,6 +1115,7 @@
       "error.PIECE_NOT_WEBSITE": "This piece is not a website",
       "error.PIECE_NOT_FOUND": "Piece not found",
       "error.INVALID_REQUEST": "Invalid request",
+      "error.SHORTCUT_ALREADY_RUNNING": "This shortcut is already running on the Mac.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — open OBS to enable scenes",
       "obs.unavailable": "OBS unavailable — check the WebSocket", "obs.live": "LIVE", "obs.connected": "connected",
       "obs.startRecording": "Record", "obs.stopRecording": "Stop", "obs.startLive": "Live", "obs.stopLive": "Stop live", "obs.stopAll": "Stop",
@@ -1515,11 +1519,16 @@
 
   async function activatePiece(piece){
     if (!piece || !piece.id) return;
-    if (piece.type !== "website") return activateApp(piece.name);
+    if (piece.type === "app") return activateApp(piece.name);
     let r;
     try { r = await post("/api/pieces/" + encodeURIComponent(piece.id) + "/open"); }
     catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
-    if (!r || !r.data || r.data.ok !== true) toast(t("toast.openFailed", { name: piece.title || t("site") }), "err");
+    if (!r || !r.data || r.data.ok !== true) {
+      const message = r && r.data && r.data.code === "SHORTCUT_ALREADY_RUNNING"
+        ? t("error.SHORTCUT_ALREADY_RUNNING")
+        : t("toast.openFailed", { name: piece.title || piece.name || t("site") });
+      toast(message, "err");
+    }
   }
 
   async function pinApp(name){
@@ -1602,8 +1611,9 @@
     // aceita elemento (hold) ou string (nome) — evita TypeError se alguém passar name direto
     const piece = typeof el === "object" && el && el.type ? el : null;
     const isWebsite = piece && piece.type === "website";
+    const isShortcut = piece && piece.type === "shortcut";
     const name = piece
-      ? (piece.title || piece.url || t("site"))
+      ? (isWebsite ? piece.title || piece.url || t("site") : piece.name)
       : (typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : ""));
     if (!name) return;
     const content = document.createDocumentFragment();
@@ -1635,18 +1645,22 @@
       const favicon = websiteFaviconPath(piece.url);
       if (favicon) iconImg.src = favicon;
       else iconFallback(iconImg, icon, name);
+    } else if (isShortcut) {
+      iconImg.src = shortcutIconDataURL(piece.emoji);
     } else {
       loadIcon(name, iconImg, icon);
     }
     content.appendChild(icon);
     const title = document.createElement("h3");
-    title.textContent = isWebsite ? t("modal.removeWebsite") : t("modal.removeApp");
+    title.textContent = isWebsite ? t("modal.removeWebsite") : isShortcut ? t("modal.removeShortcut") : t("modal.removeApp");
     content.appendChild(title);
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = isWebsite
       ? t("modal.removeWebsiteBody", { name: name })
-      : t("modal.removeAppBody", { name: name });
+      : isShortcut
+        ? t("modal.removeShortcutBody", { name: name })
+        : t("modal.removeAppBody", { name: name });
     content.appendChild(body);
     const btns = document.createElement("div");
     btns.className = "btns";
@@ -1667,7 +1681,7 @@
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
         $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){
           closeModal();
-          if (isWebsite) unpinPiece(piece.id);
+          if (isWebsite || isShortcut) unpinPiece(piece.id);
           else unpinApp(name);
         });
       }, "confirm");
@@ -1677,7 +1691,7 @@
     const id = el && el.dataset ? el.dataset.id : "";
     const piece = state.pieces.find(function(item){ return item.id === id; });
     if (!piece) return;
-    if (piece.type === "website") favLong(piece);
+    if (piece.type === "website" || piece.type === "shortcut") favLong(piece);
     else if (state.pinned.indexOf(piece.name) !== -1) favLong(piece.name);
     else pinApp(piece.name);
   }
@@ -1697,6 +1711,11 @@
 
   function iconPath(name){
     return "/api/apps/" + encodeURIComponent(name) + "/icon?v=" + ICON_REV;
+  }
+  function shortcutIconDataURL(emoji){
+    const glyph = Array.from(emoji || "🖱️", character => "&#x" + character.codePointAt(0).toString(16) + ";").join("");
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6b31d4"/><stop offset="1" stop-color="#351080"/></linearGradient></defs><rect width="64" height="64" rx="17" fill="url(#g)"/><text x="32" y="45" text-anchor="middle" font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif" font-size="36">' + glyph + '</text></svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
   function iconFallback(img, target, name){
     if (img && img.isConnected) img.remove();
@@ -1813,6 +1832,7 @@
       glass.appendChild(img);
     }
     if (a.type === "website") img.src = websiteFaviconPath(a.url);
+    else if (a.type === "shortcut") img.src = shortcutIconDataURL(a.emoji);
     else if (withIcon) loadIcon(a.name, img, glass);
     else img.src = iconPath(a.name);
     tile.appendChild(glass);
@@ -1872,7 +1892,7 @@
     for (let i = 0; i < state.pieces.length; i++){
       const piece = state.pieces[i];
       const position = Number.isInteger(piece.position) ? piece.position : i;
-      if (piece.type === "website") byPosition.set(position, piece);
+      if (piece.type === "website" || piece.type === "shortcut") byPosition.set(position, piece);
       else {
         const a = byName.get(piece.name);
         if (a) byPosition.set(position, { id: piece.id, type: "app", name: a.name, icon: a.icon });

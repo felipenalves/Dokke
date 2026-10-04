@@ -246,7 +246,7 @@ document.querySelector("#app").innerHTML = `
     <p class="footer-note">© 2026 Dokke · um produto de Felipe Natanael</p>
     <nav class="footer-links" aria-label="Links sociais">
       <a href="https://instagram.com/felipenalves" target="_blank" rel="noreferrer">Instagram</a>
-      <a href="https://x.com/felipenalves" target="_blank" rel="noreferrer">X</a>
+      <a href="https://x.com/felipenalvesinv" target="_blank" rel="noreferrer">X</a>
       <a href="https://github.com/felipenalves/Dokke" target="_blank" rel="noreferrer">GitHub</a>
     </nav>
   </footer>

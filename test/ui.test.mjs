@@ -387,7 +387,7 @@ test("V-Dots seguem o mesmo espaçamento visual dos h-dots", async () => {
   }
 });
 
-test("long press de website pede confirmação antes de remover o fixo", async () => {
+test("long press de website ou atalho pede confirmação antes de remover o fixo", async () => {
   const { port, close } = await startServer({
     port: 0,
     config: {
@@ -405,7 +405,7 @@ test("long press de website pede confirmação antes de remover o fixo", async (
     const favLongStart = html.indexOf("function favLong");
     const favLongEnd = html.indexOf("function tileLong", favLongStart);
     const favLong = html.slice(favLongStart, favLongEnd);
-    assert.match(tileLong, /if \(piece\.type === "website"\) favLong\(piece\)/);
+    assert.match(tileLong, /if \(piece\.type === "website" \|\| piece\.type === "shortcut"\) favLong\(piece\)/);
     assert.doesNotMatch(tileLong, /if \(piece\.type === "website"\) unpinPiece\(piece\.id\)/);
     assert.match(favLong, /const isWebsite = piece && piece\.type === "website"/);
     assert.match(favLong, /websiteFaviconPath\(piece\.url\)/);
