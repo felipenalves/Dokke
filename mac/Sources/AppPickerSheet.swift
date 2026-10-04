@@ -137,124 +137,100 @@ struct AppPickerSheet: View {
   var body: some View {
     ZStack {
       VStack(spacing: 0) {
-      HStack(spacing: 10) {
-        pickerTabSelector
-          .frame(maxWidth: .infinity)
+        HStack(spacing: 10) {
+          pickerTabSelector
+            .frame(maxWidth: .infinity)
 
-        Button { dismiss() } label: {
-          Image(systemName: "xmark")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: 28, height: 28)
-            .background(Color.white.opacity(0.10), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(I18n.text("picker.close", language: languageStore.selected))
-      }
-      .padding(.horizontal, 16)
-      .padding(.top, 16)
-      .padding(.bottom, 14)
-
-      Divider()
-
-      HStack(spacing: 12) {
-        Group {
-          if selectedTab == "Shortcuts", let appIcon = Self.shortcutsAppIcon {
-            Image(nsImage: appIcon)
-              .resizable()
-              .scaledToFit()
-          } else {
-            Image(systemName: selectedTab == "Apps" ? "square.grid.2x2" : selectedTab == "Website Links" ? "globe" : "bolt")
-              .font(.system(size: 19, weight: .semibold))
-              .foregroundStyle(.white.opacity(0.92))
-              .frame(width: 42, height: 42)
-              .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-          }
-        }
-        .frame(width: 42, height: 42)
-        Text(I18n.text(
-          selectedTab == "Apps" ? "picker.addApps" : selectedTab == "Website Links" ? "picker.addLinks" : "picker.addShortcuts",
-          language: languageStore.selected
-        ))
-          .font(.system(size: 18, weight: .bold))
-          .lineLimit(1)
-        Spacer(minLength: 0)
-      }
-      .padding(.horizontal, 16)
-      .padding(.top, 16)
-      .padding(.bottom, 12)
-
-      if selectedTab == "Apps" {
-        HStack(alignment: .center, spacing: 10) {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-          Text(I18n.text("picker.library", language: languageStore.selected))
-            .font(.system(size: 16, weight: .semibold))
-          Spacer(minLength: 12)
-          HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
+          Button { dismiss() } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 12, weight: .semibold))
               .foregroundStyle(.secondary)
-            TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
-              .textFieldStyle(.plain)
-              .focused($isSearchFocused)
-            if !search.isEmpty {
-              Button { search = "" } label: {
-                Image(systemName: "xmark.circle.fill")
-                  .foregroundStyle(.secondary)
-              }
-              .buttonStyle(.plain)
-            }
+              .frame(width: 28, height: 28)
+              .background(Color.white.opacity(0.10), in: Circle())
           }
-          .padding(.horizontal, 10)
-          .frame(width: 164, height: 32)
-          .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-          .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-              .stroke(isSearchFocused ? Color.accentColor.opacity(0.75) : Color.white.opacity(0.14), lineWidth: 1)
-          )
+          .buttonStyle(.plain)
+          .accessibilityLabel(I18n.text("picker.close", language: languageStore.selected))
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
 
-        if store.isPinnedLimitReached {
-          Text(I18n.text("picker.limit", language: languageStore.selected))
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
+        Divider()
 
-        if store.installedLoading && !store.installedReady {
-          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if store.loading && !store.installedReady {
-          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if filteredApps.isEmpty {
-          ContentUnavailableView(
-            search.isEmpty ? I18n.text("picker.none", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
-            systemImage: "app.dashed",
-            description: Text(search.isEmpty ? I18n.text("picker.serverEmpty", language: languageStore.selected) : I18n.text("picker.searchDifferent", language: languageStore.selected))
-          )
-        } else {
-          ScrollView {
-            LazyVStack(spacing: 8) {
-              ForEach(filteredApps) { app in
-                appRow(app)
+        Group {
+          if selectedTab == "Apps" {
+            HStack(alignment: .center, spacing: 10) {
+              Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+              Text(I18n.text("picker.library", language: languageStore.selected))
+                .font(.system(size: 16, weight: .semibold))
+              Spacer(minLength: 12)
+              HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                  .foregroundStyle(.secondary)
+                TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
+                  .textFieldStyle(.plain)
+                  .focused($isSearchFocused)
+                if !search.isEmpty {
+                  Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                      .foregroundStyle(.secondary)
+                  }
+                  .buttonStyle(.plain)
+                }
               }
+              .padding(.horizontal, 10)
+              .frame(width: 164, height: 32)
+              .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+              .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                  .stroke(isSearchFocused ? Color.accentColor.opacity(0.75) : Color.white.opacity(0.14), lineWidth: 1)
+              )
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
+            .padding(.bottom, 10)
+
+            if store.isPinnedLimitReached {
+              Text(I18n.text("picker.limit", language: languageStore.selected))
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+
+            if store.installedLoading && !store.installedReady {
+              ProgressView(I18n.text("picker.loading", language: languageStore.selected))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.loading && !store.installedReady {
+              ProgressView(I18n.text("picker.loading", language: languageStore.selected))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredApps.isEmpty {
+              ContentUnavailableView(
+                search.isEmpty ? I18n.text("picker.none", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
+                systemImage: "app.dashed",
+                description: Text(search.isEmpty ? I18n.text("picker.serverEmpty", language: languageStore.selected) : I18n.text("picker.searchDifferent", language: languageStore.selected))
+              )
+            } else {
+              ScrollView {
+                LazyVStack(spacing: 8) {
+                  ForEach(filteredApps) { app in
+                    appRow(app)
+                  }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+              }
+              .scrollIndicators(.hidden)
+            }
+          } else if selectedTab == "Website Links" {
+            websiteLinksView
+          } else {
+            shortcutsView
           }
-          .scrollIndicators(.hidden)
         }
-      } else if selectedTab == "Website Links" {
-        websiteLinksView
-      } else {
-        shortcutsView
-      }
+        .padding(.top, 16)
       }
       .disabled(showWebsiteNamePrompt || showShortcutEmojiPrompt)
       .accessibilityHidden(showWebsiteNamePrompt || showShortcutEmojiPrompt)
