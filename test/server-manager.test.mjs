@@ -64,6 +64,31 @@ test("@spec:AC-335 restart de processo próprio espera bind e respeita cinco ten
   assert.match(failedAttempt, /proc\.terminate\(\)/);
 });
 
+test("@spec:AC-336 restart automático continua após conflito temporário na porta", () => {
+  const start = source.slice(source.indexOf("private func start(isAutomaticRestart:"), source.indexOf("private func preflightExistingServer"));
+  const conflictBranch = start.slice(start.indexOf("case .conflict"), start.indexOf("case .available"));
+
+  assert.match(
+    conflictBranch,
+    /if isAutomaticRestart \{[\s\S]*?self\.handleOwnedFailure\(message\)/,
+    "uma tentativa automática que encontra conflito deve agendar nova tentativa limitada",
+  );
+  const restart = source.slice(source.indexOf("private func scheduleRestart"), source.indexOf("deinit"));
+  assert.match(restart, /self\.start\(isAutomaticRestart: true\)/);
+});
+
+test("@spec:AC-336 monitor do servidor adotado agenda recuperação quando o listener some", () => {
+  const monitor = source.slice(
+    source.indexOf("private func monitorAdoptedServer"),
+    source.indexOf("private func launchOwnedServer"),
+  );
+  const availableBranch = monitor.slice(monitor.indexOf("case .available"), monitor.indexOf("case .conflict"));
+
+  assert.match(availableBranch, /self\.ownership = \.none/);
+  assert.match(availableBranch, /self\.isRunning = false/);
+  assert.match(availableBranch, /self\.handleOwnedFailure\(/);
+});
+
 test("@spec:AC-333 versão adotada corresponde exatamente ao bundle", () => {
   assert.match(source, /CFBundleShortVersionString/);
   assert.match(

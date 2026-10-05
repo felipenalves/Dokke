@@ -820,7 +820,10 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v32/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v33/, "service worker deve invalidar o cache antigo da UI");
+    const appResponse = await fetch(`http://127.0.0.1:${port}/`);
+    const appHtml = await appResponse.text();
+    assert.match(appHtml, /serviceWorker\.register\("\/sw\.js\?rev=dokke-v33"\)/, "registro e cache do service worker devem compartilhar a revisão atual");
     assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");

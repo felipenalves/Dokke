@@ -19,7 +19,9 @@ test("login do PWA mantém foco dentro do diálogo e devolve foco ao fechar", ()
   assert.match(pwa, /let loginPreviousFocus = null/);
   assert.match(pwa, /loginPreviousFocus = document\.activeElement/);
   assert.match(pwa, /loginScrim\.addEventListener\("keydown"/);
-  assert.match(pwa, /loginPreviousFocus\.focus\(\)/);
+  assert.match(pwa, /const previousFocus = loginPreviousFocus/);
+  assert.match(pwa, /previousFocus\.focus\(\)/);
+  assert.match(pwa, /if \(loginOpen && pin\.isConnected\) pin\.focus\(\)/, "foco agendado não deve voltar ao PIN depois de fechar o login");
 });
 
 test("navegação lateral do PWA tem controles nomeados e estado atual", () => {

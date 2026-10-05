@@ -729,6 +729,33 @@
     border-color: rgba(255,69,58,.38); color:#ffb3ae;
   }
 
+  .connection-scrim{
+    position:fixed; inset:0; z-index:110; display:none;
+    align-items:center; justify-content:center; padding:24px;
+    background:rgba(8,3,1,.68);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  }
+  body.is-disconnected .connection-scrim{ display:flex; }
+  .connection-card{
+    width:100%; max-width:360px; padding:26px 22px; border-radius:26px;
+    text-align:center; background:linear-gradient(165deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:1px solid rgba(240,135,55,.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 24px 60px rgba(0,0,0,.48);
+  }
+  .connection-icon{
+    width:48px; height:48px; margin:0 auto 14px; border-radius:16px;
+    display:grid; place-items:center; background:rgba(240,135,55,.14);
+    border:1px solid rgba(240,135,55,.28); color:#ffbd83; font-size:22px; font-weight:700;
+  }
+  .connection-card h2{ font-family:"Bricolage Grotesque",sans-serif; font-size:21px; letter-spacing:-.025em; }
+  .connection-card p{ margin-top:8px; color:var(--ink-2); font-size:13px; line-height:1.5; }
+  .connection-retry{
+    width:100%; min-height:46px; margin-top:20px; border:0; border-radius:14px;
+    background:linear-gradient(180deg, #2995ff, #0877e8); color:#fff;
+    font:600 14px "Inter",sans-serif; cursor:pointer;
+  }
+  .connection-retry:disabled{ opacity:.65; cursor:wait; }
+
   /* ---- aviso de atualização ---- */
   .up-banner{
     position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px;
@@ -937,6 +964,15 @@
 
 <div class="toast" id="toast"></div>
 
+  <div class="connection-scrim" id="connectionScrim">
+  <section class="connection-card" id="connectionCard" role="dialog" aria-modal="true" aria-live="polite" tabindex="-1" aria-labelledby="connectionTitle" aria-describedby="connectionDescription">
+    <div class="connection-icon" aria-hidden="true">!</div>
+    <h2 id="connectionTitle">Não foi possível conectar ao Mac</h2>
+    <p id="connectionDescription">Abra o Dokke no Mac e confira se os dois estão na mesma rede Wi-Fi.</p>
+    <button class="connection-retry" id="connectionRetry" data-i18n="connection.retry">Tentar novamente</button>
+  </section>
+</div>
+
   <div class="login-scrim" id="loginScrim">
     <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginDescription">
       <div class="lkey" aria-hidden="true">
@@ -1055,6 +1091,11 @@
       "modal.cancel": "Cancelar", "modal.removeConfirm": "Remover", "modal.stopAllTitle": "Encerrar transmissão?",
       "modal.stopAllBody": "O OBS vai parar a gravação e a live.", "modal.stopAll": "Encerrar tudo",
       "toast.macDisconnected": "Desconectado", "toast.deviceConnected": "Conectado",
+      "connection.offlineTitle": "Não foi possível conectar ao Mac",
+      "connection.offlineDescription": "Abra o Dokke no Mac e confira se os dois estão na mesma rede Wi-Fi.",
+      "connection.loadFailedTitle": "Não foi possível carregar o Dokke",
+      "connection.loadFailedDescription": "Confira a conexão com o Mac e tente novamente.",
+      "connection.retry": "Tentar novamente", "connection.retrying": "Reconectando…",
       "toast.pinAdded": "\"{name}\" adicionado aos favoritos", "toast.removed": "\"{name}\" removido",
       "toast.pinFailed": "Falha ao fixar", "toast.openFailed": "Não consegui abrir \"{name}\"",
       "toast.removeFailed": "Falha ao remover", "toast.dockChanged": "O dock mudou; tente novamente",
@@ -1101,6 +1142,11 @@
       "modal.cancel": "Cancel", "modal.removeConfirm": "Remove", "modal.stopAllTitle": "Stop broadcast?",
       "modal.stopAllBody": "OBS will stop recording and the live stream.", "modal.stopAll": "Stop everything",
       "toast.macDisconnected": "Disconnected", "toast.deviceConnected": "Connected",
+      "connection.offlineTitle": "Couldn't connect to the Mac",
+      "connection.offlineDescription": "Open Dokke on the Mac and check that both devices are on the same Wi-Fi network.",
+      "connection.loadFailedTitle": "Couldn't load Dokke",
+      "connection.loadFailedDescription": "Check the connection to the Mac and try again.",
+      "connection.retry": "Try again", "connection.retrying": "Reconnecting…",
       "toast.pinAdded": "\"{name}\" added to favorites", "toast.removed": "\"{name}\" removed",
       "toast.pinFailed": "Failed to pin", "toast.openFailed": "Could not open \"{name}\"",
       "toast.removeFailed": "Failed to remove", "toast.dockChanged": "The dock changed; try again",
@@ -1193,6 +1239,30 @@
   // ---------- login wall (pin de acesso) ----------
   let authed = false, loginOpen = false, loginSubmitting = false;
   let loginPreviousFocus = null;
+  let connectionNoticeVisible = false, connectionPreviousFocus = null;
+  function isRestorableFocusTarget(element){
+    if (!element || !element.isConnected || element === document.body || typeof element.focus !== "function") return false;
+    const connectionScrim = $("connectionScrim");
+    const loginScrim = $("loginScrim");
+    if ((connectionScrim && connectionScrim.contains(element)) || (loginScrim && loginScrim.contains(element))) return false;
+    return element.getClientRects().length > 0;
+  }
+  function focusConnectionNotice(){
+    const retry = $("connectionRetry");
+    const target = retry && !retry.disabled ? retry : $("connectionCard");
+    if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+  }
+  function restoreConnectionFocus(element){
+    let target = isRestorableFocusTarget(element) ? element : null;
+    if (!target && element && element.classList && element.classList.contains("atile")){
+      const id = element.dataset.id;
+      const name = element.dataset.name;
+      target = Array.from(document.querySelectorAll(".atile")).find(function(candidate){
+        return (id && candidate.dataset.id === id) || (!id && name && candidate.dataset.name === name);
+      }) || null;
+    }
+    if (isRestorableFocusTarget(target)) target.focus();
+  }
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -1230,17 +1300,22 @@
     document.body.classList.add("is-login");
     syncLoginOrientation();
     syncLoginViewport();
-    if (pin) setTimeout(function(){ pin.focus(); }, 80);
+    renderConnectionNotice();
+    if (pin) setTimeout(function(){ if (loginOpen && pin.isConnected) pin.focus(); }, 80);
   }
   function hideLogin(){
+    const previousFocus = loginPreviousFocus;
+    loginPreviousFocus = null;
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
     syncLoginOrientation();
-    if (loginPreviousFocus && loginPreviousFocus.isConnected && loginPreviousFocus.focus){
-      loginPreviousFocus.focus();
+    renderConnectionNotice();
+    if (connectionNoticeVisible){
+      if (!connectionPreviousFocus && isRestorableFocusTarget(previousFocus)) connectionPreviousFocus = previousFocus;
+    } else if (isRestorableFocusTarget(previousFocus)){
+      previousFocus.focus();
     }
-    loginPreviousFocus = null;
   }
   function loginError(msg){
     const err = $("loginErr");
@@ -2486,7 +2561,49 @@
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
   // (menos acordar de CPU/radio/bateria no device; volta rapido quando reaparece)
   let healthBackoff = 15000, appsBackoff = 2500;
+  let healthChecked = false, appsLoadFailed = false, connectionRetrying = false;
+  let connectionRevision = 0, healthRequestInFlight = false;
+  const appsLoadSequence = { value: 0 };
   const HEALTH_OK = 15000, APPS_OK = 2500, POLL_MAX = 60000, POLL_HIDDEN = 30000;
+
+  function renderConnectionNotice(){
+    const noInitialData = appsLoadFailed && !state.pieces.length && !state.installedReady;
+    const offline = healthChecked && !state.online;
+    const show = !loginOpen && (offline || noInitialData);
+    const wasVisible = connectionNoticeVisible;
+    document.body.classList.toggle("is-disconnected", show);
+    connectionNoticeVisible = show;
+    $("connectionTitle").textContent = offline ? t("connection.offlineTitle") : t("connection.loadFailedTitle");
+    $("connectionDescription").textContent = offline
+      ? t("connection.offlineDescription")
+      : t("connection.loadFailedDescription");
+    const retry = $("connectionRetry");
+    retry.textContent = connectionRetrying ? t("connection.retrying") : t("connection.retry");
+    retry.disabled = connectionRetrying;
+    if (show && !wasVisible){
+      const active = document.activeElement;
+      if (!connectionPreviousFocus && isRestorableFocusTarget(active)) connectionPreviousFocus = active;
+      focusConnectionNotice();
+    } else if (show && retry.disabled && !$("connectionScrim").contains(document.activeElement)){
+      focusConnectionNotice();
+    } else if (!show && wasVisible){
+      const previousFocus = connectionPreviousFocus;
+      if (!loginOpen && previousFocus){
+        requestAnimationFrame(function(){
+          if (!connectionNoticeVisible && !loginOpen) restoreConnectionFocus(previousFocus);
+        });
+      }
+      if (!loginOpen) connectionPreviousFocus = null;
+    } else if (!show && !loginOpen){
+      connectionPreviousFocus = null;
+    }
+  }
+
+  document.addEventListener("keydown", function(event){
+    if (!connectionNoticeVisible || loginOpen || event.key !== "Tab") return;
+    event.preventDefault();
+    focusConnectionNotice();
+  });
 
   function recentsKey(){
     let run = [];
@@ -2503,16 +2620,27 @@
   async function loadHealth(){
     if (healthT){ clearTimeout(healthT); healthT = null; }
     if (pageHidden()){ healthT = setTimeout(loadHealth, POLL_HIDDEN); return; }
-    const prev = state.online;
+    if (healthRequestInFlight) return;
+    healthRequestInFlight = true;
+    const revisionAtStart = connectionRevision;
     let ok = false;
     try {
       const r = await req("/health", { timeout: 2200 });
       ok = (r.status === 200) && r.data && r.data.ok === true;
     } catch (e) { ok = false; }
-    state.online = ok;
-    if (prev && !ok) toast(t("toast.macDisconnected"), "err");
-    if (!prev && ok) toast(t("toast.deviceConnected"), "ok");
-    healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+    if (revisionAtStart === connectionRevision){
+      const prev = state.online;
+      state.online = ok;
+      connectionRevision += 1;
+      healthChecked = true;
+      renderConnectionNotice();
+      if (prev && !ok) toast(t("toast.macDisconnected"), "err");
+      if (!prev && ok) toast(t("toast.deviceConnected"), "ok");
+      healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+    } else if (state.online){
+      healthBackoff = HEALTH_OK;
+    }
+    healthRequestInFlight = false;
     healthT = setTimeout(loadHealth, healthBackoff);
   }
 
@@ -2613,10 +2741,20 @@
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (!m) return;
       if (m.type === "online"){
+        healthChecked = true;
         state.online = !!m.online;
+        connectionRevision += 1;
+        healthBackoff = state.online ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+        renderConnectionNotice();
         maybeReloadForUi(m.v);
       } else if (m.type === "apps"){
+        appsLoadSequence.value += 1;
         state.online = true;
+        connectionRevision += 1;
+        healthChecked = true;
+        healthBackoff = HEALTH_OK;
+        appsLoadFailed = false;
+        renderConnectionNotice();
         maybeReloadForUi(m.v);
         applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision);
       }
@@ -2636,11 +2774,12 @@
     wsRetry = Math.min(wsRetry * 2, 30000);
   }
 
-  async function loadApps(){
+  async function loadApps(forceHTTP){
     if (appsT){ clearTimeout(appsT); appsT = null; }
     if (pageHidden()){ appsT = setTimeout(loadApps, POLL_HIDDEN); return; }
+    const requestSequence = ++appsLoadSequence.value;
     // se WS está vivo, só dá ping leve a cada ciclo longo; senão poll HTTP
-    if (statusWs && statusWs.readyState === 1){
+    if (!forceHTTP && statusWs && statusWs.readyState === 1){
       try { statusWs.send(JSON.stringify({ type: "ping" })); } catch (e) {}
       appsBackoff = APPS_OK;
       appsT = setTimeout(loadApps, appsBackoff);
@@ -2649,15 +2788,27 @@
     let ok = false;
     try {
       const r = await req("/api/apps", { timeout: 4200 });
+      if (requestSequence !== appsLoadSequence.value) return;
       if (r.status === 200){
         authed = true;
         if (Array.isArray(r.data && (r.data.pieces || r.data.pinned)) && Array.isArray(r.data && r.data.running)){
           ok = true;
+          state.online = true;
+          connectionRevision += 1;
+          healthChecked = true;
+          healthBackoff = HEALTH_OK;
+          appsLoadFailed = false;
+          renderConnectionNotice();
           maybeReloadForUi(r.data.v);
           applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision);
         }
       }
     } catch (e) { /* offline: keep last view */ }
+    if (requestSequence !== appsLoadSequence.value) return;
+    if (!ok){
+      appsLoadFailed = true;
+      renderConnectionNotice();
+    }
     appsBackoff = ok ? APPS_OK : Math.min(appsBackoff * 2, POLL_MAX);
     appsT = setTimeout(loadApps, appsBackoff);
     if (!ok) connectStatusWs();
@@ -2689,17 +2840,43 @@
   function updateRecentsDots(){ /* no-op: visual limpo como a ref */ }
 
   let installedT = null;
+  let installedLoadSequence = 0;
   async function loadInstalled(){
     if (installedT){ clearTimeout(installedT); installedT = null; }
+    const requestSequence = ++installedLoadSequence;
     try {
       const r = await req("/api/apps/installed", { timeout: 6000 });
+      if (requestSequence !== installedLoadSequence) return;
       if (r.status === 200 && r.data && r.data.ok === true && Array.isArray(r.data.apps)){
         state.installed = r.data.apps;
         state.installedReady = true;
         renderLaunchpad();
       }
-    } catch (e) { installedT = setTimeout(loadInstalled, 8000); }
+    } catch (e) {
+      if (requestSequence === installedLoadSequence) installedT = setTimeout(loadInstalled, 8000);
+    }
   }
+
+  async function retryConnection(){
+    if (connectionRetrying) return;
+    connectionRetrying = true;
+    renderConnectionNotice();
+    if (statusWs){
+      try { statusWs.close(); } catch (e) {}
+      statusWs = null;
+    }
+    wsRetry = 2000;
+    healthBackoff = HEALTH_OK;
+    appsBackoff = APPS_OK;
+    await Promise.all([
+      loadHealth().catch(function(){}),
+      loadApps(true).catch(function(){}),
+      loadInstalled().catch(function(){}),
+    ]);
+    connectionRetrying = false;
+    renderConnectionNotice();
+  }
+  $("connectionRetry").addEventListener("click", retryConnection);
 
   // ---------- header ----------
   function openDrawer(){
@@ -3417,7 +3594,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v31").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v33").catch(function() {});
   }
 })();</script>
 </body>
