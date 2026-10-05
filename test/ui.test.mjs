@@ -289,6 +289,7 @@ test("troca vertical anima somente as duas telas envolvidas", async () => {
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.addInitScript(() => {
       navigator.serviceWorker.register = () => Promise.reject(new Error("blocked"));
     });
