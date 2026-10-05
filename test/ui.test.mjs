@@ -295,14 +295,14 @@ test("troca vertical anima somente as duas telas envolvidas", async () => {
     });
     await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
-    const transitions = await page.evaluate(async () => {
+    await page.evaluate(() => {
       const screens = document.querySelector("#screens");
       const ids = ["screenApps", "screenRecents"];
-      const events = [];
+      window.__dokkeVerticalTransitionTargets = [];
       for (const id of ids){
         const el = document.getElementById(id);
         el.addEventListener("transitionrun", event => {
-          if (event.propertyName === "transform") events.push(event.target.id);
+          if (event.propertyName === "transform") window.__dokkeVerticalTransitionTargets.push(event.target.id);
         });
       }
       const event = (type, y, pointerId) => screens.dispatchEvent(new PointerEvent(type, {
@@ -312,9 +312,12 @@ test("troca vertical anima somente as duas telas envolvidas", async () => {
       event("pointerdown", 700, 1);
       for (let i = 1; i <= 6; i++) event("pointermove", 700 - 100 * i, 1);
       event("pointerup", 100, 1);
-      await new Promise(resolve => setTimeout(resolve, 320));
-      return events;
     });
+    await page.waitForFunction(() => {
+      const targets = new Set(window.__dokkeVerticalTransitionTargets || []);
+      return targets.has("screenApps") && targets.has("screenRecents");
+    }, null, { timeout: 2000 });
+    const transitions = await page.evaluate(() => window.__dokkeVerticalTransitionTargets);
     assert.deepEqual(
       [...new Set(transitions)].sort(),
       ["screenApps", "screenRecents"],
