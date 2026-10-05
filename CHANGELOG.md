@@ -1,9 +1,31 @@
 # Changelog
 
-## v0.2.8 — próxima release
+## v0.2.9 — em preparação (5 de outubro de 2026)
 
-Esta versão consolida a experiência multiplataforma do Dokke, adiciona suporte
-a inglês e prepara a atualização pelo próprio macOS e Android.
+Esta atualização reúne os atalhos do Mac, builds adequados a cada arquitetura e
+recuperação da conexão entre o servidor do Mac e a PWA.
+
+### Novidades
+
+- Integra os atalhos do Apple Shortcuts ao picker e ao dock do Dokke no Mac.
+- Gera DMGs nativos para Apple Silicon e Intel, além do pacote universal de
+  compatibilidade.
+- Simplifica o picker de itens e atualiza os botões de atalhos no macOS.
+
+### Correções
+
+- A PWA informa quando perde a conexão ou não consegue carregar dados e oferece
+  uma tentativa de reconexão.
+- O app do Mac monitora um servidor Dokke já ativo e tenta iniciar sua própria
+  instância se o processo adotado parar.
+
+Esta versão ainda não foi publicada. Os DMGs, o APK de produção assinado e seus
+checksums dependem da validação final de build.
+
+## v0.2.8 — 29 de agosto de 2026
+
+Esta versão consolidou a experiência multiplataforma do Dokke, adicionou
+suporte a inglês e disponibilizou atualização pelo macOS e Android.
 
 ### Novidades
 
@@ -20,12 +42,25 @@ a inglês e prepara a atualização pelo próprio macOS e Android.
 
 ### Correções
 
-- APK volta a exibir os apps corretamente após a correção do conflito de escopo do tradutor.
-- Mensagens de erro da API, macOS e Android passam a respeitar o idioma selecionado ou detectado.
-- Limites de dock, autenticação e validação de hosts reforçados.
+- APK voltou a exibir os apps após a correção do conflito de escopo do tradutor.
+- Mensagens de erro da API, macOS e Android passaram a respeitar o idioma selecionado ou detectado.
+- Limites de dock, autenticação e validação de hosts foram reforçados.
 
-Os links dos artefatos e os checksums serão adicionados na GitHub Release após a
-geração do DMG universal e do APK release assinado.
+### Downloads
+
+- [Dokke para macOS — DMG universal](https://github.com/felipenalves/Dokke/releases/download/v0.2.8/Dokke-macOS-v0.2.8-universal.dmg)
+- [Dokke para Android — APK](https://github.com/felipenalves/Dokke/releases/download/v0.2.8/dokke.apk)
+
+### Checksums SHA-256
+
+- DMG universal: e16ea5bbab8dfe79e743ee6cabd4d507f5c84c7b75b499a74266299f6e275e17
+- APK: a63a08364e94dc5a2e03845aeed90f9519fbca0064244afaf60f08ebd59e90c4
+
+### Validação
+
+- APK v0.2.8, versionCode 11, com assinatura de produção preservada.
+- DMG validado com binários arm64 e x86_64.
+- 35 testes de release passando; `npm audit --omit=dev --audit-level=high` sem vulnerabilidades.
 
 ## v0.2.7 — 11 de agosto de 2026
 
