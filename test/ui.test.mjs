@@ -574,14 +574,29 @@ test("Safari no navegador preserva a régua estrutural e não comprime os cards"
 });
 
 test("toque no app não revela um segundo glass durante a animação", async () => {
-  const { port, close } = await startServer(0);
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: ["Terminal"],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+    iconService: { getIconPng: async () => null },
+  });
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".atile");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('.atile[data-name="Terminal"]');
 
-    const state = await page.locator(".atile").first().evaluate(tile => {
+    const state = await page.locator('.atile[data-name="Terminal"]').evaluate(tile => {
       tile.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 1,
@@ -615,10 +630,14 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       schemaVersion: 2,
       revision: 0,
       pieces: [
-        { id: "app:App Store", type: "app", name: "App Store", position: 0 },
-        { id: "app:Claude", type: "app", name: "Claude", position: 1 },
+        { id: "shortcut:Test One", type: "shortcut", name: "Test One", emoji: "🖱️", position: 0 },
+        { id: "shortcut:Test Two", type: "shortcut", name: "Test Two", emoji: "🖱️", position: 1 },
       ],
-      pinned: ["App Store", "Claude"],
+      pinned: [],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [],
     },
   });
   const browser = await chromium.launch({ headless: true });
@@ -628,7 +647,7 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       isMobile: true,
       hasTouch: true,
     });
-    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelectorAll(".atile.empty").length === 38);
     const empty = page.locator(".atile.empty .aglass").first();
     const style = await empty.evaluate((el) => {
