@@ -109,6 +109,15 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.doesNotMatch(releaseWorkflow, /pull_request:/);
 });
 
+test("release workflow audits npm dependencies before tests and packaging", () => {
+  const installDependencies = releaseWorkflow.indexOf("run: npm ci");
+  const auditDependencies = releaseWorkflow.indexOf("run: npm audit --audit-level=high");
+  const runTests = releaseWorkflow.indexOf("run: npm test");
+  assert.ok(installDependencies >= 0, "dependency installation step is missing");
+  assert.ok(auditDependencies > installDependencies, "dependency audit must follow npm ci");
+  assert.ok(runTests > auditDependencies, "dependency audit must finish before tests and packaging");
+});
+
 test("Mac download entry points direct users to the Intel or Apple Silicon package", () => {
   assert.match(website, /releases\/latest/);
   assert.doesNotMatch(website, /releases\/latest\/download\/Dokke-macOS\.dmg/);
