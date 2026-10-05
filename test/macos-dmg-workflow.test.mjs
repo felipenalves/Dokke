@@ -187,7 +187,7 @@ test("macOS workflows inspect the built DMG after the general test suite", () =>
     const generalTestBlock = buildWorkflow.slice(generalTests, buildDmg);
     const layoutTestBlock = buildWorkflow.slice(layoutTestStep, verifyDmgStep);
     assert.match(generalTestBlock, /DOKKE_SKIP_DMG_FIXTURE/);
-    assert.match(generalTestBlock, /run: npm test/);
+    assert.match(generalTestBlock, /run: npm test -- --test-concurrency=1/);
     assert.match(layoutTestBlock, /DOKKE_DMG_FIXTURE/);
   }
 

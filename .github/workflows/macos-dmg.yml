@@ -74,7 +74,7 @@ jobs:
       - name: Run project tests
         env:
           DOKKE_SKIP_DMG_FIXTURE: "1"
-        run: npm test
+        run: npm test -- --test-concurrency=1
 
       - name: Build architecture-specific DMG
         run: ./mac/package-dmg.sh
