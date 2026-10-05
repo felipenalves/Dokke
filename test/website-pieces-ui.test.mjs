@@ -54,6 +54,21 @@ test("@spec:AC-320 picker preserva Apps e Website Links", () => {
   assert.match(picker, /Button\(I18n\.text\("picker\.add"/);
 });
 
+test("seletor do picker torna cada aba inteira clicável e dá retorno ao pressionar", () => {
+  const start = picker.indexOf("private func pickerTabButton");
+  const end = picker.indexOf("var body: some View", start);
+  const button = picker.slice(start, end);
+  const labelStart = button.indexOf("} label: {");
+  const labelEnd = button.indexOf(".buttonStyle(", labelStart);
+  const label = button.slice(labelStart, labelEnd);
+
+  assert.match(label, /\.frame\(maxWidth: \.infinity\)[\s\S]*?\.frame\(height: 72\)[\s\S]*?\.background\([\s\S]*?\.contentShape\(Rectangle\(\)\)/);
+  assert.match(button, /\.buttonStyle\(PickerTabButtonStyle\(\)\)/);
+  assert.match(button, /\.onHover \{ isHovering in[\s\S]*hoveredPickerTab = isHovering \? selection : nil/);
+  assert.match(picker, /private struct PickerTabButtonStyle: ButtonStyle/);
+  assert.match(picker, /configuration\.isPressed/);
+});
+
 test("picker Apps usa a mesma linguagem de cards e ações azuis", () => {
   assert.match(picker, /I18n\.text\("picker\.library"/);
   assert.match(picker, /private func appRow\(_ app: InstalledApp\)/);

@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+private struct PickerTabButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .opacity(configuration.isPressed ? 0.78 : 1)
+      .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+  }
+}
+
 struct AppPickerSheet: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var languageStore: LanguageStore
@@ -11,6 +19,7 @@ struct AppPickerSheet: View {
   @FocusState private var isSearchFocused: Bool
   @FocusState private var isShortcutEmojiFocused: Bool
   @State private var selectedTab = "Apps"
+  @State private var hoveredPickerTab: String?
   @State private var websiteURL = ""
   @State private var pendingWebsiteURL = ""
   @State private var pendingWebsiteTitle = ""
@@ -97,6 +106,7 @@ struct AppPickerSheet: View {
     fallbackSystemName: String
   ) -> some View {
     let isSelected = selectedTab == selection
+    let isHovered = hoveredPickerTab == selection
     return Button {
       selectedTab = selection
     } label: {
@@ -123,12 +133,15 @@ struct AppPickerSheet: View {
       .frame(maxWidth: .infinity)
       .frame(height: 72)
       .background(
-        isSelected ? Color.white.opacity(0.13) : Color.clear,
+        isSelected ? Color.white.opacity(0.13) : (isHovered ? Color.white.opacity(0.06) : Color.clear),
         in: RoundedRectangle(cornerRadius: 16, style: .continuous)
       )
+      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
-    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .buttonStyle(PickerTabButtonStyle())
+    .onHover { isHovering in
+      hoveredPickerTab = isHovering ? selection : nil
+    }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(title)
     .accessibilityAddTraits(isSelected ? .isSelected : [])
