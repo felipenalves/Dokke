@@ -12,7 +12,12 @@ const scriptPath = path.join(projectRoot, 'mac', 'package-dmg.sh');
 const installScriptPath = path.join(projectRoot, 'mac', 'install.sh');
 const backgroundSvgPath = path.join(projectRoot, 'mac', 'dmg-background.svg');
 const backgroundFileName = 'dmg-background.png';
-const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
+const skipDmgFixture = process.env.DOKKE_SKIP_DMG_FIXTURE === '1'
+  ? { skip: 'CI validates the built DMG after the general test suite' }
+  : {};
+const macOnly = process.platform === 'darwin'
+  ? skipDmgFixture
+  : { skip: 'DMG packaging requires macOS' };
 const expectedPublicFiles = [
   'dokke.apk',
   'fonts',
@@ -63,6 +68,17 @@ async function getFixture() {
   if (fixturePromise) return fixturePromise;
 
   fixturePromise = Promise.resolve().then(() => {
+    if (process.env.DOKKE_DMG_FIXTURE) {
+      const imagePath = path.resolve(projectRoot, process.env.DOKKE_DMG_FIXTURE);
+      assert.ok(fs.existsSync(imagePath), `built DMG fixture is missing: ${imagePath}`);
+      fixture = {
+        imagePath,
+        tempDir: null,
+        mountPoint: attach(imagePath)
+      };
+      return fixture;
+    }
+
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dokke-dmg-layout-'));
     const imagePath = path.join(tempDir, 'Dokke-layout-test.dmg');
     const result = run('bash', [scriptPath, imagePath], { cwd: projectRoot });
@@ -93,7 +109,7 @@ function dsStore(mountPoint) {
 test.after(() => {
   if (fixture) {
     detach(fixture.mountPoint);
-    fs.rmSync(fixture.tempDir, { recursive: true, force: true });
+    if (fixture.tempDir) fs.rmSync(fixture.tempDir, { recursive: true, force: true });
   }
 });
 

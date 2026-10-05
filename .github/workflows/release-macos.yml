@@ -211,10 +211,17 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run project tests
+        env:
+          DOKKE_SKIP_DMG_FIXTURE: "1"
         run: npm test
 
       - name: Build architecture-specific DMG
         run: ./mac/package-dmg.sh
+
+      - name: Test architecture-specific DMG layout
+        env:
+          DOKKE_DMG_FIXTURE: mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg
+        run: node --test test/package-dmg.test.mjs
 
       - name: Verify checksum, app architectures, and packaged runtime
         run: |

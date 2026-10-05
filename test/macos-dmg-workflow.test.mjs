@@ -11,7 +11,7 @@ const readText = async (url) => {
   }
 };
 
-const [workflow, releaseWorkflow, updater, website, readme, englishReadme, verifyDmg, smokeServer, packageDmg, mergeArchitectures] = await Promise.all([
+const [workflow, releaseWorkflow, updater, website, readme, englishReadme, verifyDmg, smokeServer, packageDmg, mergeArchitectures, packageDmgTests] = await Promise.all([
   readText(new URL("../.github/workflows/macos-dmg.yml", import.meta.url)),
   readText(new URL("../.github/workflows/release-macos.yml", import.meta.url)),
   readText(new URL("../mac/Sources/DokkeUpdateManager.swift", import.meta.url)),
@@ -22,6 +22,7 @@ const [workflow, releaseWorkflow, updater, website, readme, englishReadme, verif
   readText(new URL("../mac/smoke-packaged-server.mjs", import.meta.url)),
   readText(new URL("../mac/package-dmg.sh", import.meta.url)),
   readText(new URL("../mac/merge-app-architectures.sh", import.meta.url)),
+  readText(new URL("./package-dmg.test.mjs", import.meta.url)),
 ]);
 
 test("macOS matrix builds native Intel and Apple Silicon targets", () => {
@@ -167,6 +168,31 @@ test("macOS matrix installs the Playwright browser before running the full suite
   const runTests = workflow.indexOf("run: npm test");
   assert.ok(installBrowser >= 0, "Chromium installation step is missing");
   assert.ok(runTests > installBrowser, "Playwright browser must be installed before npm test");
+});
+
+test("macOS workflows inspect the built DMG after the general test suite", () => {
+  for (const buildWorkflow of [workflow, releaseWorkflow]) {
+    const generalTests = buildWorkflow.indexOf("- name: Run project tests");
+    const buildDmg = buildWorkflow.indexOf("run: ./mac/package-dmg.sh", generalTests);
+    const layoutTestStep = buildWorkflow.indexOf("- name: Test architecture-specific DMG layout", buildDmg);
+    const layoutTests = buildWorkflow.indexOf("node --test test/package-dmg.test.mjs", layoutTestStep);
+    const verifyDmgStep = buildWorkflow.indexOf("mac/verify-dmg.sh", layoutTests);
+
+    assert.ok(generalTests >= 0, "general project test step is missing");
+    assert.ok(buildDmg > generalTests, "DMG build must follow the general suite");
+    assert.ok(layoutTestStep > buildDmg, "DMG layout assertions must inspect the built artifact afterwards");
+    assert.ok(layoutTests > layoutTestStep, "the layout test command is missing");
+    assert.ok(verifyDmgStep > layoutTests, "artifact verification must follow layout assertions");
+
+    const generalTestBlock = buildWorkflow.slice(generalTests, buildDmg);
+    const layoutTestBlock = buildWorkflow.slice(layoutTestStep, verifyDmgStep);
+    assert.match(generalTestBlock, /DOKKE_SKIP_DMG_FIXTURE/);
+    assert.match(generalTestBlock, /run: npm test/);
+    assert.match(layoutTestBlock, /DOKKE_DMG_FIXTURE/);
+  }
+
+  assert.match(packageDmgTests, /DOKKE_SKIP_DMG_FIXTURE/);
+  assert.match(packageDmgTests, /DOKKE_DMG_FIXTURE/);
 });
 
 test("packaged server smoke starts the embedded server and checks the Dokke health response", () => {
