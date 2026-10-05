@@ -260,25 +260,7 @@ chmod +x "${ICON_HELPER_APP}/Contents/MacOS/DokkeIconHelper"
 
 # Keep the server bundle explicit. `public/` can contain ignored backups,
 # logs, and local build output that must never become public app content.
-PUBLIC_FILES=(
-  "index.html"
-  "manifest.webmanifest"
-  "sw.js"
-  "icon-192.png"
-  "icon-192-dark.png"
-  "icon-512.png"
-  "version.json"
-  "dokke.apk"
-)
-mkdir -p "${SRV_DIR}/public"
-for public_file in "${PUBLIC_FILES[@]}"; do
-  source_file="${ROOT}/../public/${public_file}"
-  if [[ ! -f "${source_file}" ]]; then
-    echo "error: required public asset is missing: ${source_file}" >&2
-    exit 1
-  fi
-  cp "${source_file}" "${SRV_DIR}/public/${public_file}"
-done
+bash "${ROOT}/copy-public-assets.sh" "${ROOT}/../public" "${SRV_DIR}/public"
 cp "${ROOT}/../package.json" "${ROOT}/../package-lock.json" "${SRV_DIR}/"
 if command -v npm >/dev/null 2>&1; then
   (cd "${SRV_DIR}" && npm ci --omit=dev >/dev/null 2>&1) \

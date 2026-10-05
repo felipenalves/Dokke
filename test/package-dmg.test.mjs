@@ -15,6 +15,7 @@ const backgroundFileName = 'dmg-background.png';
 const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
 const expectedPublicFiles = [
   'dokke.apk',
+  'fonts',
   'icon-192-dark.png',
   'icon-192.png',
   'icon-512.png',
@@ -181,6 +182,10 @@ test('@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorado
   for (const app of appPaths) {
     const publicDir = path.join(app, 'Contents', 'Resources', 'Dokke', 'public');
     assert.deepEqual(fs.readdirSync(publicDir).sort(), expectedPublicFiles);
+    assert.deepEqual(fs.readdirSync(path.join(publicDir, 'fonts')).sort(), [
+      'Inter-Regular.otf',
+      'Inter-SemiBold.otf'
+    ]);
     assert.equal(fs.existsSync(path.join(publicDir, 'index.html.bak')), false);
     assert.equal(fs.readdirSync(publicDir).some((name) => /(?:\.bak|\.log)$/i.test(name)), false);
   }
@@ -188,10 +193,13 @@ test('@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorado
 
 test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   const script = fs.readFileSync(installScriptPath, 'utf8');
-  assert.match(script, /PUBLIC_FILES=\(/);
-  assert.match(script, /public_file/);
-  assert.doesNotMatch(script, /public\/mascot|usage\.js/);
-  assert.doesNotMatch(script, /cp -R "\$\{ROOT\}\/\.\.\/public" "\$\{SRV_DIR\}\/public"/);
+  const assetsScript = fs.readFileSync(path.join(projectRoot, 'mac', 'copy-public-assets.sh'), 'utf8');
+  assert.match(script, /copy-public-assets\.sh/);
+  assert.match(assetsScript, /PUBLIC_FILES=\(/);
+  assert.match(assetsScript, /fonts\/Inter-Regular\.otf/);
+  assert.match(assetsScript, /fonts\/Inter-SemiBold\.otf/);
+  assert.doesNotMatch(assetsScript, /public\/mascot|usage\.js/);
+  assert.doesNotMatch(assetsScript, /cp -R .*public/);
 });
 
 test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Release', () => {
