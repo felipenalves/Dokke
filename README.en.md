@@ -29,9 +29,13 @@ The Mac is the host: it runs the server and makes the dock available to other de
 
 [Download the APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) and install it. Then open Dokke on the Mac and use the URL and PIN shown in the **Connect** tab.
 
+To run Mac shortcuts remotely, connect through an HTTPS URL. The local HTTP connection remains available for other features.
+
 ### iPhone
 
 iPhone uses the browser PWA. Open the URL shown in the Mac app in Safari and choose **Add to Home Screen**. iPhone requires an HTTPS URL; the installation page describes the current path.
+
+Remote shortcuts require HTTPS on every device.
 
 > Windows is not available yet. The installation page will show a button when an installable version exists.
 

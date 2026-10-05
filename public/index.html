@@ -1111,6 +1111,7 @@
       "error.PIECE_NOT_FOUND": "Peça não encontrada",
       "error.INVALID_REQUEST": "Solicitação inválida",
       "error.SHORTCUT_ALREADY_RUNNING": "Este atalho já está em execução no Mac.",
+      "error.HTTPS_REQUIRED": "Abra o Dokke por um link HTTPS para acionar atalhos remotamente.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — abra o OBS para liberar as cenas",
       "obs.unavailable": "OBS indisponível — verifique o WebSocket", "obs.live": "AO VIVO", "obs.connected": "conectado",
       "obs.startRecording": "Gravar", "obs.stopRecording": "Parar", "obs.startLive": "Live", "obs.stopLive": "Parar live", "obs.stopAll": "Encerrar",
@@ -1162,6 +1163,7 @@
       "error.PIECE_NOT_FOUND": "Piece not found",
       "error.INVALID_REQUEST": "Invalid request",
       "error.SHORTCUT_ALREADY_RUNNING": "This shortcut is already running on the Mac.",
+      "error.HTTPS_REQUIRED": "Open Dokke through an HTTPS link to run shortcuts remotely.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — open OBS to enable scenes",
       "obs.unavailable": "OBS unavailable — check the WebSocket", "obs.live": "LIVE", "obs.connected": "connected",
       "obs.startRecording": "Record", "obs.stopRecording": "Stop", "obs.startLive": "Live", "obs.stopLive": "Stop live", "obs.stopAll": "Stop",
@@ -1599,9 +1601,12 @@
     try { r = await post("/api/pieces/" + encodeURIComponent(piece.id) + "/open"); }
     catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
     if (!r || !r.data || r.data.ok !== true) {
-      const message = r && r.data && r.data.code === "SHORTCUT_ALREADY_RUNNING"
+      const code = r && r.data && r.data.code;
+      const message = code === "SHORTCUT_ALREADY_RUNNING"
         ? t("error.SHORTCUT_ALREADY_RUNNING")
-        : t("toast.openFailed", { name: piece.title || piece.name || t("site") });
+        : code === "HTTPS_REQUIRED"
+          ? t("error.HTTPS_REQUIRED")
+          : t("toast.openFailed", { name: piece.title || piece.name || t("site") });
       toast(message, "err");
     }
   }
@@ -2561,13 +2566,25 @@
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
   // (menos acordar de CPU/radio/bateria no device; volta rapido quando reaparece)
   let healthBackoff = 15000, appsBackoff = 2500;
-  let healthChecked = false, appsLoadFailed = false, connectionRetrying = false;
+  let healthChecked = false, appsLoadFailed = false, installedLoadFailed = false, connectionRetrying = false;
   let connectionRevision = 0, healthRequestInFlight = false;
   const appsLoadSequence = { value: 0 };
   const HEALTH_OK = 15000, APPS_OK = 2500, POLL_MAX = 60000, POLL_HIDDEN = 30000;
 
+  function ensureAppsPoll(delay){
+    if (appsT) return;
+    appsT = setTimeout(loadApps, Number.isFinite(delay) ? delay : appsBackoff);
+  }
+
   function renderConnectionNotice(){
-    const noInitialData = appsLoadFailed && !state.pieces.length && !state.installedReady;
+    const installedAppMissing = state.pieces.some(function(piece){
+      return piece.type === "app" && !state.installed.some(function(app){ return app.name === piece.name; });
+    });
+    const installedInventoryNeeded = installedAppMissing || (!state.installedReady && (
+      !state.pieces.length || state.pieces.some(function(piece){ return piece.type === "app"; })
+    ));
+    const noInitialData = (appsLoadFailed && !state.pieces.length) ||
+      (installedLoadFailed && installedInventoryNeeded);
     const offline = healthChecked && !state.online;
     const show = !loginOpen && (offline || noInitialData);
     const wasVisible = connectionNoticeVisible;
@@ -2694,6 +2711,9 @@
     applyPinnedLimits(limits);
     const nextSig = nextPieces.map(function(piece){ return piece.id; }).join("\u0000");
     const pinnedChanged = nextSig !== pinnedSig;
+    const installedAppMissing = pinnedChanged && state.installedReady && nextPieces.some(function(piece){
+      return piece.type === "app" && !state.installed.some(function(app){ return app.name === piece.name; });
+    });
     pinnedSig = nextSig;
     state.pieces = nextPieces;
     state.pinned = Array.isArray(pinned) ? pinned : nextPieces.filter(function(piece){ return piece.type === "app"; }).map(function(piece){ return piece.name; });
@@ -2702,6 +2722,7 @@
     if (pinnedChanged){
       if (document.body.classList.contains("swiping")) launchpadRenderPending = true;
       else renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+      if (installedAppMissing) loadInstalled();
     }
     const key = recentsKey();
     if (recentsKeyPrev === null || key !== recentsKeyPrev){
@@ -2741,6 +2762,9 @@
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (!m) return;
       if (m.type === "online"){
+        // Não deixe uma resposta HTTP mais antiga sobrescrever o evento atual.
+        appsLoadSequence.value += 1;
+        ensureAppsPoll(appsBackoff);
         healthChecked = true;
         state.online = !!m.online;
         connectionRevision += 1;
@@ -2749,6 +2773,7 @@
         maybeReloadForUi(m.v);
       } else if (m.type === "apps"){
         appsLoadSequence.value += 1;
+        ensureAppsPoll(APPS_OK);
         state.online = true;
         connectionRevision += 1;
         healthChecked = true;
@@ -2841,19 +2866,33 @@
 
   let installedT = null;
   let installedLoadSequence = 0;
+  function failInstalledLoad(requestSequence){
+    if (requestSequence !== installedLoadSequence) return;
+    installedLoadFailed = true;
+    renderConnectionNotice();
+    installedT = setTimeout(loadInstalled, 8000);
+  }
   async function loadInstalled(){
     if (installedT){ clearTimeout(installedT); installedT = null; }
     const requestSequence = ++installedLoadSequence;
+    const pinnedAtRequest = pinnedSig;
     try {
       const r = await req("/api/apps/installed", { timeout: 6000 });
       if (requestSequence !== installedLoadSequence) return;
       if (r.status === 200 && r.data && r.data.ok === true && Array.isArray(r.data.apps)){
         state.installed = r.data.apps;
         state.installedReady = true;
+        installedLoadFailed = false;
         renderLaunchpad();
+        renderConnectionNotice();
+        if (pinnedAtRequest !== pinnedSig && state.pieces.some(function(piece){
+          return piece.type === "app" && !r.data.apps.some(function(app){ return app.name === piece.name; });
+        })) loadInstalled();
+      } else if (r.status !== 401){
+        failInstalledLoad(requestSequence);
       }
     } catch (e) {
-      if (requestSequence === installedLoadSequence) installedT = setTimeout(loadInstalled, 8000);
+      failInstalledLoad(requestSequence);
     }
   }
 
@@ -3491,6 +3530,7 @@
 
   const initialScreen = readPersistedScreen();
   renderVDots();
+  renderRecents();
   if (initialScreen !== "apps") goScreen(initialScreen);
 
   // orientation change
@@ -3594,7 +3634,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v33").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v34").catch(function() {});
   }
 })();</script>
 </body>

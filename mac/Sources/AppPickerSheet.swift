@@ -602,6 +602,7 @@ struct AppPickerSheet: View {
           .multilineTextAlignment(.center)
           .frame(width: 48, height: 48)
           .focused($isShortcutEmojiFocused)
+          .onAppear { isShortcutEmojiFocused = true }
           .accessibilityLabel(I18n.text("picker.chooseEmoji", language: languageStore.selected))
           .simultaneousGesture(TapGesture().onEnded { openShortcutEmojiPalette() })
           .onChange(of: pendingShortcutEmoji) { _, value in

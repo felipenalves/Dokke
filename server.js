@@ -62,13 +62,29 @@ const PING_MIN_INTERVAL_MS = 1500;
 /** Detecta conexões WebSocket quebradas sem adicionar tráfego HTTP. */
 const WS_HEARTBEAT_MS = 30_000;
 
+/** Cloudflared termina HTTPS fora do Mac e conecta ao Dokke por loopback HTTP.
+ * Só confiamos no protocolo encaminhado quando o próprio proxy é local. */
+function isTrustedHttpsProxyRequest(req) {
+  if (!isLoopback(req.socket.remoteAddress)) return false;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+    ?.split(",", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  return protocol === "https";
+}
+
+function isSecureRequest(req) {
+  return Boolean(req.socket.encrypted) || isTrustedHttpsProxyRequest(req);
+}
+
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
 function sameOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try {
-    const protocol = req.socket.encrypted ? "https:" : "http:";
+    const protocol = isSecureRequest(req) ? "https:" : "http:";
     if (!req.headers.host) return false;
     const serverOrigin = new URL(`${protocol}//${req.headers.host}`).origin;
     return new URL(origin).origin === serverOrigin;
@@ -80,6 +96,7 @@ function sameOrigin(req) {
 /** A listagem só é usada pelo picker macOS. O cabeçalho dedicado distingue a
  * URLSession nativa de GETs induzidos por páginas, mesmo sem Fetch Metadata. */
 function trustedShortcutsPickerRequest(req) {
+  if (!isTrustedLoopbackRequest(req)) return false;
   if (req.headers["x-dokke-client"] !== "dokke-macos-picker") return false;
   if (!sameOrigin(req)) return false;
   const fetchSite = req.headers["sec-fetch-site"];
@@ -430,7 +447,7 @@ export function makeApp(deps = {}) {
       (trustLoopback && isTrustedLoopbackRequest(req)) ||
       (!!auth && typeof auth.checkSession === "function" && auth.checkSession(tokenFromCookie(req.headers.cookie)));
     if (auth && url.pathname === "/api/auth" && req.method === "POST") {
-      if (isLoopback(ipOf) && !requestHostIsLoopback(req)) {
+      if (isLoopback(ipOf) && !requestHostIsLoopback(req) && !isSecureRequest(req)) {
         res.writeHead(403, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "origem não permitida" }));
         return;
@@ -461,7 +478,7 @@ export function makeApp(deps = {}) {
                 "Content-Type": "application/json",
                 // dois Set-Cookie: sessão nova + apaga legado que carregava o PIN
                 "Set-Cookie": [
-                  sessionCookie(token, { secure: Boolean(req.socket.encrypted) }),
+                  sessionCookie(token, { secure: isSecureRequest(req) }),
                   clearLegacyPinCookie(),
                 ],
                 ...SEC_HEADERS,
@@ -666,6 +683,13 @@ export function makeApp(deps = {}) {
             return;
           }
         } else if (body?.type === "shortcut") {
+          if (!trustedShortcutsPickerRequest(req)) {
+            respondError(403, {
+              code: "SHORTCUT_PICKER_REQUIRED",
+              error: "atalhos só podem ser adicionados pelo picker local do Mac",
+            });
+            return;
+          }
           try { piece = createShortcutPiece(body.name, body.emoji); }
           catch (err) {
             respondError(400, { code: "INVALID_SHORTCUT", error: err?.message || "nome do atalho inválido" });
@@ -833,6 +857,13 @@ export function makeApp(deps = {}) {
               return null;
             }
             if (piece.type === "shortcut") {
+              if (!isTrustedLoopbackRequest(req) && !isSecureRequest(req)) {
+                respondError(403, {
+                  code: "HTTPS_REQUIRED",
+                  error: "a execução remota de atalhos exige uma conexão HTTPS",
+                });
+                return null;
+              }
               let safe;
               try { safe = createShortcutPiece(piece.name, piece.emoji); }
               catch { respondError(409, { code: "INVALID_SHORTCUT", error: "atalho inválido" }); return null; }

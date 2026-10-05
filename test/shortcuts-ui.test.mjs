@@ -58,13 +58,14 @@ test("Adicionar abre a escolha de emoji e só fixa após confirmação", () => {
   assert.match(picker, /guard store\.busyName != pendingShortcutName else \{ return \}/);
 });
 
-test("mouse é o emoji padrão e o campo só recebe foco quando o seletor é aberto", () => {
+test("mouse é o emoji padrão e o campo recebe foco quando o prompt abre", () => {
   const prompt = picker.slice(picker.indexOf("private var shortcutEmojiPrompt"), picker.indexOf("private func appRow"));
-  const begin = picker.slice(picker.indexOf("private func beginShortcutAdd"), picker.indexOf("private func confirmShortcutAdd"));
   const open = picker.slice(picker.indexOf("private func openShortcutEmojiPalette"), picker.indexOf("private func cancelWebsiteAdd"));
+  const emojiField = prompt.slice(prompt.indexOf('TextField("", text: $pendingShortcutEmoji'), prompt.indexOf(".onChange(of: pendingShortcutEmoji)"));
   assert.match(picker, /@State private var pendingShortcutEmoji = "🖱️"/);
   assert.match(picker, /pendingShortcutEmoji = "🖱️"/);
-  assert.doesNotMatch(begin, /isShortcutEmojiFocused = true|DispatchQueue\.main\.async/);
+  assert.match(emojiField, /\.focused\(\$isShortcutEmojiFocused\)/);
+  assert.match(emojiField, /\.onAppear \{ isShortcutEmojiFocused = true \}/);
   assert.match(open, /isShortcutEmojiFocused = true/);
   assert.match(open, /NSApp\.orderFrontCharacterPalette/);
   assert.match(prompt, /\.simultaneousGesture\(TapGesture\(\)\.onEnded \{ openShortcutEmojiPalette\(\) \}\)/);
@@ -136,8 +137,10 @@ test("PWA renderiza e remove atalhos sem tratá-los como apps instalados", () =>
 
 test("store usa endpoints autenticados do host para listar, fixar e acionar atalhos", () => {
   assert.match(store, /\/api\/shortcuts/);
-  assert.match(store, /func addShortcut\(_ name: String, emoji: String, at index: Int\? = nil\) async -> Bool/);
-  assert.match(store, /"emoji": emoji/);
+  const addShortcut = store.slice(store.indexOf("func addShortcut("), store.indexOf("func removePiece("));
+  assert.match(addShortcut, /req\.setValue\("dokke-macos-picker", forHTTPHeaderField: "X-Dokke-Client"\)/);
+  assert.match(addShortcut, /"emoji": emoji/);
+  assert.match(addShortcut, /async -> Bool/);
   assert.match(store, /func openShortcut\(/);
   assert.match(store, /\/api\/pieces\//);
 });

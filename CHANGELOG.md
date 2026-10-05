@@ -18,6 +18,13 @@ recuperação da conexão entre o servidor do Mac e a PWA.
   uma tentativa de reconexão.
 - O app do Mac monitora um servidor Dokke já ativo e tenta iniciar sua própria
   instância se o processo adotado parar.
+- A instalação do Service Worker exige que o shell da PWA entre no cache; uma
+  atualização incompleta preserva o worker e a tela offline anteriores.
+- O bundle do servidor Mac inclui as fontes Inter usadas pela PWA.
+- Só o picker local do Mac pode consultar a lista e adicionar atalhos do Apple
+  Shortcuts.
+- Atalhos acionados remotamente exigem HTTPS; a execução local continua disponível.
+- O campo de emoji recebe foco acessível quando o prompt de atalho abre.
 
 Esta versão ainda não foi publicada. Os DMGs, o APK de produção assinado e seus
 checksums dependem da validação final de build.

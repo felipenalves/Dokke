@@ -602,6 +602,7 @@ final class DockStore: ObservableObject {
     var req = URLRequest(url: endpoint)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.setValue("dokke-macos-picker", forHTTPHeaderField: "X-Dokke-Client")
     req.httpBody = try? JSONSerialization.data(withJSONObject: [
       "type": "shortcut", "name": name, "emoji": emoji, "position": position,
     ])

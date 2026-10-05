@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { startServer } from "../server.js";
 import { createShortcutPiece } from "../config.js";
+import { readPinFile } from "../auth.js";
 
 const savedShortcut = createShortcutPiece("Criar nota de reunião", "📝");
 
@@ -95,6 +99,7 @@ test("API salva apenas um atalho que existe no Mac e preserva o slot pedido", as
   try {
     const result = await request(server, "/api/config/pieces", {
       method: "POST",
+      headers: { "X-Dokke-Client": "dokke-macos-picker" },
       body: JSON.stringify({ type: "shortcut", name: "Abrir agenda", emoji: "📅", position: 3 }),
     });
     assert.equal(result.response.status, 200);
@@ -114,6 +119,7 @@ test("API recusa emoji inválido e não altera a configuração", async () => {
   try {
     const result = await request(server, "/api/config/pieces", {
       method: "POST",
+      headers: { "X-Dokke-Client": "dokke-macos-picker" },
       body: JSON.stringify({ type: "shortcut", name: "Abrir agenda", emoji: "AB" }),
     });
     assert.equal(result.response.status, 400);
@@ -128,6 +134,7 @@ test("API recusa atalho que não consta no Mac", async () => {
   try {
     const result = await request(server, "/api/config/pieces", {
       method: "POST",
+      headers: { "X-Dokke-Client": "dokke-macos-picker" },
       body: JSON.stringify({ type: "shortcut", name: "Atalho inventado" }),
     });
     assert.equal(result.response.status, 404);
@@ -156,6 +163,86 @@ test("toque remoto executa o nome salvo no Mac, ignorando nome enviado pelo clie
     assert.equal(result.body.piece.emoji, "📝");
     assert.equal(executed, "Criar nota de reunião");
   } finally { await server.close(); }
+});
+
+test("HTTP remoto não pode executar atalhos mesmo com uma sessão válida", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dokke-shortcut-http-"));
+  let executions = 0;
+  const server = await startTemp({
+    root,
+    trustLoopback: false,
+    config: { pieces: [savedShortcut], revision: 1 },
+    actions: {
+      listShortcuts: async () => [savedShortcut.name],
+      runShortcut: async () => { executions += 1; },
+    },
+  });
+  try {
+    const pin = await readPinFile(root);
+    const login = await request(server, "/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ pin }),
+    });
+    assert.equal(login.response.status, 200);
+    const cookie = (login.response.headers.get("set-cookie") || "").split(";")[0];
+
+    const result = await requestWithHost(server, `/api/pieces/${savedShortcut.id}/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: "{}",
+    });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.body.code, "HTTPS_REQUIRED");
+    assert.equal(executions, 0);
+  } finally {
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("HTTPS de proxy local protege a sessão e permite executar atalhos", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dokke-shortcut-proxy-"));
+  let executions = 0;
+  const server = await startTemp({
+    root,
+    trustLoopback: false,
+    config: { pieces: [savedShortcut], revision: 1 },
+    actions: {
+      listShortcuts: async () => [savedShortcut.name],
+      runShortcut: async () => { executions += 1; },
+    },
+  });
+  const host = `dokke.example.test:${server.port}`;
+  const proxyHeaders = {
+    Host: host,
+    Origin: `https://${host}`,
+    "X-Forwarded-Proto": "https",
+    "Content-Type": "application/json",
+  };
+  try {
+    const pin = await readPinFile(root);
+    const login = await requestWithHost(server, "/api/auth", {
+      method: "POST",
+      headers: proxyHeaders,
+      body: JSON.stringify({ pin }),
+    });
+    assert.equal(login.response.statusCode, 200);
+    const setCookie = login.response.headers["set-cookie"] || [];
+    const sessionHeader = setCookie.find(value => value.startsWith("j5_session=")) || "";
+    assert.match(sessionHeader, /(?:^|; )Secure(?:;|$)/);
+    const cookie = sessionHeader.split(";")[0];
+
+    const opened = await requestWithHost(server, `/api/pieces/${savedShortcut.id}/open`, {
+      method: "POST",
+      headers: { ...proxyHeaders, Cookie: cookie },
+      body: "{}",
+    });
+    assert.equal(opened.response.statusCode, 200);
+    assert.equal(executions, 1);
+  } finally {
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("API informa conflito quando o atalho solicitado já está em execução", async () => {
@@ -207,6 +294,49 @@ test("Host externo não usa a exceção de loopback para listar ou executar atal
     assert.equal(opened.response.statusCode, 401);
     assert.equal(executions, 0);
   } finally { await server.close(); }
+});
+
+test("sessão autenticada da LAN não pode adicionar atalho fora do picker local", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dokke-shortcut-picker-"));
+  let listCalls = 0;
+  const server = await startTemp({
+    root,
+    trustLoopback: false,
+    actions: {
+      listShortcuts: async () => { listCalls += 1; return ["Abrir agenda"]; },
+      runShortcut: async () => {},
+    },
+  });
+  try {
+    const pin = await readPinFile(root);
+    const login = await request(server, "/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ pin }),
+    });
+    assert.equal(login.response.status, 200);
+    const cookie = (login.response.headers.get("set-cookie") || "").split(";")[0];
+    assert.match(cookie, /^j5_session=/);
+
+    const result = await requestWithHost(server, "/api/config/pieces", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookie,
+        "X-Dokke-Client": "dokke-macos-picker",
+      },
+      body: JSON.stringify({ type: "shortcut", name: "Abrir agenda" }),
+    });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(listCalls, 0);
+
+    const config = await request(server, "/api/config", {
+      headers: { Cookie: cookie },
+    });
+    assert.deepEqual(config.body.config.pieces, []);
+  } finally {
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("PUT legado recusa substituir uma configuração que contém atalhos", async () => {

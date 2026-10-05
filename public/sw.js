@@ -1,15 +1,24 @@
-const CACHE = "dokke-v33";
-const PRECACHE = [
-  "/", "/index.html", "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest"
+const CACHE = "dokke-v34";
+const REQUIRED_SHELL = ["/", "/index.html"];
+const OPTIONAL_PRECACHE = [
+  "/icon-192.png", "/icon-192-dark.png", "/icon-512.png", "/manifest.webmanifest"
 ];
 
 self.addEventListener("install", function(e) {
-  e.waitUntil(caches.open(CACHE).then(function(c) {
-    // Um asset opcional ausente não pode impedir a atualização do app inteiro.
-    return Promise.all(PRECACHE.map(function(url) {
-      return c.add(url).catch(function() { return null; });
+  var install = caches.open(CACHE).then(function(c) {
+    return c.addAll(REQUIRED_SHELL).then(function() {
+      // Ícones e manifesto podem faltar sem bloquear a instalação do PWA.
+      return Promise.all(OPTIONAL_PRECACHE.map(function(url) {
+        return c.add(url).catch(function() { return null; });
+      }));
     });
-  }).then(function() { return self.skipWaiting(); }));
+  }).then(function() {
+    return self.skipWaiting();
+  }).catch(function(error) {
+    // Uma instalação incompleta não pode substituir o worker e o shell atuais.
+    return caches.delete(CACHE).then(function() { throw error; }, function() { throw error; });
+  });
+  e.waitUntil(install);
 });
 
 self.addEventListener("activate", function(e) {
