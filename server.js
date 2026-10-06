@@ -218,15 +218,36 @@ const DISCOVERY_PORT = 3001;
 export const DISCOVERY_MAGIC = "dokke:discover";
 
 function ipv4ToInt(ip) {
+  if (typeof ip !== "string" || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) return null;
   const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some(p => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+  if (parts.some(p => p < 0 || p > 255)) return null;
   return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
 }
 
 function inSubnet(ip, addr, mask) {
   const a = ipv4ToInt(ip), b = ipv4ToInt(addr), m = ipv4ToInt(mask);
   if (a == null || b == null || m == null) return false;
-  return (a & m) === (b & m);
+  const inverseMask = (~m) >>> 0;
+  if (m === 0 || (inverseMask & (inverseMask + 1)) !== 0) return false;
+  return ((a & m) >>> 0) === ((b & m) >>> 0);
+}
+
+/** Só considera IPv4 da mesma sub-rede em Ethernet/Wi-Fi do Mac. VPNs,
+ * loopback, endereços encaminhados e X-Forwarded-For não ampliam essa exceção. */
+export function isAddressOnLocalNetwork(peerAddress, interfaces = networkInterfaces()) {
+  const address = typeof peerAddress === "string" && peerAddress.toLowerCase().startsWith("::ffff:")
+    ? peerAddress.slice(7)
+    : peerAddress;
+  if (ipv4ToInt(address) == null || isLoopback(address)) return false;
+
+  return Object.entries(interfaces ?? {}).some(([name, infos]) => {
+    if (!/^en\d+$/i.test(name)) return false;
+    return (infos ?? []).some(info =>
+      (info.family === "IPv4" || info.family === 4) &&
+      !info.internal &&
+      inSubnet(address, info.address, info.netmask)
+    );
+  });
 }
 
 /** IP da interface que está na mesma rede do cliente (Wi-Fi, Ethernet, Tailscale…). */
@@ -346,6 +367,7 @@ export function makeApp(deps = {}) {
     iconService = realIconService(),
     onStatusChange = null,
     getDeviceCount = null,
+    isLocalNetworkRequest = req => isAddressOnLocalNetwork(req.socket.remoteAddress),
   } = deps;
   const configFile = deps.configFile ?? (deps.config === undefined ? join(import.meta.dirname, "config.json") : null);
   const readConfig = async () => {
@@ -857,10 +879,12 @@ export function makeApp(deps = {}) {
               return null;
             }
             if (piece.type === "shortcut") {
-              if (!isTrustedLoopbackRequest(req) && !isSecureRequest(req)) {
+              const trustedLoopback = isTrustedLoopbackRequest(req);
+              const allowedLocalHttp = isLocalNetworkRequest(req);
+              if (!trustedLoopback && !isSecureRequest(req) && !allowedLocalHttp) {
                 respondError(403, {
                   code: "HTTPS_REQUIRED",
-                  error: "a execução remota de atalhos exige uma conexão HTTPS",
+                  error: "atalhos fora da rede local exigem HTTPS",
                 });
                 return null;
               }

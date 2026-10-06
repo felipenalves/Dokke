@@ -1,6 +1,26 @@
 # Changelog
 
-## v0.2.9 — em preparação (5 de outubro de 2026)
+## v0.2.10 — 6 de outubro de 2026
+
+### Correções
+
+- Atalhos do Mac podem ser executados por dispositivos autenticados na mesma sub-rede Ethernet/Wi-Fi, incluindo o APK, sem configuração manual.
+- Fora da rede local, a execução exige HTTPS. HTTP local não criptografa o tráfego.
+- As notas de versão no macOS agora separam títulos, parágrafos e listas para facilitar a leitura.
+
+### Instalação
+
+- macOS 14 ou posterior: abra o DMG e mova o Dokke para Aplicativos.
+- Android 5.0 ou posterior: instale o APK.
+
+### Downloads
+
+- [macOS Apple Silicon](https://github.com/felipenalves/Dokke/releases/download/v0.2.10/Dokke-macOS-apple-silicon-arm64.dmg)
+- [macOS Intel](https://github.com/felipenalves/Dokke/releases/download/v0.2.10/Dokke-macOS-intel-x86_64.dmg)
+- [macOS universal](https://github.com/felipenalves/Dokke/releases/download/v0.2.10/Dokke-macOS.dmg)
+- [Android](https://github.com/felipenalves/Dokke/releases/download/v0.2.10/dokke.apk)
+
+## v0.2.9 — 6 de outubro de 2026
 
 Esta atualização reúne os atalhos do Mac, builds adequados a cada arquitetura e
 recuperação da conexão entre o servidor do Mac e a PWA.

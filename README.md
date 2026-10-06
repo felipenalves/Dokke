@@ -46,15 +46,15 @@ O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros di
 
 ### Android
 
-[Baixar o APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) e instalar. Depois, abra o Dokke no Mac e use o link e o PIN exibidos na aba **Sobre** para conectar o celular.
+[Baixar o APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) e instalar. Depois, abra o Dokke no Mac e use o link e o PIN exibidos na aba **Conectar** para conectar o celular.
 
-Para acionar atalhos do Mac remotamente, conecte por uma URL HTTPS. A conexão HTTP local continua disponível para os demais recursos.
+Atalhos funcionam por padrão em HTTP para dispositivos autenticados na mesma sub-rede Ethernet/Wi-Fi do Mac, incluindo o APK. O tráfego não é criptografado. Para executar atalhos fora dela, use uma URL HTTPS.
 
 ### iPhone
 
 O iPhone usa a PWA pelo navegador. Abra o link exibido na aba **Sobre** no Safari e escolha **Adicionar à Tela de Início**. O iPhone exige uma URL HTTPS; a página de instalação explica o caminho atual.
 
-Atalhos acionados remotamente exigem HTTPS em qualquer dispositivo.
+No iPhone, use HTTPS para executar atalhos fora da rede local.
 
 > Windows ainda não está disponível. O botão aparecerá na página quando houver uma versão instalável.
 

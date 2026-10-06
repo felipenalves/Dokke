@@ -423,6 +423,7 @@ struct AboutView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
+
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -605,11 +606,29 @@ private struct ReleaseNotesView: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var languageStore: LanguageStore
   let release: DokkeRelease
-  private let renderedNotes: AttributedString
 
-  init(release: DokkeRelease) {
-    self.release = release
-    renderedNotes = (try? AttributedString(markdown: release.notes)) ?? AttributedString(release.notes)
+  private var renderedNotes: [ReleaseNotesBlock] {
+    ReleaseNotesParser.parse(release.notes)
+  }
+
+  @ViewBuilder
+  private func noteBlock(_ block: ReleaseNotesBlock) -> some View {
+    switch block {
+    case .heading(let level, let content):
+      Text(content)
+        .font(level == 1 ? .title3.weight(.semibold) : .headline)
+        .accessibilityAddTraits(.isHeader)
+        .padding(.top, 4)
+    case .paragraph(let content):
+      Text(content)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    case .listItem(let marker, let content):
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(marker)
+        Text(content)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
   }
 
   var body: some View {
@@ -629,9 +648,13 @@ private struct ReleaseNotesView: View {
       }
 
       ScrollView {
-        Text(renderedNotes)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 10) {
+          ForEach(renderedNotes.indices, id: \.self) { index in
+            noteBlock(renderedNotes[index])
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .textSelection(.enabled)
       }
     }
     .padding(24)
@@ -647,7 +670,7 @@ struct MenuBarView: View {
   @EnvironmentObject private var languageStore: LanguageStore
 
   private var appVersion: String {
-    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.9"
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.10"
   }
 
   var body: some View {

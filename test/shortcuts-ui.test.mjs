@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = path => readFile(new URL(path, import.meta.url), "utf8");
-const [pwa, model, picker, store, icon, language, grid] = await Promise.all([
+const [pwa, model, picker, store, icon, language, grid, contentView] = await Promise.all([
   read("../public/index.html"),
   read("../mac/Sources/DockPiece.swift"),
   read("../mac/Sources/AppPickerSheet.swift"),
@@ -11,7 +11,15 @@ const [pwa, model, picker, store, icon, language, grid] = await Promise.all([
   read("../mac/Sources/DockIcon.swift"),
   read("../mac/Sources/LanguageStore.swift"),
   read("../mac/Sources/DockGridView.swift"),
+  read("../mac/Sources/ContentView.swift"),
 ]);
+
+test("atalhos HTTP locais não expõem uma configuração na interface", () => {
+  for (const source of [contentView, language, store, pwa]) {
+    assert.doesNotMatch(source, /localShortcuts|LocalShortcutPolicy|local-settings\/shortcuts/);
+    assert.doesNotMatch(source, /allowLocalNetworkShortcuts/);
+  }
+});
 
 test("picker inclui uma aba Atalhos ao lado de Apps e Website Links", () => {
   assert.match(picker, /picker\.shortcuts/);
