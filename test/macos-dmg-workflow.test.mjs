@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -121,12 +122,37 @@ test("release workflow invokes the resolved apksigner binary for every signer ch
   }
 });
 
-test("release preflight reports redacted APK signer output channels", () => {
-  assert.match(releaseWorkflow, /apk_signer_stdout_file=/);
-  assert.match(releaseWorkflow, /apk_signer_stderr_file=/);
-  assert.match(releaseWorkflow, /apk_signer_report_fields/);
-  assert.match(releaseWorkflow, /APK signer diagnostic: build_tools=/);
-  assert.match(releaseWorkflow, /<redacted>/);
+test("release signer checks preserve apksigner failure status before parsing certificate digests", () => {
+  const commands = releaseWorkflow
+    .split("\n")
+    .filter((line) => /apksigner.*verify --print-certs/.test(line));
+
+  assert.equal(commands.length, 4, "expected current and previous APK checks in both release jobs");
+  for (const command of commands) {
+    assert.match(command, /_signer_output="\$\("\$\{apksigner\}" verify --print-certs/);
+  }
+});
+
+test("release signer parser accepts legacy and SDK-ranged signer labels", () => {
+  const signerParsers = [...releaseWorkflow.matchAll(/sed -nE '([^']*SHA-256 digest[^']*)'/g)]
+    .map(([, pattern]) => pattern);
+  const certificateDigest = "0123456789abcdef".repeat(4);
+  const signerLines = [
+    `Signer #1 certificate SHA-256 digest: ${certificateDigest}`,
+    `Signer (minSdkVersion=24, maxSdkVersion=32) certificate SHA-256 digest: ${certificateDigest}`,
+  ];
+
+  assert.equal(signerParsers.length, 4, "expected all current and previous signer parsers");
+  for (const pattern of signerParsers) {
+    for (const signerLine of signerLines) {
+      const result = spawnSync("sed", ["-nE", pattern], {
+        input: `${signerLine}\n`,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0);
+      assert.equal(result.stdout, `${certificateDigest}\n`, `failed to parse: ${signerLine}`);
+    }
+  }
 });
 
 test("release workflow audits npm dependencies before tests and packaging", () => {
