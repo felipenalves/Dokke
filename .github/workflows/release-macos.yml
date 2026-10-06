@@ -114,10 +114,24 @@ jobs:
 
           keytool -printcert -jarfile public/dokke.apk >/dev/null
           keytool -printcert -jarfile "${previous_release_dir}/dokke.apk" >/dev/null
-          "${apksigner}" verify --print-certs public/dokke.apk >/dev/null
-          "${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" >/dev/null
-          apk_signers="$("${apksigner}" verify --print-certs public/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
-          previous_signers="$("${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          apk_signer_stdout_file="${RUNNER_TEMP}/dokke-apk-signer.stdout"
+          apk_signer_stderr_file="${RUNNER_TEMP}/dokke-apk-signer.stderr"
+          previous_apk_signer_stdout_file="${RUNNER_TEMP}/dokke-previous-apk-signer.stdout"
+          previous_apk_signer_stderr_file="${RUNNER_TEMP}/dokke-previous-apk-signer.stderr"
+          "${apksigner}" verify --print-certs public/dokke.apk >"${apk_signer_stdout_file}" 2>"${apk_signer_stderr_file}"
+          "${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" >"${previous_apk_signer_stdout_file}" 2>"${previous_apk_signer_stderr_file}"
+          apk_signers="$(sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' "${apk_signer_stdout_file}" | sort)"
+          previous_signers="$(sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' "${previous_apk_signer_stdout_file}" | sort)"
+
+          apk_signer_report_fields() {
+            sed -nE 's/^[[:space:]]*(Signer #[0-9]+ certificate [^:]+):.*/\1: <redacted>/p' "$1" | paste -sd ';' -
+          }
+          printf 'APK signer diagnostic: build_tools=%s current_stdout_fields="%s" current_stderr_fields="%s" previous_stdout_fields="%s" previous_stderr_fields="%s"\n' \
+            "$(basename "$(dirname "${apksigner}")")" \
+            "$(apk_signer_report_fields "${apk_signer_stdout_file}")" \
+            "$(apk_signer_report_fields "${apk_signer_stderr_file}")" \
+            "$(apk_signer_report_fields "${previous_apk_signer_stdout_file}")" \
+            "$(apk_signer_report_fields "${previous_apk_signer_stderr_file}")"
 
           package_match_status="mismatch"
           if [[ -n "${apk_package}" && "${apk_package}" == "${previous_apk_package}" ]]; then
