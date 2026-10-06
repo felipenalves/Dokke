@@ -115,10 +115,18 @@ test("release workflow invokes the resolved apksigner binary for every signer ch
     .split("\n")
     .filter((line) => /apksigner.*verify --print-certs/.test(line));
 
-  assert.equal(commands.length, 6, "expected current and previous APK checks in both release jobs");
+  assert.equal(commands.length, 4, "expected current and previous APK checks in both release jobs");
   for (const command of commands) {
     assert.match(command, /"\$\{apksigner\}" verify --print-certs/);
   }
+});
+
+test("release preflight reports redacted APK signer output channels", () => {
+  assert.match(releaseWorkflow, /apk_signer_stdout_file=/);
+  assert.match(releaseWorkflow, /apk_signer_stderr_file=/);
+  assert.match(releaseWorkflow, /apk_signer_report_fields/);
+  assert.match(releaseWorkflow, /APK signer diagnostic: build_tools=/);
+  assert.match(releaseWorkflow, /<redacted>/);
 });
 
 test("release workflow audits npm dependencies before tests and packaging", () => {
