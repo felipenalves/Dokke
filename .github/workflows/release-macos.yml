@@ -416,6 +416,15 @@ jobs:
             exit 1
           fi
 
+          notes_file="${RUNNER_TEMP}/dokke-release-notes.md"
+          awk -v tag="${RELEASE_TAG}" '
+            !found && index($0, "## " tag " ") == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > "${notes_file}"
+          test -s "${notes_file}"
+
           # Protect v* tags against update/deletion in GitHub before publishing.
           # This final fetch narrows the gap between validation and release creation.
           git fetch origin "+refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force --no-tags
@@ -432,13 +441,9 @@ jobs:
 
           gh release create "${RELEASE_TAG}" \
             release-assets/Dokke-macOS.dmg \
-            release-assets/Dokke-macOS.dmg.sha256 \
             release-assets/Dokke-macOS-intel-x86_64.dmg \
-            release-assets/Dokke-macOS-intel-x86_64.dmg.sha256 \
             release-assets/Dokke-macOS-apple-silicon-arm64.dmg \
-            release-assets/Dokke-macOS-apple-silicon-arm64.dmg.sha256 \
             release-assets/dokke.apk \
-            release-assets/dokke.apk.sha256 \
             --verify-tag \
             --title "Dokke ${RELEASE_TAG#v}" \
-            --generate-notes
+            --notes-file "${notes_file}"

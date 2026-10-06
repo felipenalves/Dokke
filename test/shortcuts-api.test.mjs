@@ -4,7 +4,7 @@ import { request as httpRequest } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startServer } from "../server.js";
+import { isAddressOnLocalNetwork, startServer } from "../server.js";
 import { createShortcutPiece } from "../config.js";
 import { readPinFile } from "../auth.js";
 
@@ -194,6 +194,78 @@ test("HTTP remoto não pode executar atalhos mesmo com uma sessão válida", asy
     assert.equal(result.response.statusCode, 403);
     assert.equal(result.body.code, "HTTPS_REQUIRED");
     assert.equal(executions, 0);
+  } finally {
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("checagem da sub-rede aceita somente endereços IPv4 das interfaces Ethernet/Wi-Fi", () => {
+  const interfaces = {
+    en0: [{ address: "192.168.1.10", netmask: "255.255.255.0", family: "IPv4", internal: false }],
+    lo0: [{ address: "127.0.0.1", netmask: "255.0.0.0", family: "IPv4", internal: true }],
+    utun4: [{ address: "100.64.0.2", netmask: "255.255.255.0", family: "IPv4", internal: false }],
+  };
+
+  assert.equal(isAddressOnLocalNetwork("192.168.1.40", interfaces), true);
+  assert.equal(isAddressOnLocalNetwork("::ffff:192.168.1.40", interfaces), true);
+  assert.equal(isAddressOnLocalNetwork("192.168.2.40", interfaces), false);
+  assert.equal(isAddressOnLocalNetwork("127.0.0.1", interfaces), false);
+  assert.equal(isAddressOnLocalNetwork("100.64.0.4", interfaces), false);
+  assert.equal(isAddressOnLocalNetwork("not-an-ip", interfaces), false);
+});
+
+test("HTTP local executa atalho por padrão apenas vindo da mesma sub-rede", async () => {
+  const root = await mkdtemp(join(tmpdir(), "dokke-shortcut-lan-"));
+  let executions = 0;
+  const server = await startTemp({
+    root,
+    trustLoopback: false,
+    config: { pieces: [savedShortcut], revision: 1 },
+    isLocalNetworkRequest: req => req.headers["x-test-local-network"] === "yes",
+    actions: {
+      listShortcuts: async () => [savedShortcut.name],
+      runShortcut: async () => { executions += 1; },
+    },
+  });
+  try {
+    const pin = await readPinFile(root);
+    const login = await request(server, "/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ pin }),
+    });
+    assert.equal(login.response.status, 200);
+    const cookie = (login.response.headers.get("set-cookie") || "").split(";")[0];
+    const deviceHost = `192.168.1.40:${server.port}`;
+    const shortcutPath = `/api/pieces/${savedShortcut.id}/open`;
+
+    const allowed = await requestWithHost(server, shortcutPath, {
+      method: "POST",
+      headers: {
+        Host: deviceHost,
+        Origin: `http://${deviceHost}`,
+        Cookie: cookie,
+        "X-Test-Local-Network": "yes",
+      },
+      body: "{}",
+    });
+    assert.equal(allowed.response.statusCode, 200);
+    assert.equal(executions, 1);
+
+    const outsideSubnet = await requestWithHost(server, shortcutPath, {
+      method: "POST",
+      headers: {
+        Host: deviceHost,
+        Origin: `http://${deviceHost}`,
+        Cookie: cookie,
+        "X-Forwarded-For": "192.168.1.40",
+        "X-Test-Local-Network": "no",
+      },
+      body: "{}",
+    });
+    assert.equal(outsideSubnet.response.statusCode, 403);
+    assert.equal(outsideSubnet.body.code, "HTTPS_REQUIRED");
+    assert.equal(executions, 1);
   } finally {
     await server.close();
     await rm(root, { recursive: true, force: true });

@@ -107,6 +107,11 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.match(releaseWorkflow, /refs\/tags\/\$\{RELEASE_TAG\}/);
   assert.match(releaseWorkflow, /permissions:\n\s+contents:\s*write/);
   assert.match(releaseWorkflow, /gh release create/);
+  assert.match(releaseWorkflow, /sha256sum -c/);
+  assert.doesNotMatch(releaseWorkflow.slice(releaseWorkflow.indexOf("gh release create")), /\.sha256/);
+  assert.match(releaseWorkflow, /dokke-release-notes\.md/);
+  assert.match(releaseWorkflow, /--notes-file "\$\{notes_file\}"/);
+  assert.doesNotMatch(releaseWorkflow, /--generate-notes/);
   assert.doesNotMatch(releaseWorkflow, /pull_request:/);
 });
 

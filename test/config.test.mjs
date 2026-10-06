@@ -38,6 +38,10 @@ test("loadConfig cria com defaults e saveConfig persiste", async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("configuração obsoleta de atalhos locais não afeta mais os defaults", () => {
+  assert.deepEqual(normalizeConfig({ allowLocalNetworkShortcuts: false }), emptyConfig);
+});
+
 test("loadConfig com JSON corrupto retorna defaults", async () => {
   const dir = await mkdtemp(join(tmpdir(), "j5cfg-"));
   const file = join(dir, "config.json");
