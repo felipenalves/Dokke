@@ -112,12 +112,10 @@ jobs:
           previous_apk_package="$(printf '%s\n' "${previous_apk_badging}" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
           previous_version_code="$(printf '%s\n' "${previous_apk_badging}" | sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p")"
 
-          keytool -printcert -jarfile public/dokke.apk >/dev/null
-          keytool -printcert -jarfile "${previous_release_dir}/dokke.apk" >/dev/null
           apk_signer_output="$("${apksigner}" verify --print-certs public/dokke.apk)"
           previous_apk_signer_output="$("${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk")"
-          apk_signers="$(printf '%s\n' "${apk_signer_output}" | sed -nE 's/^Signer .* certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
-          previous_signers="$(printf '%s\n' "${previous_apk_signer_output}" | sed -nE 's/^Signer .* certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          apk_signers="$(printf '%s\n' "${apk_signer_output}" | sed -nE 's/^[[:print:]]*Signer[^:]*:?[[:space:]]+certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | tr '[:upper:]' '[:lower:]' | sort -u)"
+          previous_signers="$(printf '%s\n' "${previous_apk_signer_output}" | sed -nE 's/^[[:print:]]*Signer[^:]*:?[[:space:]]+certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | tr '[:upper:]' '[:lower:]' | sort -u)"
 
           package_match_status="mismatch"
           if [[ -n "${apk_package}" && "${apk_package}" == "${previous_apk_package}" ]]; then
@@ -390,8 +388,8 @@ jobs:
           source_apk_version_code="$(git show "${EXPECTED_SHA}:android/app/build.gradle" | sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' | head -n 1)"
           current_apk_signer_output="$("${apksigner}" verify --print-certs release-assets/dokke.apk)"
           latest_apk_signer_output="$("${apksigner}" verify --print-certs "${latest_release_dir}/dokke.apk")"
-          current_apk_signers="$(printf '%s\n' "${current_apk_signer_output}" | sed -nE 's/^Signer .* certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
-          latest_apk_signers="$(printf '%s\n' "${latest_apk_signer_output}" | sed -nE 's/^Signer .* certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          current_apk_signers="$(printf '%s\n' "${current_apk_signer_output}" | sed -nE 's/^[[:print:]]*Signer[^:]*:?[[:space:]]+certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | tr '[:upper:]' '[:lower:]' | sort -u)"
+          latest_apk_signers="$(printf '%s\n' "${latest_apk_signer_output}" | sed -nE 's/^[[:print:]]*Signer[^:]*:?[[:space:]]+certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | tr '[:upper:]' '[:lower:]' | sort -u)"
 
           if [[ -z "${current_apk_version_code}" || -z "${latest_apk_version_code}" \
              || ! "${current_apk_version_code}" =~ ^[0-9]+$ \
