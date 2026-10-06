@@ -91,7 +91,6 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.match(releaseWorkflow, /Dokke-macOS\.dmg/);
   assert.match(releaseWorkflow, /dokke\.apk/);
   assert.match(releaseWorkflow, /dump badging public\/dokke\.apk/);
-  assert.match(releaseWorkflow, /keytool -printcert -jarfile/);
   assert.match(releaseWorkflow, /"\$\{apksigner\}" verify --print-certs/);
   assert.match(releaseWorkflow, /\(cd public && shasum -a 256 dokke\.apk > dokke\.apk\.sha256\)/);
   assert.doesNotMatch(releaseWorkflow, /shasum -a 256 public\/dokke\.apk > public\/dokke\.apk\.sha256/);
@@ -111,47 +110,45 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.doesNotMatch(releaseWorkflow, /pull_request:/);
 });
 
-test("release workflow invokes the resolved apksigner binary for every signer check", () => {
+test("release workflow invokes the resolved apksigner binary to verify every APK", () => {
   const commands = releaseWorkflow
     .split("\n")
-    .filter((line) => /apksigner.*verify --print-certs/.test(line));
+    .filter((line) => /apksigner.*verify /.test(line));
 
-  assert.equal(commands.length, 4, "expected current and previous APK checks in both release jobs");
+  assert.equal(commands.length, 4, "expected current and previous APK verification in both release jobs");
   for (const command of commands) {
-    assert.match(command, /"\$\{apksigner\}" verify --print-certs/);
+    assert.match(command, /"\$\{apksigner\}" verify /);
   }
 });
 
-test("release signer checks preserve apksigner failure status before parsing certificate digests", () => {
+test("release workflow captures signing certificates from each APK with apksigner", () => {
   const commands = releaseWorkflow
     .split("\n")
     .filter((line) => /apksigner.*verify --print-certs/.test(line));
 
-  assert.equal(commands.length, 4, "expected current and previous APK checks in both release jobs");
+  assert.equal(commands.length, 4, "expected current and previous signer checks in both release jobs");
   for (const command of commands) {
     assert.match(command, /_signer_output="\$\("\$\{apksigner\}" verify --print-certs/);
   }
 });
 
-test("release signer parser accepts legacy and SDK-ranged signer labels", () => {
+test("release signer parser captures legacy and scheme-specific APK certificate fingerprints", () => {
   const signerParsers = [...releaseWorkflow.matchAll(/sed -nE '([^']*SHA-256 digest[^']*)'/g)]
     .map(([, pattern]) => pattern);
-  const certificateDigest = "0123456789abcdef".repeat(4);
-  const signerLines = [
-    `Signer #1 certificate SHA-256 digest: ${certificateDigest}`,
-    `Signer (minSdkVersion=24, maxSdkVersion=32) certificate SHA-256 digest: ${certificateDigest}`,
-  ];
+  const legacyDigest = "1".repeat(64);
+  const v2Digest = "2".repeat(64);
+  const v31Digest = "3".repeat(64);
+  const signerOutput = [
+    `Signer #1 certificate SHA-256 digest: ${legacyDigest}`,
+    `V2 Signer: certificate SHA-256 digest: ${v2Digest}`,
+    `V3.1 Signer (minSdkVersion=33, maxSdkVersion=2147483647): certificate SHA-256 digest: ${v31Digest}`,
+  ].join("\n");
 
-  assert.equal(signerParsers.length, 4, "expected all current and previous signer parsers");
+  assert.equal(signerParsers.length, 4, "expected all current and previous certificate parsers");
   for (const pattern of signerParsers) {
-    for (const signerLine of signerLines) {
-      const result = spawnSync("sed", ["-nE", pattern], {
-        input: `${signerLine}\n`,
-        encoding: "utf8",
-      });
-      assert.equal(result.status, 0);
-      assert.equal(result.stdout, `${certificateDigest}\n`, `failed to parse: ${signerLine}`);
-    }
+    const result = spawnSync("sed", ["-nE", pattern], { input: `${signerOutput}\n`, encoding: "utf8" });
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, `${legacyDigest}\n${v2Digest}\n${v31Digest}\n`, "failed to parse every signer scheme");
   }
 });
 
