@@ -119,6 +119,21 @@ jobs:
           apk_signers="$("${apksigner}" verify --print-certs public/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
           previous_signers="$("${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
 
+          package_match_status="mismatch"
+          if [[ -n "${apk_package}" && "${apk_package}" == "${previous_apk_package}" ]]; then
+            package_match_status="match"
+          fi
+          signer_match_status="mismatch"
+          if [[ -z "${apk_signers}" ]]; then
+            signer_match_status="missing"
+          elif [[ "${apk_signers}" == "${previous_signers}" ]]; then
+            signer_match_status="match"
+          fi
+          printf 'APK release preflight: package_version=%s android_version=%s metadata_tag=%s metadata_apk_version=%s apk_version=%s apk_package=%s apk_version_code=%s previous_package=%s previous_version_code=%s package_id=%s signer=%s\n' \
+            "${package_version}" "${android_version}" "${metadata_tag}" "${metadata_apk_version}" \
+            "${apk_version}" "${apk_package}" "${apk_version_code}" "${previous_apk_package}" \
+            "${previous_version_code}" "${package_match_status}" "${signer_match_status}"
+
           if [[ "${package_version}" != "${release_version}" \
              || "${android_version}" != "${release_version}" \
              || "${metadata_tag}" != "${RELEASE_TAG}" \
