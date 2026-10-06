@@ -22,6 +22,7 @@ final class ServerManager: ObservableObject {
   private var ownership: ServerOwnership = .none
   private var logFile: FileHandle?
   private var restartWork: DispatchWorkItem?
+  private var adoptedMonitor: Task<Void, Never>?
   private var restartFailures = 0
   private var intentionalStop = false
   private var isStarting = false
@@ -31,9 +32,10 @@ final class ServerManager: ObservableObject {
   private static let logPath = "/tmp/dokke-server.log"
   // Mantido em sincronia com package.json e Info.plist para execuções fora do
   // bundle, quando Bundle.main não expõe o Info.plist do app distribuído.
-  private static let packageVersionFallback = "0.2.8"
+  private static let packageVersionFallback = "0.2.9"
   private let maxConsecutiveRestartFailures = 5
   private let restartDelay: TimeInterval = 3
+  private let adoptedHealthIntervalNanoseconds: UInt64 = 4_000_000_000
   private let serverBaseURL = "http://127.0.0.1:3000"
   private let readinessAttempts = 20
   private let readinessDelayNanoseconds: UInt64 = 200_000_000
@@ -171,10 +173,17 @@ final class ServerManager: ObservableObject {
   }
 
   func start() {
+    start(isAutomaticRestart: false)
+  }
+
+  private func start(isAutomaticRestart: Bool) {
     guard !isRunning, !isStarting else { return }
     intentionalStop = false
+    adoptedMonitor?.cancel()
+    adoptedMonitor = nil
     isStarting = true
     lastError = nil
+    finishStartupLog()
     logFile = Self.openLog()
     appendLog("\n[startup] \(Date()) node=\(nodePath ?? "<missing>") server=\(serverPath ?? "<missing>")\n")
 
@@ -191,9 +200,11 @@ final class ServerManager: ObservableObject {
         self.ownership = .adopted
         self.isRunning = true
         self.isStarting = false
+        self.restartFailures = 0
         self.appendLog("[adopted] version=\(version)\n")
         self.finishStartupLog()
         print("[dokke] adopted compatible server version=\(version)")
+        self.monitorAdoptedServer()
       case .conflict(let message):
         self.ownership = .none
         self.isRunning = false
@@ -202,6 +213,9 @@ final class ServerManager: ObservableObject {
         self.appendLog("[startup-conflict] \(message)\n")
         self.finishStartupLog()
         print("[dokke] server conflict: \(message)")
+        if isAutomaticRestart {
+          self.handleOwnedFailure(message)
+        }
       case .available:
         guard let serverPath = self.serverPath, let nodePath = self.nodePath else {
           self.isStarting = false
@@ -291,6 +305,52 @@ final class ServerManager: ObservableObject {
       return false
     }
     return underlying.domain == NSPOSIXErrorDomain && underlying.code == Int(ECONNREFUSED)
+  }
+
+  /// Servidor adotado não é filho deste app; monitora health/version sem tentar
+  /// encerrá-lo. Se a porta ficar livre, o fluxo normal tenta subir o servidor.
+  private func monitorAdoptedServer() {
+    guard adoptedMonitor == nil else { return }
+    logFile = Self.openLog()
+    appendLog("[monitor] adopted server health monitoring started\n")
+    adoptedMonitor = Task { @MainActor [weak self] in
+      while !Task.isCancelled {
+        guard let interval = self?.adoptedHealthIntervalNanoseconds else { return }
+        try? await Task.sleep(nanoseconds: interval)
+        guard !Task.isCancelled,
+              let self,
+              self.ownership == .adopted,
+              !self.intentionalStop else { return }
+
+        let result = await self.preflightExistingServer()
+        guard !Task.isCancelled,
+              self.ownership == .adopted,
+              !self.intentionalStop else { return }
+        switch result {
+        case .adopted(let version):
+          if !self.isRunning {
+            self.appendLog("[adopted-recovered] version=\(version)\n")
+          }
+          self.isRunning = true
+          self.restartFailures = 0
+          self.lastError = nil
+        case .available:
+          self.appendLog("[adopted-exit] listener disappeared; scheduling owned restart\n")
+          self.adoptedMonitor = nil
+          self.ownership = .none
+          self.isRunning = false
+          self.finishStartupLog()
+          self.handleOwnedFailure(I18n.text("error.serverExited", language: I18n.currentLanguage()))
+          return
+        case .conflict(let message):
+          if self.isRunning {
+            self.appendLog("[adopted-health] server stopped passing compatibility checks\n")
+          }
+          self.isRunning = false
+          self.lastError = message
+        }
+      }
+    }
   }
 
   private func launchOwnedServer(serverPath: String, nodePath: String) {
@@ -384,6 +444,8 @@ final class ServerManager: ObservableObject {
     intentionalStop = true
     restartWork?.cancel()
     restartWork = nil
+    adoptedMonitor?.cancel()
+    adoptedMonitor = nil
     let proc = process
     process = nil
     let wasOwned = ownership == .owned
@@ -412,7 +474,7 @@ final class ServerManager: ObservableObject {
     restartWork?.cancel()
     let work = DispatchWorkItem { [weak self] in
       guard let self = self, !self.intentionalStop, !self.isRunning, !self.isStarting, self.ownership == .none else { return }
-      self.start()
+      self.start(isAutomaticRestart: true)
     }
     restartWork = work
     DispatchQueue.main.asyncAfter(deadline: .now() + restartDelay, execute: work)

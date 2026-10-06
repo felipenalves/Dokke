@@ -33,6 +33,16 @@ final class DokkeUpdateManager: ObservableObject {
   private let repositoryAPI = URL(string: "https://api.github.com/repos/felipenalves/Dokke/releases/latest")!
   private let fileManager = FileManager.default
 
+  private static var architectureSpecificDMGAssetName: String {
+    #if arch(arm64)
+      return "Dokke-macOS-apple-silicon-arm64.dmg"
+    #elseif arch(x86_64)
+      return "Dokke-macOS-intel-x86_64.dmg"
+    #else
+      return "Dokke-macOS.dmg"
+    #endif
+  }
+
   init() {
     currentVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.0"
   }
@@ -81,7 +91,8 @@ final class DokkeUpdateManager: ObservableObject {
         return
       }
 
-      guard let asset = dto.assets.first(where: { $0.name == "Dokke-macOS.dmg" }),
+      guard let asset = dto.assets.first(where: { $0.name == Self.architectureSpecificDMGAssetName })
+              ?? dto.assets.first(where: { $0.name == "Dokke-macOS.dmg" }),
             let digest = asset.digest?.replacingOccurrences(of: "sha256:", with: "")
       else {
         throw UpdateError.invalidRelease

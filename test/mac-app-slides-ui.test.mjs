@@ -285,7 +285,8 @@ test("hover do app mostra remoção direta sem alterar o modo de reorder", () =>
   assert.match(iconCard, /\.zIndex\(5\)/);
   assert.doesNotMatch(iconCard, /\.transition\(/);
   assert.match(iconCard, /I18n\.text\("icon\.remove"[\s\S]*?\.contentShape\(Rectangle\(\)\)[\s\S]*?\.buttonStyle\(\.plain\)/);
-  assert.match(iconCard, /I18n\.text\(piece\.type == \.website \? "icon\.removeWebsite" : "icon\.removeApp"/);
+  assert.match(iconCard, /I18n\.text\(removalLabelKey/);
+  assert.match(dockIcon, /case \.shortcut: return "icon\.removeShortcut"/);
 });
 
 test("tracker AppKit atualiza o hover sem interceptar o botão", () => {

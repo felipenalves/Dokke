@@ -15,8 +15,22 @@
   <title>Dokke</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&display=swap" rel="stylesheet">
 <style>
+  @font-face{
+    font-family: "Inter";
+    src: url("/fonts/Inter-Regular.otf") format("opentype");
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: "Inter";
+    src: url("/fonts/Inter-SemiBold.otf") format("opentype");
+    font-style: normal;
+    font-weight: 600 900;
+    font-display: swap;
+  }
   :root {
     --ink: rgba(255,255,255,.94);
     --ink-2: rgba(255,255,255,.62);
@@ -25,18 +39,19 @@
     --green: #30d158;
     --amber: #ffd60a;
     --red: #ff453a;
+    --dokke-orange: #f08737;
     --glass: rgba(255,255,255,.07);
     --edge: rgba(255,255,255,.10);
     --dokke-safe-top: env(safe-area-inset-top, 0px);
     --dokke-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --dokke-viewport-height: 100%;
     --app-tile: min(40vmin, max(21vw,21vh), 180px);
     --icon-turn: 0deg;
   }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  :focus{ outline: none; }
   html,body{
-    width:100%; height:100%;
-    min-height:100%; min-height:-webkit-fill-available;
+    width:100%; height:var(--dokke-viewport-height);
+    min-height:var(--dokke-viewport-height);
     background:#080301 !important;
     overflow:hidden;
   }
@@ -58,6 +73,12 @@
     padding: 0;
     overscroll-behavior: none;
   }
+  #dokke, #dokke *{
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+  }
   .bg{
     position: fixed;
     top: calc(-32px - env(safe-area-inset-top, 0px));
@@ -72,7 +93,7 @@
   }
 
   main{
-    position: fixed; inset:0;
+    position: fixed; inset:0; height:var(--dokke-viewport-height); min-height:0;
     padding: 0;
     z-index:1;
   }
@@ -81,13 +102,13 @@
      cada .screen é absolute e o container não empilha. A troca usa apenas
      translate no compositor; a camada ativa só muda depois do slide. */
   .screens{
-    position: fixed; inset:0;
+    position: fixed; inset:0; height:var(--dokke-viewport-height); min-height:0;
     padding: 0 14px;
     overflow: hidden;
     touch-action: none;
   }
   .screen{
-    position: absolute; top:0; left:0; right:0; bottom:0;
+    position: absolute; top:0; left:0; right:0; bottom:auto; height:var(--dokke-viewport-height); min-height:0;
     display: flex; flex-direction: column;
     padding-top: env(safe-area-inset-top, 0px);
     backface-visibility: hidden;
@@ -113,11 +134,13 @@
     z-index: 1;
     transform: translate3d(0, 0, 0);
   }
-
   @keyframes pulse{
     0%{ box-shadow: 0 0 0 0 rgba(48,209,88,.55); }
     70%{ box-shadow: 0 0 0 9px rgba(48,209,88,0); }
     100%{ box-shadow: 0 0 0 0 rgba(48,209,88,0); }
+  }
+  @media (display-mode: standalone){
+    :root{ --dokke-viewport-height: 100dvh; }
   }
 
   /* ---- stage (launchpad full-bleed; chrome lateral removido) ---- */
@@ -161,9 +184,11 @@
     box-sizing: border-box;
     /* A largura do slide permanece integral para não alterar o scrollLeft. */
     --tile: var(--app-tile);
-    --tile-r: 0.29;
-    --tile-in: 0.84;
-    --tile-in-r: 0.19;
+    /* DockIcon macOS: card 80, frame 68, inset 6, raios 28/20. O PNG web
+       normalizado usa 80% para ficar levemente maior na referência móvel. */
+    --tile-r: 0.32;
+    --tile-in: 0.80;
+    --tile-in-r: 0.27;
   }
   .page-grid{
     width: 100%; height: 100%;
@@ -244,6 +269,7 @@
     animation: appPress .30s cubic-bezier(.22,.61,.36,1);
     will-change: transform;
   }
+
   @media (prefers-reduced-motion: reduce){
     .atile.is-activating, .dcard.is-activating{ animation:none; }
   }
@@ -266,7 +292,7 @@
   .website-plate{
     position: relative; z-index: 1;
     display: flex; align-items: center; justify-content: center;
-    width: 82%; height: 82%;
+    width: 80%; height: 80%;
     border: 1px solid rgba(255,255,255,.72);
     border-radius: 26%;
     background: rgba(255,255,255,.96);
@@ -274,12 +300,12 @@
     overflow: hidden;
   }
   .atile .aglass .website-plate img.aicon{
-    width: 72%; height: 72%;
+    width: calc(100% * var(--tile-in)); height: calc(100% * var(--tile-in));
     border-radius: 18%;
     object-fit: cover;
   }
   .atile .aglass .website-plate .gicon{
-    width: 72%; height: 72%;
+    width: calc(100% * var(--tile-in)); height: calc(100% * var(--tile-in));
     border-radius: 18%;
     color: rgba(0,0,0,.62);
     text-shadow: none;
@@ -310,12 +336,12 @@
   /* launchpad: tamanho fluido — aglass e ícone preenchem o tile */
   .atile .aglass{
     width: 100%; height: 100%;
-    border-radius: 29%;
+    border-radius: 32%;
   }
-  .atile .aglass::before{ border-radius: 29%; }
+  .atile .aglass::before{ border-radius: 32%; }
   .atile .aglass .gicon, .atile .aglass img.aicon{
-    width: 84%; height: 84%;
-    border-radius: 18%;
+    width: 80%; height: 80%;
+    border-radius: 27%;
   }
   .atile .aglass img.aicon:not(.ready){ opacity:0; transition: opacity .16s ease; }
   .atile .aglass img.aicon.ready{ opacity:1; }
@@ -325,7 +351,7 @@
     .atile .aglass::before{ border-radius: calc(100cqi * var(--tile-r)); }
     .atile .aglass .gicon, .atile .aglass img.aicon{
       width: calc(100cqi * var(--tile-in)); height: calc(100cqi * var(--tile-in));
-      border-radius: calc(100cqi * var(--tile-in-r));
+      border-radius: calc(100% * var(--tile-in-r));
     }
     .atile .aglass .gicon{ font-size: 30cqi; }
   }
@@ -445,19 +471,32 @@
     cursor: pointer;
     user-select: none; -webkit-user-select: none;
     -webkit-touch-callout: none;
+    container-type: inline-size;
+    --tile-r: 0.32;
+    --tile-in: 0.80;
+    --tile-in-r: 0.27;
   }
   .dcard .aglass{
     flex: 0 0 auto;
     width: var(--app-tile);
     height: var(--app-tile);
-    border-radius: 24%;
+    border-radius: 32%;
   }
-  .dcard .aglass::before{ border-radius: 24%; }
+  .dcard .aglass::before{ border-radius: 32%; }
   .dcard .aglass .gicon, .dcard .aglass img.aicon{
-    width: 92%; height: 92%;
-    border-radius: 20%;
+    width: 80%; height: 80%;
+    border-radius: 27%;
   }
   .dcard .aglass .gicon{ font-size: clamp(30px, 3vw, 66px); }
+  @supports (width: 1cqi){
+    .dcard .aglass{ border-radius: calc(100cqi * var(--tile-r)); }
+    .dcard .aglass::before{ border-radius: calc(100cqi * var(--tile-r)); }
+    .dcard .aglass .gicon, .dcard .aglass img.aicon{
+      width: calc(100cqi * var(--tile-in)); height: calc(100cqi * var(--tile-in));
+      border-radius: calc(100% * var(--tile-in-r));
+    }
+    .dcard .aglass .gicon{ font-size: 30cqi; }
+  }
   .dcard .dname{
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
@@ -480,8 +519,11 @@
     flex: 0 0 auto; display: flex; align-items: center;
     width: calc(100% - 40px); max-width: 360px;
     margin: 18px 20px 0; padding: 12px 14px; border-radius: 18px;
-    background: linear-gradient(160deg, rgba(10,132,255,.22), rgba(94,92,230,.16));
-    border: 1px solid rgba(10,132,255,.35);
+    background: linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.045) 58%, rgba(74,27,12,.25));
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 12px 24px rgba(0,0,0,.12);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
     box-sizing: border-box;
   }
   .robscard .ic{ font-size: 20px; margin-right: 10px; }
@@ -502,6 +544,9 @@
     }
     .dots{
       padding: 18px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .vdots{
+      right: calc(4px + env(safe-area-inset-right, 0px));
     }
   }
   /* Em touch landscape a régua de tamanho continua responsiva; o espaçamento
@@ -646,17 +691,70 @@
 
   /* ---- toast ---- */
   .toast{
-    position: fixed; left:50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+    position: fixed; left:50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
     transform: translateX(-50%) translateY(20px);
-    z-index: 60; min-width: 200px; max-width: 320px; text-align:center;
-    padding: 13px 20px; border-radius: 16px;
-    background: rgba(28,34,54,.94); border:1px solid rgba(255,255,255,.14);
-    box-shadow: 0 14px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
-    color: var(--ink); font-size: 13.5px; font-weight: 600;
+    z-index: 60; display:flex; width:fit-content; max-width:calc(100vw - 24px);
+    min-width:0; align-items:center; justify-content:center; gap:8px;
+    padding: 8px 12px; border-radius: 999px;
+    --toast-accent: var(--dokke-orange);
+    --toast-ring: rgba(240,135,55,.16);
+    background:rgba(37,18,11,.9);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow: 0 8px 24px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+    color: var(--ink); font-size: 12px; font-weight: 600;
+    line-height: 1.15; text-align:center; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
     opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
   }
+  .toast::before{
+    content:""; flex:0 0 6px; width:6px; height:6px; border-radius:50%;
+    background:var(--toast-accent); box-shadow:none;
+  }
   .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
-  .toast.err{ border-color: rgba(255,69,58,.5); color:#ffb3ae; }
+  .toast.ok{
+    --toast-accent: var(--green);
+    --toast-ring: rgba(48,209,88,.16);
+    border-color: rgba(48,209,88,.28);
+  }
+  .toast.sync{
+    --toast-accent: var(--amber);
+    --toast-ring: rgba(255,214,10,.15);
+    border-color: rgba(255,214,10,.26);
+  }
+  .toast.err{
+    --toast-accent: var(--red);
+    --toast-ring: rgba(255,69,58,.16);
+    border-color: rgba(255,69,58,.38); color:#ffb3ae;
+  }
+
+  .connection-scrim{
+    position:fixed; inset:0; z-index:110; display:none;
+    align-items:center; justify-content:center; padding:24px;
+    background:rgba(8,3,1,.68);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  }
+  body.is-disconnected .connection-scrim{ display:flex; }
+  .connection-card{
+    width:100%; max-width:360px; padding:26px 22px; border-radius:26px;
+    text-align:center; background:linear-gradient(165deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+    border:1px solid rgba(240,135,55,.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 24px 60px rgba(0,0,0,.48);
+  }
+  .connection-icon{
+    width:48px; height:48px; margin:0 auto 14px; border-radius:16px;
+    display:grid; place-items:center; background:rgba(240,135,55,.14);
+    border:1px solid rgba(240,135,55,.28); color:#ffbd83; font-size:22px; font-weight:700;
+  }
+  .connection-card h2{ font-family:"Bricolage Grotesque",sans-serif; font-size:21px; letter-spacing:-.025em; }
+  .connection-card p{ margin-top:8px; color:var(--ink-2); font-size:13px; line-height:1.5; }
+  .connection-retry{
+    width:100%; min-height:46px; margin-top:20px; border:0; border-radius:14px;
+    background:linear-gradient(180deg, #2995ff, #0877e8); color:#fff;
+    font:600 14px "Inter",sans-serif; cursor:pointer;
+  }
+  .connection-retry:disabled{ opacity:.65; cursor:wait; }
 
   /* ---- aviso de atualização ---- */
   .up-banner{
@@ -710,10 +808,10 @@
     text-align:center; animation: rise .18s ease;
   }
   .login-card .lkey{ width:62px; height:62px; margin:0 auto 14px; border-radius:20px;
-    padding:4px;
-    background: linear-gradient(160deg, rgba(10,132,255,.32), rgba(10,132,255,.10));
-    border:1px solid rgba(255,255,255,.16);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+    padding:0;
+    background: transparent;
+    border:0;
+    box-shadow:none;
     display:flex; align-items:center; justify-content:center; }
   .login-card .lkey img{ width:100%; height:100%; border-radius:17px; object-fit:cover; display:block; }
   .login-card h3{ font-size:19px; font-weight:700; margin-bottom:4px; letter-spacing:-.01em; }
@@ -744,6 +842,105 @@
   .login-card .btn.connect:active{ transform: scale(.975); opacity:.9; }
   .login-card .lfoot{ margin-top:16px; font-size:11px; color:var(--ink-3); letter-spacing:.02em; }
 
+  /* Apple pass: menos ornamento, mais estado e ação legíveis. */
+  :focus-visible{
+    outline: 3px solid rgba(10,132,255,.92);
+    outline-offset: 3px;
+  }
+  button:focus-visible, [role="button"]:focus-visible{
+    box-shadow: 0 0 0 4px rgba(10,132,255,.22);
+  }
+  .bg{
+    background: linear-gradient(180deg, #241106 0%, #150a06 56%, #080301 100%);
+  }
+  .aglass{
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 6px 14px rgba(0,0,0,.22);
+  }
+  .aglass::before{ background: linear-gradient(160deg, rgba(255,255,255,.12), transparent 48%); }
+  .atile.empty .aglass{
+    background: rgba(255,255,255,.05);
+    border-color: rgba(255,255,255,.08);
+    box-shadow: none;
+  }
+  .robscard{
+    background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.035) 58%, rgba(74,27,12,.18));
+    border-color: rgba(255,255,255,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 22px rgba(0,0,0,.10);
+  }
+  .login-help{
+    margin: 16px 0 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 14px;
+    background: rgba(255,255,255,.045);
+    text-align: left;
+  }
+  .login-help summary{
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    list-style: none;
+  }
+  .login-help summary::-webkit-details-marker{ display: none; }
+  .login-help summary::after{ content: "+"; color: var(--ink-2); font-size: 18px; font-weight: 400; }
+  .login-help[open] summary::after{ content: "−"; }
+  .login-card .login-help .lsteps{
+    margin: 0;
+    padding: 0 14px 12px;
+  }
+  .login-card .body, .login-card .lfoot{ font-size: 12px; }
+  .vdots .d{
+    display: grid;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .vdots .d::before{
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translate(16px, var(--vdot-y, 0px));
+    background: rgba(255,255,255,.35);
+    transition: width .2s ease, height .2s ease, background-color .2s ease;
+  }
+  .vdots .d.on{
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .vdots .d.on::before{
+    width: 6px;
+    height: 14px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.92);
+  }
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: .001ms !important;
+    }
+  }
+
 </style>
 </head>
 <body id="dokke">
@@ -767,20 +964,32 @@
 
 <div class="toast" id="toast"></div>
 
+  <div class="connection-scrim" id="connectionScrim">
+  <section class="connection-card" id="connectionCard" role="dialog" aria-modal="true" aria-live="polite" tabindex="-1" aria-labelledby="connectionTitle" aria-describedby="connectionDescription">
+    <div class="connection-icon" aria-hidden="true">!</div>
+    <h2 id="connectionTitle">Não foi possível conectar ao Mac</h2>
+    <p id="connectionDescription">Abra o Dokke no Mac e confira se os dois estão na mesma rede Wi-Fi.</p>
+    <button class="connection-retry" id="connectionRetry" data-i18n="connection.retry">Tentar novamente</button>
+  </section>
+</div>
+
   <div class="login-scrim" id="loginScrim">
-    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginDescription">
       <div class="lkey" aria-hidden="true">
         <img src="/icon-192.png" alt="" aria-hidden="true" width="54" height="54">
       </div>
       <h3 id="loginTitle" data-i18n="login.title">Conectar ao Dokke</h3>
-      <div class="body" data-i18n="login.description">Conecte o aparelho ao seu Mac para abrir os apps.</div>
-      <ol class="lsteps">
-        <li><span class="lnum">1</span><div><p><span data-i18n="login.step1Prefix">Conecte o Mac e este aparelho à</span> <b data-i18n="login.sameNetwork">mesma rede Wi-Fi</b>.</p></div></li>
-        <li><span class="lnum">2</span><div><p><span data-i18n="login.step2Prefix">No Mac, abra o</span> <b>Dokke</b> <span data-i18n="login.step2Suffix">e escolha os apps que quer usar.</span></p></div></li>
-        <li><span class="lnum">3</span><div><p><span data-i18n="login.step3Prefix">Toque em</span> <b data-i18n="login.generateCode">Gerar novo código</b> <span data-i18n="login.step3Suffix">no Mac e digite o código de 4 dígitos aqui.</span></p></div></li>
-      </ol>
+      <div class="body" id="loginDescription" data-i18n="login.description">Conecte o aparelho ao seu Mac para abrir os apps.</div>
+      <details class="login-help">
+        <summary data-i18n="login.help">Como conectar?</summary>
+        <ol class="lsteps">
+          <li><span class="lnum">1</span><div><p><span data-i18n="login.step1Prefix">Conecte o Mac e este aparelho à</span> <b data-i18n="login.sameNetwork">mesma rede Wi-Fi</b>.</p></div></li>
+          <li><span class="lnum">2</span><div><p><span data-i18n="login.step2Prefix">No Mac, abra o</span> <b>Dokke</b> <span data-i18n="login.step2Suffix">e escolha os apps que quer usar.</span></p></div></li>
+          <li><span class="lnum">3</span><div><p><span data-i18n="login.step3Prefix">Toque em</span> <b data-i18n="login.generateCode">Gerar novo código</b> <span data-i18n="login.step3Suffix">no Mac e digite o código de 4 dígitos aqui.</span></p></div></li>
+        </ol>
+      </details>
       <input id="loginPin" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" aria-label="Código de acesso" data-i18n-aria-label="login.pinLabel">
-      <div class="lerr" id="loginErr"></div>
+      <div class="lerr" id="loginErr" role="status" aria-live="polite"></div>
       <button class="btn connect" id="loginGo" data-i18n="login.connect">Conectar</button>
       <p class="lfoot" data-i18n="footer.brand">Dokke by Felipe Natanael</p>
     </div>
@@ -828,10 +1037,42 @@
 
   const $ = id => document.getElementById(id);
 
+  /* Só o PWA standalone deve trocar a régua estrutural pela visual viewport.
+     No Safari aberto como navegador, a barra inferior faz parte da régua
+     original do layout e não deve comprimir os cards. */
+  const DOKKE_STANDALONE = (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches)
+    || window.navigator.standalone === true;
+  document.body.classList.toggle("is-browser", !DOKKE_STANDALONE);
+  function syncDokkeViewport(){
+    if (!DOKKE_STANDALONE) return;
+    const visualViewport = window.visualViewport;
+    const height = visualViewport && Number.isFinite(visualViewport.height)
+      ? visualViewport.height
+      : window.innerHeight;
+    if (!Number.isFinite(height) || height <= 0) return;
+    document.documentElement.style.setProperty("--dokke-viewport-height", `${Math.round(height)}px`);
+  }
+  if (DOKKE_STANDALONE){
+    syncDokkeViewport();
+    window.addEventListener("resize", syncDokkeViewport, { passive: true });
+    if (window.visualViewport){
+      window.visualViewport.addEventListener("resize", syncDokkeViewport, { passive: true });
+      window.visualViewport.addEventListener("scroll", syncDokkeViewport, { passive: true });
+    }
+  }
+
+  function blockNativeSurfaceAction(event){
+    event.preventDefault();
+  }
+  document.addEventListener("selectstart", blockNativeSurfaceAction, { capture: true, passive: false });
+  document.addEventListener("contextmenu", blockNativeSurfaceAction, { capture: true, passive: false });
+  document.addEventListener("dragstart", blockNativeSurfaceAction, { capture: true, passive: false });
+
   const I18N = {
     "pt-BR": {
       "aria.language": "Idioma", "aria.selectLanguage": "Selecionar idioma", "aria.close": "Fechar",
-      "login.title": "Conectar ao Dokke", "login.description": "Conecte o aparelho ao seu Mac para abrir os apps.",
+      "screen.apps": "Apps", "screen.recents": "Abertos",
+      "login.title": "Conectar ao Dokke", "login.description": "Conecte o aparelho ao seu Mac para abrir os apps.", "login.help": "Como conectar?",
       "login.step1Prefix": "Conecte o Mac e este aparelho à", "login.sameNetwork": "mesma rede Wi-Fi",
       "login.step2Prefix": "No Mac, abra o", "login.step2Suffix": "e escolha os apps que quer usar.",
       "login.step3Prefix": "Toque em", "login.generateCode": "Gerar novo código", "login.step3Suffix": "no Mac e digite o código de 4 dígitos aqui.",
@@ -843,17 +1084,23 @@
       "dock.opened": "aberto", "dock.noOpenApps": "Nada aberto ainda — abra um app no Mac para ele aparecer aqui",
       "dock.pinApps": "Fixar apps como favoritos", "dock.pinSubtitle": "Escolha os apps que aparecem no Launchpad.",
       "dock.pinnedLabel": "fixado", "dock.limit": "limite", "dock.pin": "+ fixar", "dock.close": "Fechar",
-      "modal.removeWebsite": "Remover website dos favoritos?", "modal.removeApp": "Remover dos favoritos?",
+      "modal.removeWebsite": "Remover website dos favoritos?", "modal.removeShortcut": "Remover atalho dos favoritos?", "modal.removeApp": "Remover dos favoritos?",
       "modal.removeWebsiteBody": "\"{name}\" sai dos fixos.",
+      "modal.removeShortcutBody": "\"{name}\" sai dos fixos.",
       "modal.removeAppBody": "\"{name}\" sai dos fixos. O app continua no Launchpad.",
       "modal.cancel": "Cancelar", "modal.removeConfirm": "Remover", "modal.stopAllTitle": "Encerrar transmissão?",
       "modal.stopAllBody": "O OBS vai parar a gravação e a live.", "modal.stopAll": "Encerrar tudo",
-      "toast.macDisconnected": "Mac desconectado", "toast.deviceConnected": "Dispositivo conectado",
+      "toast.macDisconnected": "Desconectado", "toast.deviceConnected": "Conectado",
+      "connection.offlineTitle": "Não foi possível conectar ao Mac",
+      "connection.offlineDescription": "Abra o Dokke no Mac e confira se os dois estão na mesma rede Wi-Fi.",
+      "connection.loadFailedTitle": "Não foi possível carregar o Dokke",
+      "connection.loadFailedDescription": "Confira a conexão com o Mac e tente novamente.",
+      "connection.retry": "Tentar novamente", "connection.retrying": "Reconectando…",
       "toast.pinAdded": "\"{name}\" adicionado aos favoritos", "toast.removed": "\"{name}\" removido",
       "toast.pinFailed": "Falha ao fixar", "toast.openFailed": "Não consegui abrir \"{name}\"",
       "toast.removeFailed": "Falha ao remover", "toast.dockChanged": "O dock mudou; tente novamente",
-      "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "OBS offline",
-      "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando…",
+      "toast.pinnedLimit": "Limite de {pages} páginas atingido", "toast.obsOffline": "Offline",
+      "toast.obsCommandFailed": "Comando OBS falhou", "toast.updated": "Atualizando",
       "error.PINNED_LIMIT_REACHED": "Limite de {pages} páginas atingido",
       "error.REVISION_CONFLICT": "O dock mudou; tente novamente",
       "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "Essa configuração exige um cliente atualizado",
@@ -863,6 +1110,8 @@
       "error.PIECE_NOT_WEBSITE": "Essa peça não é um website",
       "error.PIECE_NOT_FOUND": "Peça não encontrada",
       "error.INVALID_REQUEST": "Solicitação inválida",
+      "error.SHORTCUT_ALREADY_RUNNING": "Este atalho já está em execução no Mac.",
+      "error.HTTPS_REQUIRED": "Abra o Dokke por um link HTTPS para acionar atalhos remotamente.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — abra o OBS para liberar as cenas",
       "obs.unavailable": "OBS indisponível — verifique o WebSocket", "obs.live": "AO VIVO", "obs.connected": "conectado",
       "obs.startRecording": "Gravar", "obs.stopRecording": "Parar", "obs.startLive": "Live", "obs.stopLive": "Parar live", "obs.stopAll": "Encerrar",
@@ -874,7 +1123,8 @@
     },
     en: {
       "aria.language": "Language", "aria.selectLanguage": "Select language", "aria.close": "Close",
-      "login.title": "Connect to Dokke", "login.description": "Connect this device to your Mac to open apps.",
+      "screen.apps": "Apps", "screen.recents": "Open apps",
+      "login.title": "Connect to Dokke", "login.description": "Connect this device to your Mac to open apps.", "login.help": "How to connect?",
       "login.step1Prefix": "Connect your Mac and this device to the", "login.sameNetwork": "same Wi-Fi network",
       "login.step2Prefix": "On your Mac, open", "login.step2Suffix": "and choose the apps you want to use.",
       "login.step3Prefix": "Tap", "login.generateCode": "Generate new code", "login.step3Suffix": "on your Mac and enter the 4-digit code here.",
@@ -886,17 +1136,23 @@
       "dock.opened": "open", "dock.noOpenApps": "Nothing open yet — open an app on your Mac to see it here",
       "dock.pinApps": "Pin apps as favorites", "dock.pinSubtitle": "Choose the apps that appear in Launchpad.",
       "dock.pinnedLabel": "pinned", "dock.limit": "limit", "dock.pin": "+ pin", "dock.close": "Close",
-      "modal.removeWebsite": "Remove website from favorites?", "modal.removeApp": "Remove from favorites?",
+      "modal.removeWebsite": "Remove website from favorites?", "modal.removeShortcut": "Remove shortcut from favorites?", "modal.removeApp": "Remove from favorites?",
       "modal.removeWebsiteBody": "\"{name}\" will be unpinned.",
+      "modal.removeShortcutBody": "\"{name}\" will be unpinned.",
       "modal.removeAppBody": "\"{name}\" will be unpinned. The app stays in Launchpad.",
       "modal.cancel": "Cancel", "modal.removeConfirm": "Remove", "modal.stopAllTitle": "Stop broadcast?",
       "modal.stopAllBody": "OBS will stop recording and the live stream.", "modal.stopAll": "Stop everything",
-      "toast.macDisconnected": "Mac disconnected", "toast.deviceConnected": "Device connected",
+      "toast.macDisconnected": "Disconnected", "toast.deviceConnected": "Connected",
+      "connection.offlineTitle": "Couldn't connect to the Mac",
+      "connection.offlineDescription": "Open Dokke on the Mac and check that both devices are on the same Wi-Fi network.",
+      "connection.loadFailedTitle": "Couldn't load Dokke",
+      "connection.loadFailedDescription": "Check the connection to the Mac and try again.",
+      "connection.retry": "Try again", "connection.retrying": "Reconnecting…",
       "toast.pinAdded": "\"{name}\" added to favorites", "toast.removed": "\"{name}\" removed",
       "toast.pinFailed": "Failed to pin", "toast.openFailed": "Could not open \"{name}\"",
       "toast.removeFailed": "Failed to remove", "toast.dockChanged": "The dock changed; try again",
-      "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "OBS offline",
-      "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating…",
+      "toast.pinnedLimit": "Limit of {pages} pages reached", "toast.obsOffline": "Offline",
+      "toast.obsCommandFailed": "OBS command failed", "toast.updated": "Updating",
       "error.PINNED_LIMIT_REACHED": "Limit of {pages} pages reached",
       "error.REVISION_CONFLICT": "The dock changed; try again",
       "error.MIXED_PIECES_REQUIRES_NEW_CLIENT": "This configuration requires an updated client",
@@ -906,6 +1162,8 @@
       "error.PIECE_NOT_WEBSITE": "This piece is not a website",
       "error.PIECE_NOT_FOUND": "Piece not found",
       "error.INVALID_REQUEST": "Invalid request",
+      "error.SHORTCUT_ALREADY_RUNNING": "This shortcut is already running on the Mac.",
+      "error.HTTPS_REQUIRED": "Open Dokke through an HTTPS link to run shortcuts remotely.",
       "obs.title": "OBS Commander", "obs.offline": "OBS offline — open OBS to enable scenes",
       "obs.unavailable": "OBS unavailable — check the WebSocket", "obs.live": "LIVE", "obs.connected": "connected",
       "obs.startRecording": "Record", "obs.stopRecording": "Stop", "obs.startLive": "Live", "obs.stopLive": "Stop live", "obs.stopAll": "Stop",
@@ -982,6 +1240,31 @@
 
   // ---------- login wall (pin de acesso) ----------
   let authed = false, loginOpen = false, loginSubmitting = false;
+  let loginPreviousFocus = null;
+  let connectionNoticeVisible = false, connectionPreviousFocus = null;
+  function isRestorableFocusTarget(element){
+    if (!element || !element.isConnected || element === document.body || typeof element.focus !== "function") return false;
+    const connectionScrim = $("connectionScrim");
+    const loginScrim = $("loginScrim");
+    if ((connectionScrim && connectionScrim.contains(element)) || (loginScrim && loginScrim.contains(element))) return false;
+    return element.getClientRects().length > 0;
+  }
+  function focusConnectionNotice(){
+    const retry = $("connectionRetry");
+    const target = retry && !retry.disabled ? retry : $("connectionCard");
+    if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+  }
+  function restoreConnectionFocus(element){
+    let target = isRestorableFocusTarget(element) ? element : null;
+    if (!target && element && element.classList && element.classList.contains("atile")){
+      const id = element.dataset.id;
+      const name = element.dataset.name;
+      target = Array.from(document.querySelectorAll(".atile")).find(function(candidate){
+        return (id && candidate.dataset.id === id) || (!id && name && candidate.dataset.name === name);
+      }) || null;
+    }
+    if (isRestorableFocusTarget(target)) target.focus();
+  }
   function syncLoginViewport(){
     const scrim = $("loginScrim");
     const vv = window.visualViewport;
@@ -1011,6 +1294,7 @@
   }
   function showLogin(){
     if (loginOpen) return;
+    loginPreviousFocus = document.activeElement;
     loginOpen = true;
     const err = $("loginErr"); if (err) err.textContent = "";
     const pin = $("loginPin"); if (pin){ pin.value = ""; }
@@ -1018,13 +1302,22 @@
     document.body.classList.add("is-login");
     syncLoginOrientation();
     syncLoginViewport();
-    if (pin) setTimeout(function(){ pin.focus(); }, 80);
+    renderConnectionNotice();
+    if (pin) setTimeout(function(){ if (loginOpen && pin.isConnected) pin.focus(); }, 80);
   }
   function hideLogin(){
+    const previousFocus = loginPreviousFocus;
+    loginPreviousFocus = null;
     loginOpen = false;
     $("loginScrim").classList.remove("show");
     document.body.classList.remove("is-login");
     syncLoginOrientation();
+    renderConnectionNotice();
+    if (connectionNoticeVisible){
+      if (!connectionPreviousFocus && isRestorableFocusTarget(previousFocus)) connectionPreviousFocus = previousFocus;
+    } else if (isRestorableFocusTarget(previousFocus)){
+      previousFocus.focus();
+    }
   }
   function loginError(msg){
     const err = $("loginErr");
@@ -1055,6 +1348,24 @@
     } finally {
       loginSubmitting = false;
     }
+  }
+  const loginScrim = $("loginScrim");
+  if (loginScrim){
+    loginScrim.addEventListener("keydown", function(event){
+      if (!loginOpen || event.key !== "Tab") return;
+      const focusable = Array.from(loginScrim.querySelectorAll("button, input, summary, [href], select, textarea, [tabindex]:not([tabindex='-1'])"))
+        .filter(function(element){ return !element.disabled && element.getClientRects().length > 0; });
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first){
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last){
+        event.preventDefault();
+        first.focus();
+      }
+    });
   }
   $("loginGo").addEventListener("click", doLogin);
   $("loginPin").addEventListener("input", function(){
@@ -1219,10 +1530,17 @@
     }, { passive: true });
   }
   function bindHold(el, fn){
-    let timer = null, x = 0, y = 0;
-    function clear(){ if (timer){ clearTimeout(timer); timer = null; } }
+    let timer = null, x = 0, y = 0, pointerId = null;
+    function clear(e){
+      if (e && pointerId !== null && e.pointerId !== pointerId) return;
+      if (timer){ clearTimeout(timer); timer = null; }
+      pointerId = null;
+      window.removeEventListener("pointerup", clear, true);
+      window.removeEventListener("pointercancel", clear, true);
+    }
     el.addEventListener("pointerdown", function(e){
       clear();
+      pointerId = e.pointerId;
       x = e.clientX; y = e.clientY;
       timer = setTimeout(function(){
         timer = null;
@@ -1230,6 +1548,8 @@
         suppressClickUntil = Date.now() + 700;
         fn(el);
       }, 550);
+      window.addEventListener("pointerup", clear, true);
+      window.addEventListener("pointercancel", clear, true);
     });
     el.addEventListener("pointermove", function(e){
       if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) clear();
@@ -1276,11 +1596,19 @@
 
   async function activatePiece(piece){
     if (!piece || !piece.id) return;
-    if (piece.type !== "website") return activateApp(piece.name);
+    if (piece.type === "app") return activateApp(piece.name);
     let r;
     try { r = await post("/api/pieces/" + encodeURIComponent(piece.id) + "/open"); }
     catch (e) { toast(t("toast.macDisconnected"), "err"); return; }
-    if (!r || !r.data || r.data.ok !== true) toast(t("toast.openFailed", { name: piece.title || t("site") }), "err");
+    if (!r || !r.data || r.data.ok !== true) {
+      const code = r && r.data && r.data.code;
+      const message = code === "SHORTCUT_ALREADY_RUNNING"
+        ? t("error.SHORTCUT_ALREADY_RUNNING")
+        : code === "HTTPS_REQUIRED"
+          ? t("error.HTTPS_REQUIRED")
+          : t("toast.openFailed", { name: piece.title || piece.name || t("site") });
+      toast(message, "err");
+    }
   }
 
   async function pinApp(name){
@@ -1363,8 +1691,9 @@
     // aceita elemento (hold) ou string (nome) — evita TypeError se alguém passar name direto
     const piece = typeof el === "object" && el && el.type ? el : null;
     const isWebsite = piece && piece.type === "website";
+    const isShortcut = piece && piece.type === "shortcut";
     const name = piece
-      ? (piece.title || piece.url || t("site"))
+      ? (isWebsite ? piece.title || piece.url || t("site") : piece.name)
       : (typeof el === "string" ? el : (el && el.dataset ? el.dataset.name : ""));
     if (!name) return;
     const content = document.createDocumentFragment();
@@ -1396,18 +1725,22 @@
       const favicon = websiteFaviconPath(piece.url);
       if (favicon) iconImg.src = favicon;
       else iconFallback(iconImg, icon, name);
+    } else if (isShortcut) {
+      iconImg.src = shortcutIconDataURL(piece.emoji);
     } else {
       loadIcon(name, iconImg, icon);
     }
     content.appendChild(icon);
     const title = document.createElement("h3");
-    title.textContent = isWebsite ? t("modal.removeWebsite") : t("modal.removeApp");
+    title.textContent = isWebsite ? t("modal.removeWebsite") : isShortcut ? t("modal.removeShortcut") : t("modal.removeApp");
     content.appendChild(title);
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = isWebsite
       ? t("modal.removeWebsiteBody", { name: name })
-      : t("modal.removeAppBody", { name: name });
+      : isShortcut
+        ? t("modal.removeShortcutBody", { name: name })
+        : t("modal.removeAppBody", { name: name });
     content.appendChild(body);
     const btns = document.createElement("div");
     btns.className = "btns";
@@ -1428,7 +1761,7 @@
         $("sheet").querySelector("[data-sclose]").addEventListener("click", closeModal);
         $("sheet").querySelector("[data-confirm]").addEventListener("click", function(){
           closeModal();
-          if (isWebsite) unpinPiece(piece.id);
+          if (isWebsite || isShortcut) unpinPiece(piece.id);
           else unpinApp(name);
         });
       }, "confirm");
@@ -1438,7 +1771,7 @@
     const id = el && el.dataset ? el.dataset.id : "";
     const piece = state.pieces.find(function(item){ return item.id === id; });
     if (!piece) return;
-    if (piece.type === "website") favLong(piece);
+    if (piece.type === "website" || piece.type === "shortcut") favLong(piece);
     else if (state.pinned.indexOf(piece.name) !== -1) favLong(piece.name);
     else pinApp(piece.name);
   }
@@ -1458,6 +1791,11 @@
 
   function iconPath(name){
     return "/api/apps/" + encodeURIComponent(name) + "/icon?v=" + ICON_REV;
+  }
+  function shortcutIconDataURL(emoji){
+    const glyph = Array.from(emoji || "🖱️", character => "&#x" + character.codePointAt(0).toString(16) + ";").join("");
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6b31d4"/><stop offset="1" stop-color="#351080"/></linearGradient></defs><rect width="64" height="64" rx="17" fill="url(#g)"/><text x="32" y="45" text-anchor="middle" font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif" font-size="36">' + glyph + '</text></svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
   function iconFallback(img, target, name){
     if (img && img.isConnected) img.remove();
@@ -1574,6 +1912,7 @@
       glass.appendChild(img);
     }
     if (a.type === "website") img.src = websiteFaviconPath(a.url);
+    else if (a.type === "shortcut") img.src = shortcutIconDataURL(a.emoji);
     else if (withIcon) loadIcon(a.name, img, glass);
     else img.src = iconPath(a.name);
     tile.appendChild(glass);
@@ -1633,7 +1972,7 @@
     for (let i = 0; i < state.pieces.length; i++){
       const piece = state.pieces[i];
       const position = Number.isInteger(piece.position) ? piece.position : i;
-      if (piece.type === "website") byPosition.set(position, piece);
+      if (piece.type === "website" || piece.type === "shortcut") byPosition.set(position, piece);
       else {
         const a = byName.get(piece.name);
         if (a) byPosition.set(position, { id: piece.id, type: "app", name: a.name, icon: a.icon });
@@ -2180,7 +2519,7 @@
     if (!v) return;
     if (uiVersionSeen === null){ uiVersionSeen = v; return; }
     if (uiVersionSeen !== v){
-      toast(t("toast.updated"), "");
+      toast(t("toast.updated"), "sync");
       setTimeout(function(){ location.reload(); }, 600);
     }
   }
@@ -2227,7 +2566,61 @@
   // polling com backoff adaptativo: online = taxa leve; falha/offline 2x atE 60s
   // (menos acordar de CPU/radio/bateria no device; volta rapido quando reaparece)
   let healthBackoff = 15000, appsBackoff = 2500;
+  let healthChecked = false, appsLoadFailed = false, installedLoadFailed = false, connectionRetrying = false;
+  let connectionRevision = 0, healthRequestInFlight = false;
+  const appsLoadSequence = { value: 0 };
   const HEALTH_OK = 15000, APPS_OK = 2500, POLL_MAX = 60000, POLL_HIDDEN = 30000;
+
+  function ensureAppsPoll(delay){
+    if (appsT) return;
+    appsT = setTimeout(loadApps, Number.isFinite(delay) ? delay : appsBackoff);
+  }
+
+  function renderConnectionNotice(){
+    const installedAppMissing = state.pieces.some(function(piece){
+      return piece.type === "app" && !state.installed.some(function(app){ return app.name === piece.name; });
+    });
+    const installedInventoryNeeded = installedAppMissing || (!state.installedReady && (
+      !state.pieces.length || state.pieces.some(function(piece){ return piece.type === "app"; })
+    ));
+    const noInitialData = (appsLoadFailed && !state.pieces.length) ||
+      (installedLoadFailed && installedInventoryNeeded);
+    const offline = healthChecked && !state.online;
+    const show = !loginOpen && (offline || noInitialData);
+    const wasVisible = connectionNoticeVisible;
+    document.body.classList.toggle("is-disconnected", show);
+    connectionNoticeVisible = show;
+    $("connectionTitle").textContent = offline ? t("connection.offlineTitle") : t("connection.loadFailedTitle");
+    $("connectionDescription").textContent = offline
+      ? t("connection.offlineDescription")
+      : t("connection.loadFailedDescription");
+    const retry = $("connectionRetry");
+    retry.textContent = connectionRetrying ? t("connection.retrying") : t("connection.retry");
+    retry.disabled = connectionRetrying;
+    if (show && !wasVisible){
+      const active = document.activeElement;
+      if (!connectionPreviousFocus && isRestorableFocusTarget(active)) connectionPreviousFocus = active;
+      focusConnectionNotice();
+    } else if (show && retry.disabled && !$("connectionScrim").contains(document.activeElement)){
+      focusConnectionNotice();
+    } else if (!show && wasVisible){
+      const previousFocus = connectionPreviousFocus;
+      if (!loginOpen && previousFocus){
+        requestAnimationFrame(function(){
+          if (!connectionNoticeVisible && !loginOpen) restoreConnectionFocus(previousFocus);
+        });
+      }
+      if (!loginOpen) connectionPreviousFocus = null;
+    } else if (!show && !loginOpen){
+      connectionPreviousFocus = null;
+    }
+  }
+
+  document.addEventListener("keydown", function(event){
+    if (!connectionNoticeVisible || loginOpen || event.key !== "Tab") return;
+    event.preventDefault();
+    focusConnectionNotice();
+  });
 
   function recentsKey(){
     let run = [];
@@ -2244,16 +2637,27 @@
   async function loadHealth(){
     if (healthT){ clearTimeout(healthT); healthT = null; }
     if (pageHidden()){ healthT = setTimeout(loadHealth, POLL_HIDDEN); return; }
-    const prev = state.online;
+    if (healthRequestInFlight) return;
+    healthRequestInFlight = true;
+    const revisionAtStart = connectionRevision;
     let ok = false;
     try {
       const r = await req("/health", { timeout: 2200 });
       ok = (r.status === 200) && r.data && r.data.ok === true;
     } catch (e) { ok = false; }
-    state.online = ok;
-    if (prev && !ok) toast(t("toast.macDisconnected"), "err");
-    if (!prev && ok) toast(t("toast.deviceConnected"));
-    healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+    if (revisionAtStart === connectionRevision){
+      const prev = state.online;
+      state.online = ok;
+      connectionRevision += 1;
+      healthChecked = true;
+      renderConnectionNotice();
+      if (prev && !ok) toast(t("toast.macDisconnected"), "err");
+      if (!prev && ok) toast(t("toast.deviceConnected"), "ok");
+      healthBackoff = ok ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+    } else if (state.online){
+      healthBackoff = HEALTH_OK;
+    }
+    healthRequestInFlight = false;
     healthT = setTimeout(loadHealth, healthBackoff);
   }
 
@@ -2307,6 +2711,9 @@
     applyPinnedLimits(limits);
     const nextSig = nextPieces.map(function(piece){ return piece.id; }).join("\u0000");
     const pinnedChanged = nextSig !== pinnedSig;
+    const installedAppMissing = pinnedChanged && state.installedReady && nextPieces.some(function(piece){
+      return piece.type === "app" && !state.installed.some(function(app){ return app.name === piece.name; });
+    });
     pinnedSig = nextSig;
     state.pieces = nextPieces;
     state.pinned = Array.isArray(pinned) ? pinned : nextPieces.filter(function(piece){ return piece.type === "app"; }).map(function(piece){ return piece.name; });
@@ -2315,6 +2722,7 @@
     if (pinnedChanged){
       if (document.body.classList.contains("swiping")) launchpadRenderPending = true;
       else renderLaunchpad(true); // Tela 1 = favoritos; refaz quando pinned muda
+      if (installedAppMissing) loadInstalled();
     }
     const key = recentsKey();
     if (recentsKeyPrev === null || key !== recentsKeyPrev){
@@ -2354,10 +2762,24 @@
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (!m) return;
       if (m.type === "online"){
+        // Não deixe uma resposta HTTP mais antiga sobrescrever o evento atual.
+        appsLoadSequence.value += 1;
+        ensureAppsPoll(appsBackoff);
+        healthChecked = true;
         state.online = !!m.online;
+        connectionRevision += 1;
+        healthBackoff = state.online ? HEALTH_OK : Math.min(healthBackoff * 2, POLL_MAX);
+        renderConnectionNotice();
         maybeReloadForUi(m.v);
       } else if (m.type === "apps"){
+        appsLoadSequence.value += 1;
+        ensureAppsPoll(APPS_OK);
         state.online = true;
+        connectionRevision += 1;
+        healthChecked = true;
+        healthBackoff = HEALTH_OK;
+        appsLoadFailed = false;
+        renderConnectionNotice();
         maybeReloadForUi(m.v);
         applyAppsPayload(m.pieces || m.pinned, m.pinned, m.running, m.limits, m.revision);
       }
@@ -2377,11 +2799,12 @@
     wsRetry = Math.min(wsRetry * 2, 30000);
   }
 
-  async function loadApps(){
+  async function loadApps(forceHTTP){
     if (appsT){ clearTimeout(appsT); appsT = null; }
     if (pageHidden()){ appsT = setTimeout(loadApps, POLL_HIDDEN); return; }
+    const requestSequence = ++appsLoadSequence.value;
     // se WS está vivo, só dá ping leve a cada ciclo longo; senão poll HTTP
-    if (statusWs && statusWs.readyState === 1){
+    if (!forceHTTP && statusWs && statusWs.readyState === 1){
       try { statusWs.send(JSON.stringify({ type: "ping" })); } catch (e) {}
       appsBackoff = APPS_OK;
       appsT = setTimeout(loadApps, appsBackoff);
@@ -2390,22 +2813,38 @@
     let ok = false;
     try {
       const r = await req("/api/apps", { timeout: 4200 });
+      if (requestSequence !== appsLoadSequence.value) return;
       if (r.status === 200){
         authed = true;
         if (Array.isArray(r.data && (r.data.pieces || r.data.pinned)) && Array.isArray(r.data && r.data.running)){
           ok = true;
+          state.online = true;
+          connectionRevision += 1;
+          healthChecked = true;
+          healthBackoff = HEALTH_OK;
+          appsLoadFailed = false;
+          renderConnectionNotice();
           maybeReloadForUi(r.data.v);
           applyAppsPayload(r.data.pieces || r.data.pinned, r.data.pinned, r.data.running, r.data.limits, r.data.revision);
         }
       }
     } catch (e) { /* offline: keep last view */ }
+    if (requestSequence !== appsLoadSequence.value) return;
+    if (!ok){
+      appsLoadFailed = true;
+      renderConnectionNotice();
+    }
     appsBackoff = ok ? APPS_OK : Math.min(appsBackoff * 2, POLL_MAX);
     appsT = setTimeout(loadApps, appsBackoff);
     if (!ok) connectStatusWs();
   }
   if (typeof document.addEventListener === "function"){
     document.addEventListener("visibilitychange", function(){
-      if (!pageHidden()){ loadHealth(); connectStatusWs(); loadApps(); }
+      if (!pageHidden()){
+        loadHealth();
+        connectStatusWs();
+        loadApps();
+      }
     });
   }
 
@@ -2426,17 +2865,57 @@
   function updateRecentsDots(){ /* no-op: visual limpo como a ref */ }
 
   let installedT = null;
+  let installedLoadSequence = 0;
+  function failInstalledLoad(requestSequence){
+    if (requestSequence !== installedLoadSequence) return;
+    installedLoadFailed = true;
+    renderConnectionNotice();
+    installedT = setTimeout(loadInstalled, 8000);
+  }
   async function loadInstalled(){
     if (installedT){ clearTimeout(installedT); installedT = null; }
+    const requestSequence = ++installedLoadSequence;
+    const pinnedAtRequest = pinnedSig;
     try {
       const r = await req("/api/apps/installed", { timeout: 6000 });
+      if (requestSequence !== installedLoadSequence) return;
       if (r.status === 200 && r.data && r.data.ok === true && Array.isArray(r.data.apps)){
         state.installed = r.data.apps;
         state.installedReady = true;
+        installedLoadFailed = false;
         renderLaunchpad();
+        renderConnectionNotice();
+        if (pinnedAtRequest !== pinnedSig && state.pieces.some(function(piece){
+          return piece.type === "app" && !r.data.apps.some(function(app){ return app.name === piece.name; });
+        })) loadInstalled();
+      } else if (r.status !== 401){
+        failInstalledLoad(requestSequence);
       }
-    } catch (e) { installedT = setTimeout(loadInstalled, 8000); }
+    } catch (e) {
+      failInstalledLoad(requestSequence);
+    }
   }
+
+  async function retryConnection(){
+    if (connectionRetrying) return;
+    connectionRetrying = true;
+    renderConnectionNotice();
+    if (statusWs){
+      try { statusWs.close(); } catch (e) {}
+      statusWs = null;
+    }
+    wsRetry = 2000;
+    healthBackoff = HEALTH_OK;
+    appsBackoff = APPS_OK;
+    await Promise.all([
+      loadHealth().catch(function(){}),
+      loadApps(true).catch(function(){}),
+      loadInstalled().catch(function(){}),
+    ]);
+    connectionRetrying = false;
+    renderConnectionNotice();
+  }
+  $("connectionRetry").addEventListener("click", retryConnection);
 
   // ---------- header ----------
   function openDrawer(){
@@ -2449,25 +2928,58 @@
   });
 
   // ---------- telas (swipe vertical) ----------
+  const SCREEN_NAMES = ["apps", "recents"];
+  const SCREEN_STORAGE_KEY = "dokke.lastScreen";
+  function screenNames(){
+    return SCREEN_NAMES;
+  }
+  function readPersistedScreen(){
+    try {
+      const saved = localStorage.getItem(SCREEN_STORAGE_KEY);
+      return SCREEN_NAMES.indexOf(saved) >= 0 ? saved : "apps";
+    } catch (e) {
+      return "apps";
+    }
+  }
+  function persistScreen(name){
+    if (SCREEN_NAMES.indexOf(name) < 0) return;
+    try { localStorage.setItem(SCREEN_STORAGE_KEY, name); } catch (e) {}
+  }
   function renderVDots(){
     const v = $("vdots");
-    if (v.firstChild) return; // já renderizado
-    for (let i = 0; i < 2; i++){
-      const d = document.createElement("span");
-      d.className = "d" + (i === 0 ? " on" : "");
+    if (!v) return;
+    const names = screenNames();
+    const vDotVisualGap = 20;
+    v.replaceChildren();
+    names.forEach(function(name, i){
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "d" + (name === state.screen ? " on" : "");
+      d.setAttribute("aria-label", t("screen." + name));
+      d.setAttribute("aria-current", name === state.screen ? "true" : "false");
+      d.style.setProperty("--vdot-y", (((names.length - 1) / 2 - i) * (44 - vDotVisualGap)) + "px");
       v.appendChild(d);
-    }
+      d.dataset.screen = name;
+      d.addEventListener("click", function(){ goScreen(name); });
+    });
   }
 
   function syncVDots(){
     const ds = $("vdots").querySelectorAll(".d");
-    if (ds[0]) ds[0].classList.toggle("on", state.screen === "apps");
-    if (ds[1]) ds[1].classList.toggle("on", state.screen === "recents");
+    const names = screenNames();
+    ds.forEach(function(dot, index){
+      const active = names[index] === state.screen;
+      dot.classList.toggle("on", active);
+      dot.setAttribute("aria-current", active ? "true" : "false");
+    });
   }
 
   function goScreen(name){
+    const names = screenNames();
+    if (names.indexOf(name) < 0) name = names[names.length - 1] || "apps";
     if (name === state.screen) return;
     state.screen = name;
+    persistScreen(name);
     document.body.classList.toggle("is-recents", name === "recents");
     syncVDots();
   }
@@ -2476,58 +2988,50 @@
   if (screensEl){
     const screenApps = $("screenApps");
     const screenRecents = $("screenRecents");
+    const screenElements = [screenApps, screenRecents];
+    const screenIndex = name => Math.max(0, screenNames().indexOf(name));
     const DRAG = 4;
     const AXIS_RATIO = 1.2;
     const VEL_INST = 0.3;
     const VEL_AVG = 0.45;
     const FLICK_MIN = 16;
     const RUBBER = 28;
-    const COOLDOWN_MS = 80;
     let sx = 0, sy = 0, t0 = 0, moving = false, pid = null;
-    let coolUntil = 0;
     let wheelDelta = 0;
+    let wheelQueuedIntent = 0;
     let wheelT = null;
     let wheelRaf = null;
     let settleT = null;
     let settling = false;
+    let settleTarget = null;
     let lastY = 0, lastT = 0, instVel = 0;
+    const VERTICAL_SETTLE_MS = IS_ANDROID_WEBVIEW ? 200 : 220;
 
     function h(){ return Math.max(screensEl.offsetHeight, 1); }
     function commitPx(){ return Math.max(34, Math.round(h() * 0.06)); }
     function wheelCommitPx(){ return Math.max(70, Math.round(h() * 0.14)); }
-    function activeEl(){ return state.screen === "apps" ? screenApps : screenRecents; }
+    function activeEl(){ return screenElements[screenIndex(state.screen)] || screenApps; }
     function rubberDy(dy){
       const height = h();
-      if (state.screen === "apps"){
-        // apps -> recentes: acompanha o dedo por toda a viewport; o limite
-        // curto só vale para o overscroll na direção sem próxima tela.
-        if (dy < 0) return Math.max(dy, -height - RUBBER);
-        return Math.min(dy, RUBBER);
-      }
-      // recentes -> apps: antes ficava preso em 28px e saltava no release.
-      if (dy > 0) return Math.min(dy, height + RUBBER);
-      return Math.max(dy, -RUBBER);
+      const atTop = state.screen === "apps" && dy > 0;
+      const atBottom = state.screen === "recents" && dy < 0;
+      if (atTop || atBottom) return Math.sign(dy) * Math.min(Math.abs(dy), RUBBER);
+      return Math.max(-height - RUBBER, Math.min(height + RUBBER, dy));
     }
     function applyDrag(dy){
       const d = rubberDy(dy);
-      if (state.screen === "apps"){
-        if (screenApps) screenApps.style.transform = "translate3d(0, " + d + "px, 0)";
-        if (screenRecents) screenRecents.style.transform = "translate3d(0, " + (d + h()) + "px, 0)";
-      } else {
-        if (screenRecents) screenRecents.style.transform = "translate3d(0, " + d + "px, 0)";
-        if (screenApps) screenApps.style.transform = "translate3d(0, " + (d - h()) + "px, 0)";
-      }
+      const current = screenIndex(state.screen);
+      screenElements.forEach(function(el, index){
+        if (el) el.style.transform = "translate3d(0, " + ((index - current) * h() + d) + "px, 0)";
+      });
     }
     function clearDrag(){
-      const recentsActive = document.body.classList.contains("is-recents");
-      if (screenApps){
-        screenApps.style.transform = recentsActive ? "translate3d(0, -100%, 0)" : "translate3d(0, 0, 0)";
-        screenApps.style.transition = "";
-      }
-      if (screenRecents){
-        screenRecents.style.transform = recentsActive ? "translate3d(0, 0, 0)" : "translate3d(0, 100%, 0)";
-        screenRecents.style.transition = "";
-      }
+      const current = screenIndex(state.screen);
+      screenElements.forEach(function(el, index){
+        if (!el) return;
+        el.style.transform = "translate3d(0, " + ((index - current) * 100) + "%, 0)";
+        el.style.transition = "";
+      });
     }
     let swipeClearRaf = null;
     function setLayer(on, axis){
@@ -2537,7 +3041,7 @@
       }
       try {
         const g = "transform";
-        for (const el of [screenApps, screenRecents]){ if (el) el.style.willChange = g; }
+        for (const el of screenElements){ if (el) el.style.willChange = g; }
       } catch (err) {}
       if (on){
         try { document.body.classList.add("swiping"); } catch (err) {}
@@ -2563,11 +3067,26 @@
       if (dragRaf){ cancelAnimationFrame(dragRaf); dragRaf = null; }
       if (dragDy != null){ applyDrag(dragDy); dragDy = null; }
     }
+    function stopWheelGesture(){
+      if (wheelT){ clearTimeout(wheelT); wheelT = null; }
+      if (wheelRaf){ cancelAnimationFrame(wheelRaf); wheelRaf = null; }
+      wheelDelta = 0;
+      wheelQueuedIntent = 0;
+    }
+    function flushQueuedWheel(){
+      const intent = wheelQueuedIntent;
+      wheelQueuedIntent = 0;
+      if (!intent) return;
+      const direction = intent < 0 ? "up" : "down";
+      requestAnimationFrame(function(){
+        if (!settling) settleAndCommit(direction);
+      });
+    }
     // ---- pager horizontal do launchpad (flick/25% troca página) ----
     let hGest = false, hOriginInLaunchpad = false, hOriginInDeck = false;
     let nativeDeckGesture = false;
     let hStart = 0, hStartPage = 0, hVel = 0, hLastX = 0;
-    let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null;
+    let hRaf = null, hDx = 0, hSnapRaf = null, hSnapT = null, hSnapTargetPage = null;
     const HV_FLICK = 0.32;
     const H_FLICK_MIN = 14;
     const HPAGE_RATIO = 0.18;
@@ -2613,14 +3132,17 @@
       if (hSnapT){ clearTimeout(hSnapT); hSnapT = null; }
       if (launchpadTrack) launchpadTrack.style.transition = "";
       if (launchpad){
+        if (hSnapTargetPage != null) launchpad.scrollLeft = hSnapTargetPage * Math.max(launchpad.clientWidth, 1);
         launchpad.style.scrollSnapType = "";
         launchpad.style.scrollBehavior = "";
       }
+      hSnapTargetPage = null;
     }
     function finishHorizontalSnap(target){
       hSnapRaf = null;
       if (hSnapT){ clearTimeout(hSnapT); hSnapT = null; }
       launchpad.scrollLeft = target;
+      hSnapTargetPage = null;
       launchpad.style.scrollSnapType = "";
       launchpad.style.scrollBehavior = "";
     }
@@ -2661,34 +3183,46 @@
       launchpad.style.scrollBehavior = "auto";
       const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
       const duration = reduced ? 1 : H_SNAP_DURATION;
+      hSnapTargetPage = t;
       animateHorizontalSnap(t * pw, duration);
-      coolUntil = Date.now() + COOLDOWN_MS;
     }
 
     function finishSettle(nextName){
+      if (!settling && !nextName) return;
+      const resolvedTarget = nextName || settleTarget || screensEl._nextScreen || null;
       settling = false;
+      settleTarget = null;
       setLayer(false);
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
-      if (nextName) goScreen(nextName);
+      screensEl._nextScreen = null;
+      if (resolvedTarget) goScreen(resolvedTarget);
       clearDrag();
       flushPendingRecents();
-      coolUntil = Date.now() + COOLDOWN_MS;
       if (typeof layoutDockScale === "function"){
         requestAnimationFrame(function(){ try{ layoutDockScale(); }catch(e){} });
       }
+      flushQueuedWheel();
     }
     function onSettleEnd(e){
       if (e.propertyName && e.propertyName !== "transform") return;
-      const next = screensEl._nextScreen || null;
-      screensEl._nextScreen = null;
-      finishSettle(next);
+      if (!settling) return;
+      const current = screenIndex(state.screen);
+      const target = settleTarget ? screenIndex(settleTarget) : -1;
+      if (e.target !== screenElements[current] && e.target !== screenElements[target]) return;
+      finishSettle(settleTarget);
     }
     function settleTo(nextName){
+      const names = screenNames();
+      if (names.indexOf(nextName) < 0 || nextName === state.screen) return;
+      stopWheelGesture();
       settling = true;
+      settleTarget = nextName;
       setLayer(true, "vertical");
       if (settleT){ clearTimeout(settleT); settleT = null; }
       screensEl.removeEventListener("transitionend", onSettleEnd);
+      const movingDown = screenIndex(nextName) > screenIndex(state.screen);
+      const movement = Math.max(1, Math.abs(screenIndex(nextName) - screenIndex(state.screen)));
       const hasPendingRecents = nextName === "recents" && recentsRenderPending;
       const hasPendingLaunchpad = nextName === "apps" && launchpadRenderPending;
       if (hasPendingRecents || hasPendingLaunchpad){
@@ -2701,22 +3235,18 @@
             const ease = IS_ANDROID_WEBVIEW
               ? "transform .20s cubic-bezier(.22,.61,.36,1)"
               : "transform .22s cubic-bezier(.22,.61,.36,1)";
-            if (nextName === "recents"){
-              if (screenApps) screenApps.style.transition = ease;
-              if (screenRecents) screenRecents.style.transition = ease;
-              applyDrag(-h());
-            } else {
-              if (screenApps) screenApps.style.transition = ease;
-              if (screenRecents) screenRecents.style.transition = ease;
-              applyDrag(h());
-            }
+            const current = screenIndex(state.screen);
+            const target = screenIndex(nextName);
+            screenElements.forEach(function(el, index){
+              if (!el) return;
+              el.style.transition = index === current || index === target ? ease : "none";
+            });
+            applyDrag((movingDown ? -1 : 1) * h() * movement);
             screensEl._nextScreen = nextName || null;
             screensEl.addEventListener("transitionend", onSettleEnd);
             settleT = setTimeout(function(){
-              const n = screensEl._nextScreen || null;
-              screensEl._nextScreen = null;
-              finishSettle(n);
-            }, 360);
+              finishSettle(nextName);
+            }, VERTICAL_SETTLE_MS + 120);
           });
         });
         return;
@@ -2735,34 +3265,27 @@
         const ease = IS_ANDROID_WEBVIEW
           ? "transform .20s cubic-bezier(.22,.61,.36,1)"
           : "transform .22s cubic-bezier(.22,.61,.36,1)";
-        if (nextName === "recents"){
-          if (screenApps) screenApps.style.transition = ease;
-          if (screenRecents) screenRecents.style.transition = ease;
-          applyDrag(-h());
-        } else {
-          if (screenApps) screenApps.style.transition = ease;
-          if (screenRecents) screenRecents.style.transition = ease;
-          applyDrag(h());
-        }
+        const current = screenIndex(state.screen);
+        const target = screenIndex(nextName);
+        screenElements.forEach(function(el, index){
+          if (!el) return;
+          el.style.transition = index === current || index === target ? ease : "none";
+        });
+        applyDrag((movingDown ? -1 : 1) * h() * movement);
         // Mantém as duas camadas visíveis durante o movimento. A troca de z-index
         // e de pointer-events acontece em finishSettle, depois do último frame.
         screensEl._nextScreen = nextName || null;
         screensEl.addEventListener("transitionend", onSettleEnd);
         settleT = setTimeout(function(){
-          const n = screensEl._nextScreen || null;
-          screensEl._nextScreen = null;
-          finishSettle(n);
-        }, 360);
+          finishSettle(nextName);
+        }, VERTICAL_SETTLE_MS + 120);
       });
     }
     function settleAndCommit(dir){
-      if (Date.now() < coolUntil && dir){
-        setLayer(false);
-        clearDrag();
-        return;
-      }
-      if (dir === "up" && state.screen === "apps") settleTo("recents");
-      else if (dir === "down" && state.screen === "recents") settleTo("apps");
+      const current = screenIndex(state.screen);
+      const names = screenNames();
+      if (dir === "up" && current < names.length - 1) settleTo(names[current + 1]);
+      else if (dir === "down" && current > 0) settleTo(names[current - 1]);
       else { setLayer(false); clearDrag(); }
     }
     function releasePointer(){
@@ -2778,22 +3301,24 @@
       const flick =
         (iv >= VEL_INST && Math.abs(dy) >= FLICK_MIN) ||
         (avg >= VEL_AVG && Math.abs(dy) >= FLICK_MIN);
-      if (state.screen === "apps"){
-        if (dy <= -need || (flick && dy < 0)) return "up";
-      } else {
-        if (dy >= need || (flick && dy > 0)) return "down";
-      }
+      const current = screenIndex(state.screen);
+      if (dy < 0 && current < screenNames().length - 1 && (dy <= -need || flick)) return "up";
+      if (dy > 0 && current > 0 && (dy >= need || flick)) return "down";
       return null;
     }
 
     screensEl.addEventListener("pointerdown", function(e){
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      stopWheelGesture();
       stopHorizontalSnap();
       if (settling){
+        const interruptedTarget = settleTarget || screensEl._nextScreen || null;
         if (settleT){ clearTimeout(settleT); settleT = null; }
         screensEl.removeEventListener("transitionend", onSettleEnd);
         screensEl._nextScreen = null;
         settling = false;
+        settleTarget = null;
+        if (interruptedTarget) goScreen(interruptedTarget);
         clearDrag();
       }
       sx = e.clientX; sy = e.clientY; t0 = e.timeStamp;
@@ -2827,7 +3352,6 @@
       lastT = e.timeStamp;
       if (!moving){
         if (Math.abs(dy) < DRAG && Math.abs(dx) < DRAG) return;
-        if (Date.now() < coolUntil) return;
         if (Math.abs(dx) > Math.abs(dy) * AXIS_RATIO){
           // Depois do setPointerCapture, o target passa a ser #screens. Use a
           // origem do toque, não o target capturado.
@@ -2936,10 +3460,11 @@
 
     screensEl.addEventListener("wheel", function(e){
       if (e.ctrlKey) return;
-      if (settling) return;
-      const adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
-      if (adx >= ady * AXIS_RATIO) return;
-      if (Date.now() < coolUntil){ e.preventDefault(); return; }
+      if (settling){
+        e.preventDefault();
+        if (e.deltaY !== 0) wheelQueuedIntent += e.deltaY > 0 ? -1 : 1;
+        return;
+      }
       e.preventDefault();
       let d = e.deltaY;
       if (e.deltaMode === 1) d *= 18;
@@ -2962,9 +3487,10 @@
         const dd = wheelDelta;
         wheelDelta = 0;
         const need = wheelCommitPx();
+        const names = screenNames();
         let dir = null;
-        if (state.screen === "apps" && dd <= -need) dir = "up";
-        else if (state.screen === "recents" && dd >= need) dir = "down";
+        if (dd <= -need && screenIndex(state.screen) < names.length - 1) dir = "up";
+        else if (dd >= need && screenIndex(state.screen) > 0) dir = "down";
         settleAndCommit(dir);
       }, 140);
     }, { passive: false });
@@ -2980,17 +3506,16 @@
         }
         if (i < 0){
           const r = vdots.getBoundingClientRect();
-          i = (e.clientY - r.top) < r.height / 2 ? 0 : 1;
+          i = Math.min(screenNames().length - 1, Math.floor(((e.clientY - r.top) / Math.max(r.height, 1)) * screenNames().length));
         }
-        if (i === 0 && state.screen !== "apps") settleAndCommit("down");
-        else if (i === 1 && state.screen !== "recents") settleAndCommit("up");
+        const names = screenNames();
+        if (i >= 0 && i < names.length && names[i] !== state.screen) settleTo(names[i]);
       });
     }
 
     function reAnchor(){
       if (!moving && !settling){
         clearDrag();
-        coolUntil = Date.now() + COOLDOWN_MS;
       }
     }
     window.addEventListener("resize", function(){
@@ -3003,7 +3528,10 @@
     }
   }
 
+  const initialScreen = readPersistedScreen();
   renderVDots();
+  renderRecents();
+  if (initialScreen !== "apps") goScreen(initialScreen);
 
   // orientation change
   checkOrientation();
@@ -3106,7 +3634,7 @@
   boot();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?rev=dokke-v24").catch(function() {});
+    navigator.serviceWorker.register("/sw.js?rev=dokke-v34").catch(function() {});
   }
 })();</script>
 </body>

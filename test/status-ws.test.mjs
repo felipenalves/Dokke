@@ -82,7 +82,7 @@ test("@spec:AC-337 bind ocupado rejeita uma tentativa sem derrubar o host existe
 test("WS /ws empurra online + apps com pinned e running mock", async () => {
   const { port, close } = await startServer({
     port: 0,
-    config: { pinned: ["Figma"] },
+    config: { pinned: ["Figma"], usage: { enabled: true }, usageProvider: "codex" },
     appTools: { listAppProcesses: async () => [{ name: "Chrome", pid: 9, type: "Foreground" }] },
   });
   let c = null;
@@ -94,6 +94,8 @@ test("WS /ws empurra online + apps com pinned e running mock", async () => {
     assert.deepEqual(apps.pinned, ["Figma"]);
     assert.deepEqual(apps.limits, pinnedLimits());
     assert.equal(apps.running.some((a) => a.name === "Chrome"), true);
+    assert.equal(Object.hasOwn(apps, "usage"), false);
+    assert.equal(Object.hasOwn(apps, "usageProvider"), false);
   } finally {
     if (c) { try { c.ws.close(); } catch (e) {} }
     await close();

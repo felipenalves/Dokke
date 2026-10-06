@@ -73,5 +73,5 @@ adb connect <ip-do-j5>:5555
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> Exigências nesta máquina: JDK 17+ e Android SDK (ANDROID_HOME). Hoje não estão
-> instalados (sem `java`, sem `adb`), por isso o build/install fica pendente.
+> Requisitos para compilar e instalar: JDK 17+, Android SDK configurado e `adb`
+> para instalação direta em um dispositivo.

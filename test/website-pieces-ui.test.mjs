@@ -8,11 +8,11 @@ const grid = await readFile(new URL("../mac/Sources/DockGridView.swift", import.
 const icon = await readFile(new URL("../mac/Sources/DockIcon.swift", import.meta.url), "utf8");
 const store = await readFile(new URL("../mac/Sources/DockStore.swift", import.meta.url), "utf8");
 
-test("@spec:AC-310 PWA monta site a partir de pieces sem inventário de apps", () => {
+test("@spec:AC-310 PWA monta sites e atalhos a partir de pieces sem inventário de apps", () => {
   const render = pwa.slice(pwa.indexOf("function renderLaunchpad"), pwa.indexOf("function renderDots"));
   assert.match(render, /state\.pieces\.length/);
   assert.match(render, /piece\.type === "website"/);
-  assert.match(render, /piece\.type === "website"\) byPosition\.set\(position, piece\)/);
+  assert.match(render, /piece\.type === "website" \|\| piece\.type === "shortcut"\) byPosition\.set\(position, piece\)/);
   assert.doesNotMatch(render, /if \(!state\.installedReady\)/);
 });
 
@@ -26,18 +26,24 @@ test("@spec:AC-311 companion abre site somente por ID remoto e permanece no Dokk
   assert.doesNotMatch(tile, /<a|href/);
 });
 
-test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () => {
+test("@spec:AC-320 picker preserva Apps e Website Links", () => {
   assert.match(picker, /I18n\.text\("picker\.apps"/);
   assert.match(picker, /I18n\.text\("picker\.websites"/);
-  assert.match(picker, /pickerStyle\(\.segmented\)/);
-  assert.match(picker, /labelsHidden\(\)/);
+  assert.match(picker, /private var pickerTabSelector/);
+  assert.match(picker, /private func pickerTabButton/);
+  assert.match(picker, /selection: "Apps"/);
+  assert.match(picker, /selection: "Website Links"/);
+  assert.match(picker, /selection: "Shortcuts"/);
+  assert.match(picker, /accessibilityAddTraits\(isSelected \? \.isSelected : \[\]\)/);
+  assert.match(picker, /frame\(height: 72\)/);
   assert.match(picker, /frame\(maxWidth: \.infinity\)/);
   assert.match(picker, /websiteSuggestions/);
   assert.match(picker, /\("WhatsApp", "https:\/\/whatsapp\.com"\)/);
   assert.match(picker, /\("TikTok", "https:\/\/tiktok\.com"\)/);
   assert.match(picker, /\("LinkedIn", "https:\/\/linkedin\.com"\)/);
   assert.match(picker, /\("ChatGPT", "https:\/\/chatgpt\.com"\)/);
-  assert.match(picker, /\("Documente", "https:\/\/documenteclub\.vercel\.app"\)/);
+  assert.match(picker, /\("X", "https:\/\/x\.com"\)/);
+  assert.doesNotMatch(picker, /documenteclub\.vercel\.app/);
   assert.doesNotMatch(picker, /\("Notion", "https:\/\/notion\.so"\)/);
   assert.doesNotMatch(picker, /\("Figma", "https:\/\/figma\.com"\)/);
   assert.match(picker, /\("Pinterest", "https:\/\/pinterest\.com"\)/);
@@ -46,7 +52,21 @@ test("@spec:AC-320 picker mantém Apps e adiciona exatamente Website Links", () 
   assert.match(picker, /WebsiteFaviconView\(rawURL: rawURL/);
   assert.match(picker, /LazyVStack\(spacing: 0\)/);
   assert.match(picker, /Button\(I18n\.text\("picker\.add"/);
-  assert.doesNotMatch(picker, /Apple Shortcuts/);
+});
+
+test("seletor do picker torna cada aba inteira clicável e dá retorno ao pressionar", () => {
+  const start = picker.indexOf("private func pickerTabButton");
+  const end = picker.indexOf("var body: some View", start);
+  const button = picker.slice(start, end);
+  const labelStart = button.indexOf("} label: {");
+  const labelEnd = button.indexOf(".buttonStyle(", labelStart);
+  const label = button.slice(labelStart, labelEnd);
+
+  assert.match(label, /\.frame\(maxWidth: \.infinity\)[\s\S]*?\.frame\(height: 72\)[\s\S]*?\.background\([\s\S]*?\.contentShape\(Rectangle\(\)\)/);
+  assert.match(button, /\.buttonStyle\(PickerTabButtonStyle\(\)\)/);
+  assert.match(button, /\.onHover \{ isHovering in[\s\S]*hoveredPickerTab = isHovering \? selection : nil/);
+  assert.match(picker, /private struct PickerTabButtonStyle: ButtonStyle/);
+  assert.match(picker, /configuration\.isPressed/);
 });
 
 test("picker Apps usa a mesma linguagem de cards e ações azuis", () => {
@@ -147,7 +167,9 @@ test("Mac prioriza favicons diretos de alta resolução antes do fallback", () =
 
 test("PWA e APK usam a mesma placa branca para favicon de website", () => {
   const tile = pwa.slice(pwa.indexOf("function buildTile"), pwa.indexOf("function replaceChildren"));
-  assert.match(pwa, /\.website-plate\{[\s\S]*background: rgba\(255,255,255,\.96\)/);
+  assert.match(pwa, /\.website-plate\{[\s\S]*width: 80%; height: 80%;[\s\S]*background: rgba\(255,255,255,\.96\)/);
+  assert.match(pwa, /\.atile \.aglass \.website-plate img\.aicon\{[\s\S]*width: calc\(100% \* var\(--tile-in\)\); height: calc\(100% \* var\(--tile-in\)\);/);
+  assert.match(pwa, /\.atile \.aglass \.website-plate \.gicon\{[\s\S]*width: calc\(100% \* var\(--tile-in\)\); height: calc\(100% \* var\(--tile-in\)\);/);
   assert.match(pwa, /\.website-plate img\.aicon[\s\S]*object-fit: cover;/);
   assert.match(tile, /const websitePlate = a\.type === "website"/);
   assert.match(tile, /websitePlate\.appendChild\(img\)/);

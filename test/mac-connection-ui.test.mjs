@@ -31,6 +31,19 @@ test("tela de conexão prioriza o código e esconde configuração técnica", ()
   assert.doesNotMatch(contentView.slice(0, contentView.indexOf("struct AboutView")), /UpdateBanner/);
 });
 
+test("seletor de idioma aparece uma vez, compacto e alinhado à direita", () => {
+  const languageRow = about.slice(about.indexOf("HStack {"), about.indexOf("VStack(alignment: .leading, spacing: 4)"));
+
+  assert.match(languageRow, /Text\(I18n\.text\("aria\.language"/);
+  assert.match(languageRow, /Spacer\(\)/);
+  assert.match(languageRow, /Picker\("", selection:/);
+  assert.match(languageRow, /\.labelsHidden\(\)/);
+  assert.match(languageRow, /\.pickerStyle\(\.menu\)/);
+  assert.match(languageRow, /\.fixedSize\(\)/);
+  assert.match(languageRow, /\.accessibilityLabel\(I18n\.text\("aria\.language"/);
+  assert.doesNotMatch(languageRow, /Picker\("Idioma"/);
+});
+
 test("PIN volta a ser carregado quando o servidor sobe depois do primeiro refresh", () => {
   const status = dockStore.slice(
     dockStore.indexOf("func pingStatus() async"),

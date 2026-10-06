@@ -1,0 +1,429 @@
+name: Release macOS DMGs
+run-name: Release Dokke ${{ inputs.tag }}
+
+on:
+  # GitHub only offers workflow_dispatch for a workflow present on the default branch.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag already merged to main (for example v0.2.9)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release tag
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      source_sha: ${{ steps.validate.outputs.source_sha }}
+    steps:
+      - name: Check out main and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate tag is a version on main
+        id: validate
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "error: release tag must use vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+
+          git fetch origin main:refs/remotes/origin/main --force --no-tags
+          source_sha="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          if ! git merge-base --is-ancestor "${source_sha}" origin/main; then
+            echo "error: release tag must point to a commit already merged into main" >&2
+            exit 1
+          fi
+
+          tag_version="$(git show "${RELEASE_TAG}:package.json" | jq -r '.version')"
+          if [[ "${RELEASE_TAG}" != "v${tag_version}" ]]; then
+            echo "error: tag ${RELEASE_TAG} does not match package.json version ${tag_version}" >&2
+            exit 1
+          fi
+
+          echo "source_sha=${source_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out the validated release contents
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.validate.outputs.source_sha }}
+          path: release-source
+          persist-credentials: false
+
+      - name: Validate the version-matched signed Android package
+        working-directory: release-source
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_version="${RELEASE_TAG#v}"
+          package_version="$(jq -r '.version' package.json)"
+          android_version="$(sed -nE 's/.*versionName = "([^"]+)".*/\1/p' android/app/build.gradle | head -n 1)"
+          android_version_code="$(sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' android/app/build.gradle | head -n 1)"
+          metadata_tag="$(jq -r '.tag' public/version.json)"
+          metadata_apk_version="$(jq -r '.apkVersion' public/version.json)"
+          test -s public/dokke.apk
+
+          previous_release_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ "${previous_release_tag}" == "${RELEASE_TAG}" ]]; then
+            echo "error: ${RELEASE_TAG} already has a published release" >&2
+            exit 1
+          fi
+          previous_release_dir="${RUNNER_TEMP}/dokke-previous-release"
+          mkdir -p "${previous_release_dir}"
+          gh release download "${previous_release_tag}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern dokke.apk \
+            --dir "${previous_release_dir}"
+          test -s "${previous_release_dir}/dokke.apk"
+
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          aapt="$(find "${sdk_root}/build-tools" -mindepth 2 -maxdepth 2 -type f -name aapt -perm -111 -print 2>/dev/null | sort -V | tail -n 1)"
+          if [[ -z "${aapt}" ]]; then
+            echo "error: Android build-tools aapt was not found on this runner" >&2
+            exit 1
+          fi
+          apksigner="${aapt%/aapt}/apksigner"
+          if [[ ! -x "${apksigner}" ]]; then
+            echo "error: Android build-tools apksigner was not found beside aapt" >&2
+            exit 1
+          fi
+
+          apk_badging="$("${aapt}" dump badging public/dokke.apk)"
+          previous_apk_badging="$("${aapt}" dump badging "${previous_release_dir}/dokke.apk")"
+          apk_package="$(printf '%s\n' "${apk_badging}" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+          apk_version_code="$(printf '%s\n' "${apk_badging}" | sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p")"
+          apk_version="$(printf '%s\n' "${apk_badging}" | sed -nE "s/^package:.*versionName='([^']+)'.*/\1/p")"
+          previous_apk_package="$(printf '%s\n' "${previous_apk_badging}" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+          previous_version_code="$(printf '%s\n' "${previous_apk_badging}" | sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p")"
+
+          keytool -printcert -jarfile public/dokke.apk >/dev/null
+          keytool -printcert -jarfile "${previous_release_dir}/dokke.apk" >/dev/null
+          apksigner verify --print-certs public/dokke.apk >/dev/null
+          apksigner verify --print-certs "${previous_release_dir}/dokke.apk" >/dev/null
+          apk_signers="$(apksigner verify --print-certs public/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          previous_signers="$(apksigner verify --print-certs "${previous_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+
+          if [[ "${package_version}" != "${release_version}" \
+             || "${android_version}" != "${release_version}" \
+             || "${metadata_tag}" != "${RELEASE_TAG}" \
+             || "${metadata_apk_version}" != "${release_version}" \
+             || "${apk_version}" != "${release_version}" \
+             || -z "${apk_package}" \
+             || "${apk_package}" != "${previous_apk_package}" \
+             || -z "${apk_signers}" \
+             || "${apk_signers}" != "${previous_signers}" ]]; then
+            echo "error: release versions, application ID, and APK production signer must match ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+          if [[ -z "${apk_version_code}" || -z "${previous_version_code}" ]]; then
+            echo "error: could not read APK versionCode from the current and latest release" >&2
+            exit 1
+          fi
+          if [[ ! "${android_version_code}" =~ ^[0-9]+$ \
+             || ! "${apk_version_code}" =~ ^[0-9]+$ \
+             || ! "${previous_version_code}" =~ ^[0-9]+$ ]]; then
+            echo "error: Android source and APK versionCodes must be positive integers" >&2
+            exit 1
+          fi
+          if (( 10#${apk_version_code} == 0 || 10#${apk_version_code} > 2100000000 )); then
+            echo "error: APK versionCode must be between 1 and 2100000000" >&2
+            exit 1
+          fi
+          if [[ "${apk_version_code}" != "${android_version_code}" ]]; then
+            echo "error: APK versionCode ${apk_version_code} does not match Gradle ${android_version_code}" >&2
+            exit 1
+          fi
+          if (( 10#${apk_version_code} <= 10#${previous_version_code} )); then
+            echo "error: APK versionCode ${apk_version_code} must exceed latest release ${previous_version_code}" >&2
+            exit 1
+          fi
+
+          (cd public && shasum -a 256 dokke.apk > dokke.apk.sha256)
+
+      - name: Upload the validated Android package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Dokke-Android-production
+          path: |
+            release-source/public/dokke.apk
+            release-source/public/dokke.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  build:
+    name: Build ${{ matrix.artifact_suffix }}
+    needs: validate-release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26-intel
+            target_arch: x86_64
+            artifact_suffix: intel-x86_64
+          - runner: macos-26
+            target_arch: arm64
+            artifact_suffix: apple-silicon-arm64
+    env:
+      DOKKE_TARGET_ARCH: ${{ matrix.target_arch }}
+    steps:
+      - name: Check out the validated source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release.outputs.source_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Confirm native runner architecture
+        run: test "$(uname -m)" = "${DOKKE_TARGET_ARCH}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+
+      - name: Install Chromium for Playwright tests
+        run: npx playwright install chromium
+
+      - name: Run project tests
+        env:
+          DOKKE_SKIP_DMG_FIXTURE: "1"
+        run: npm test -- --test-concurrency=1
+
+      - name: Build architecture-specific DMG
+        run: ./mac/package-dmg.sh
+
+      - name: Test architecture-specific DMG layout
+        env:
+          DOKKE_DMG_FIXTURE: mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg
+        run: node --test test/package-dmg.test.mjs
+
+      - name: Verify checksum, app architectures, and packaged runtime
+        run: |
+          dmg="mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg"
+          (cd "$(dirname "${dmg}")" && shasum -a 256 "$(basename "${dmg}")" > "$(basename "${dmg}").sha256")
+          ./mac/verify-dmg.sh "${dmg}" "${DOKKE_TARGET_ARCH}"
+
+      - name: Archive architecture-specific app bundle
+        run: tar -czf "mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}-app.tar.gz" -C mac/dist Dokke.app
+
+      - name: Upload verified DMG and app bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Dokke-macOS-${{ matrix.artifact_suffix }}
+          path: |
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg*
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}-app.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  build-legacy-universal:
+    name: Build universal compatibility DMG
+    needs:
+      - validate-release
+      - build
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the validated source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release.outputs.source_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install DMG builder dependencies
+        run: npm ci
+
+      - name: Download architecture-specific app bundles
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: Dokke-macOS-*
+          path: mac-arch-artifacts
+          merge-multiple: true
+
+      - name: Merge app binaries and build legacy universal DMG
+        run: |
+          mkdir -p "${RUNNER_TEMP}/dokke-arm64" "${RUNNER_TEMP}/dokke-x86_64"
+          tar -xzf mac-arch-artifacts/Dokke-macOS-apple-silicon-arm64-app.tar.gz -C "${RUNNER_TEMP}/dokke-arm64"
+          tar -xzf mac-arch-artifacts/Dokke-macOS-intel-x86_64-app.tar.gz -C "${RUNNER_TEMP}/dokke-x86_64"
+          ./mac/merge-app-architectures.sh \
+            "${RUNNER_TEMP}/dokke-arm64/Dokke.app" \
+            "${RUNNER_TEMP}/dokke-x86_64/Dokke.app" \
+            "${RUNNER_TEMP}/Dokke-universal.app"
+          DOKKE_APP_BUNDLE="${RUNNER_TEMP}/Dokke-universal.app" \
+            ./mac/package-dmg.sh mac/dist/Dokke-macOS.dmg
+
+      - name: Verify legacy universal package and checksum
+        run: |
+          (cd mac/dist && shasum -a 256 Dokke-macOS.dmg > Dokke-macOS.dmg.sha256)
+          ./mac/verify-dmg.sh mac/dist/Dokke-macOS.dmg universal
+
+      - name: Upload verified legacy universal DMG
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Dokke-macOS-legacy-universal
+          path: mac/dist/Dokke-macOS.dmg*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: Publish the signed APK and macOS DMGs
+    needs:
+      - validate-release
+      - build
+      - build-legacy-universal
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dokke-release-publisher
+      queue: max
+    permissions:
+      contents: write
+    steps:
+      - name: Check out main and current tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: '*'
+          path: release-assets
+          merge-multiple: true
+
+      - name: Confirm tag, legacy links, and all checksums before publishing
+        env:
+          EXPECTED_SHA: ${{ needs.validate-release.outputs.source_sha }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for arch in intel-x86_64 apple-silicon-arm64; do
+            test -f "release-assets/Dokke-macOS-${arch}.dmg"
+            test -f "release-assets/Dokke-macOS-${arch}.dmg.sha256"
+          done
+          test -f release-assets/Dokke-macOS.dmg
+          test -f release-assets/Dokke-macOS.dmg.sha256
+          test -f release-assets/dokke.apk
+          test -f release-assets/dokke.apk.sha256
+          (cd release-assets && sha256sum -c ./*.sha256)
+
+          latest_release_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ -z "${latest_release_tag}" || "${latest_release_tag}" == "${RELEASE_TAG}" ]]; then
+            echo "error: latest release is missing or ${RELEASE_TAG} was already published" >&2
+            exit 1
+          fi
+          latest_release_dir="${RUNNER_TEMP}/dokke-latest-release"
+          mkdir -p "${latest_release_dir}"
+          gh release download "${latest_release_tag}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern dokke.apk \
+            --dir "${latest_release_dir}"
+          test -s "${latest_release_dir}/dokke.apk"
+
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          aapt="$(find "${sdk_root}/build-tools" -mindepth 2 -maxdepth 2 -type f -name aapt -perm -111 -print 2>/dev/null | sort -V | tail -n 1)"
+          if [[ -z "${aapt}" ]]; then
+            echo "error: Android build-tools aapt was not found on this runner" >&2
+            exit 1
+          fi
+          apksigner="${aapt%/aapt}/apksigner"
+          if [[ ! -x "${apksigner}" ]]; then
+            echo "error: Android build-tools apksigner was not found beside aapt" >&2
+            exit 1
+          fi
+
+          current_apk_badging="$("${aapt}" dump badging release-assets/dokke.apk)"
+          latest_apk_badging="$("${aapt}" dump badging "${latest_release_dir}/dokke.apk")"
+          current_apk_package="$(printf '%s\n' "${current_apk_badging}" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+          latest_apk_package="$(printf '%s\n' "${latest_apk_badging}" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+          current_apk_version_code="$(printf '%s\n' "${current_apk_badging}" | sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p")"
+          latest_apk_version_code="$(printf '%s\n' "${latest_apk_badging}" | sed -nE "s/^package:.*versionCode='([0-9]+)'.*/\1/p")"
+          current_apk_version="$(printf '%s\n' "${current_apk_badging}" | sed -nE "s/^package:.*versionName='([^']+)'.*/\1/p")"
+          source_apk_version_code="$(git show "${EXPECTED_SHA}:android/app/build.gradle" | sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' | head -n 1)"
+          current_apk_signers="$("${apksigner}" verify --print-certs release-assets/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          latest_apk_signers="$("${apksigner}" verify --print-certs "${latest_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+
+          if [[ -z "${current_apk_version_code}" || -z "${latest_apk_version_code}" \
+             || ! "${current_apk_version_code}" =~ ^[0-9]+$ \
+             || ! "${latest_apk_version_code}" =~ ^[0-9]+$ \
+             || ! "${source_apk_version_code}" =~ ^[0-9]+$ ]]; then
+            echo "error: could not validate current, source, and latest APK versionCodes" >&2
+            exit 1
+          fi
+          if (( 10#${current_apk_version_code} == 0 || 10#${current_apk_version_code} > 2100000000 )); then
+            echo "error: APK versionCode must be between 1 and 2100000000" >&2
+            exit 1
+          fi
+          if [[ "${current_apk_version_code}" != "${source_apk_version_code}" \
+             || "${current_apk_version}" != "${RELEASE_TAG#v}" \
+             || -z "${current_apk_package}" \
+             || "${current_apk_package}" != "${latest_apk_package}" \
+             || -z "${current_apk_signers}" \
+             || "${current_apk_signers}" != "${latest_apk_signers}" ]]; then
+            echo "error: release APK metadata or production signer no longer matches source/latest release" >&2
+            exit 1
+          fi
+          if (( 10#${current_apk_version_code} <= 10#${latest_apk_version_code} )); then
+            echo "error: APK versionCode ${current_apk_version_code} must exceed latest release ${latest_apk_version_code}" >&2
+            exit 1
+          fi
+
+          # Protect v* tags against update/deletion in GitHub before publishing.
+          # This final fetch narrows the gap between validation and release creation.
+          git fetch origin "+refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force --no-tags
+          current_tag_sha="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [[ "${current_tag_sha}" != "${EXPECTED_SHA}" ]]; then
+            echo "error: release tag moved after validation; refusing to publish mismatched DMGs" >&2
+            exit 1
+          fi
+          git fetch origin main:refs/remotes/origin/main --force --no-tags
+          if ! git merge-base --is-ancestor "${EXPECTED_SHA}" origin/main; then
+            echo "error: release source is no longer merged into main" >&2
+            exit 1
+          fi
+
+          gh release create "${RELEASE_TAG}" \
+            release-assets/Dokke-macOS.dmg \
+            release-assets/Dokke-macOS.dmg.sha256 \
+            release-assets/Dokke-macOS-intel-x86_64.dmg \
+            release-assets/Dokke-macOS-intel-x86_64.dmg.sha256 \
+            release-assets/Dokke-macOS-apple-silicon-arm64.dmg \
+            release-assets/Dokke-macOS-apple-silicon-arm64.dmg.sha256 \
+            release-assets/dokke.apk \
+            release-assets/dokke.apk.sha256 \
+            --verify-tag \
+            --title "Dokke ${RELEASE_TAG#v}" \
+            --generate-notes

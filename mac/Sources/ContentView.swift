@@ -138,7 +138,7 @@ struct ContentView: View {
             Image(systemName: item.icon)
               .font(.system(size: 12, weight: .medium))
               .frame(width: 14, height: 14)
-            Text(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
+            Text(sidebarLabel(for: item))
               .font(.system(size: 13, weight: .medium))
             Spacer(minLength: 0)
           }
@@ -159,7 +159,7 @@ struct ContentView: View {
             hoveredSidebarItem = nil
           }
         }
-        .accessibilityLabel(I18n.text(item == .apps ? "sidebar.slots" : "sidebar.connect", language: languageStore.selected))
+        .accessibilityLabel(sidebarLabel(for: item))
         .accessibilityValue(selection == item ? I18n.text("sidebar.selected", language: languageStore.selected) : "")
       }
       Spacer()
@@ -189,6 +189,13 @@ struct ContentView: View {
     if selection == item { return DokkeTheme.selection }
     if hoveredSidebarItem == item { return Color.white.opacity(0.08) }
     return .clear
+  }
+
+  private func sidebarLabel(for item: SidebarItem) -> String {
+    switch item {
+    case .apps: return I18n.text("sidebar.slots", language: languageStore.selected)
+    case .about: return I18n.text("sidebar.connect", language: languageStore.selected)
+    }
   }
 
   @ViewBuilder
@@ -331,7 +338,7 @@ struct AboutView: View {
           Text(I18n.text("aria.language", language: languageStore.selected))
             .font(.subheadline.weight(.semibold))
           Spacer()
-          Picker("Idioma", selection: Binding(
+          Picker("", selection: Binding(
             get: { languageStore.selected },
             set: { languageStore.select($0) }
           )) {
@@ -339,8 +346,10 @@ struct AboutView: View {
               Text(language.displayName).tag(language)
             }
           }
+          .labelsHidden()
           .pickerStyle(.menu)
-          .accessibilityLabel("Idioma")
+          .fixedSize()
+          .accessibilityLabel(I18n.text("aria.language", language: languageStore.selected))
         }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -638,7 +647,7 @@ struct MenuBarView: View {
   @EnvironmentObject private var languageStore: LanguageStore
 
   private var appVersion: String {
-    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.8"
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.2.9"
   }
 
   var body: some View {

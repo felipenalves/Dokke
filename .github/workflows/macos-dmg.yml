@@ -1,0 +1,156 @@
+name: macOS DMG CI
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '.github/workflows/macos-dmg.yml'
+      - '.github/workflows/release-macos.yml'
+      - 'CHANGELOG.md'
+      - 'actions.js'
+      - 'apps.js'
+      - 'assets/branding/dokke-icon/**'
+      - 'auth.js'
+      - 'config.js'
+      - 'config.json'
+      - 'mac/**'
+      - 'obs.js'
+      - 'obs-ws.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/**'
+      - 'server.js'
+      - 'test/**'
+# No pull_request trigger: same-repository PRs can change the workflow file
+# that runs, so native build CI starts only after a branch push is reviewed.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-dmg-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact_suffix }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26-intel
+            target_arch: x86_64
+            artifact_suffix: intel-x86_64
+          - runner: macos-26
+            target_arch: arm64
+            artifact_suffix: apple-silicon-arm64
+    env:
+      DOKKE_TARGET_ARCH: ${{ matrix.target_arch }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Confirm native runner architecture
+        run: test "$(uname -m)" = "${DOKKE_TARGET_ARCH}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright tests
+        run: npx playwright install chromium
+
+      - name: Run project tests
+        env:
+          DOKKE_SKIP_DMG_FIXTURE: "1"
+        run: npm test -- --test-concurrency=1
+
+      - name: Build architecture-specific DMG
+        run: ./mac/package-dmg.sh
+
+      - name: Test architecture-specific DMG layout
+        env:
+          DOKKE_DMG_FIXTURE: mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg
+        run: node --test test/package-dmg.test.mjs
+
+      - name: Verify checksum, app architectures, and packaged runtime
+        run: |
+          dmg="mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg"
+          (cd "$(dirname "${dmg}")" && shasum -a 256 "$(basename "${dmg}")" > "$(basename "${dmg}").sha256")
+          ./mac/verify-dmg.sh "${dmg}" "${DOKKE_TARGET_ARCH}"
+
+      - name: Archive architecture-specific app bundle
+        run: tar -czf "mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}-app.tar.gz" -C mac/dist Dokke.app
+
+      - name: Upload verified DMG and app bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Dokke-macOS-${{ matrix.artifact_suffix }}
+          path: |
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}.dmg*
+            mac/dist/Dokke-macOS-${{ matrix.artifact_suffix }}-app.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  build-legacy-universal:
+    name: Build universal compatibility DMG
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install DMG builder dependencies
+        run: npm ci
+
+      - name: Download architecture-specific app bundles
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: Dokke-macOS-*
+          path: mac-arch-artifacts
+          merge-multiple: true
+
+      - name: Merge app binaries and build legacy universal DMG
+        run: |
+          mkdir -p "${RUNNER_TEMP}/dokke-arm64" "${RUNNER_TEMP}/dokke-x86_64"
+          tar -xzf mac-arch-artifacts/Dokke-macOS-apple-silicon-arm64-app.tar.gz -C "${RUNNER_TEMP}/dokke-arm64"
+          tar -xzf mac-arch-artifacts/Dokke-macOS-intel-x86_64-app.tar.gz -C "${RUNNER_TEMP}/dokke-x86_64"
+          ./mac/merge-app-architectures.sh \
+            "${RUNNER_TEMP}/dokke-arm64/Dokke.app" \
+            "${RUNNER_TEMP}/dokke-x86_64/Dokke.app" \
+            "${RUNNER_TEMP}/Dokke-universal.app"
+          DOKKE_APP_BUNDLE="${RUNNER_TEMP}/Dokke-universal.app" \
+            ./mac/package-dmg.sh mac/dist/Dokke-macOS.dmg
+
+      - name: Verify legacy universal package and checksum
+        run: |
+          (cd mac/dist && shasum -a 256 Dokke-macOS.dmg > Dokke-macOS.dmg.sha256)
+          ./mac/verify-dmg.sh mac/dist/Dokke-macOS.dmg universal
+
+      - name: Upload verified legacy universal DMG
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Dokke-macOS-legacy-universal
+          path: mac/dist/Dokke-macOS.dmg*
+          if-no-files-found: error
+          retention-days: 30

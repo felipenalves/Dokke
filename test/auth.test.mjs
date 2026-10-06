@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import { startServer } from "../server.js";
 import { isLoopback, newPin, pinFromCookie, AUTH_COOKIE, ensurePin, writePinFile, readPinFile, pinFilePath, SESSION_COOKIE, sessionCookie, tokenFromCookie, createSessionStore, createPinLocks } from "../auth.js";
 import { chmod, mkdtemp, rm, stat } from "node:fs/promises";
@@ -21,6 +22,29 @@ async function boot(opts = {}) {
     ...opts,
   });
   return { ...server, root };
+}
+
+async function requestWithExternalHost(server, path, method = "GET", body) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      hostname: "127.0.0.1",
+      port: server.port,
+      path,
+      method,
+      headers: {
+        Host: `attacker.test:${server.port}`,
+        Origin: `http://attacker.test:${server.port}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+    }, response => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", chunk => { body += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, body }));
+    });
+    req.on("error", reject);
+    req.end(body ? JSON.stringify(body) : undefined);
+  });
 }
 
 test("unit: isLoopback", () => {
@@ -222,6 +246,32 @@ test("GET /api/pin só loopback (sem auth mesmo na LAN) → correto aqui", async
     const realPin = await readPinFile(root);
     assert.equal(body.pin, realPin);
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("Host externo não herda confiança local para PIN, login nem WebSocket", async () => {
+  const server = await boot({ trustLoopback: true, appTools: { listAppProcesses: async () => [] } });
+  try {
+    const realPin = await readPinFile(server.root);
+    const pin = await requestWithExternalHost(server, "/api/pin");
+    assert.equal(pin.status, 403);
+    const rotate = await requestWithExternalHost(server, "/api/pin", "POST");
+    assert.equal(rotate.status, 403);
+    const login = await requestWithExternalHost(server, "/api/auth", "POST", { pin: realPin });
+    assert.equal(login.status, 403, "Host externo não pode abrir sessão pelo loopback");
+
+    const wsResult = await new Promise(resolve => {
+      const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws`, {
+        headers: {
+          Host: `attacker.test:${server.port}`,
+          Origin: `http://attacker.test:${server.port}`,
+        },
+      });
+      ws.once("error", () => resolve("denied"));
+      ws.once("close", code => resolve(code !== 1000 ? "denied" : "open"));
+      ws.once("open", () => resolve("open"));
+    });
+    assert.equal(wsResult, "denied");
+  } finally { await server.close(); await rm(server.root, { recursive: true, force: true }); }
 });
 
 test("POST /api/pin regenera e invalida sessão antiga", async () => {

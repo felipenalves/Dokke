@@ -1,17 +1,42 @@
 import AppKit
 import SwiftUI
 
+private struct PickerTabButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .opacity(configuration.isPressed ? 0.78 : 1)
+      .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+  }
+}
+
 struct AppPickerSheet: View {
   @EnvironmentObject private var store: DockStore
   @EnvironmentObject private var languageStore: LanguageStore
   @Environment(\.dismiss) private var dismiss
   let insertAt: Int?
   @State private var search = ""
+  @State private var shortcutSearch = ""
+  @FocusState private var isSearchFocused: Bool
+  @FocusState private var isShortcutEmojiFocused: Bool
   @State private var selectedTab = "Apps"
+  @State private var hoveredPickerTab: String?
   @State private var websiteURL = ""
   @State private var pendingWebsiteURL = ""
   @State private var pendingWebsiteTitle = ""
   @State private var showWebsiteNamePrompt = false
+  @State private var pendingShortcutName = ""
+  @State private var pendingShortcutEmoji = "🖱️"
+  @State private var shortcutAddError: String?
+  @State private var showShortcutEmojiPrompt = false
+
+  private static let appsAppIcon = applicationIcon(forBundleIdentifier: "com.apple.apps.launcher")
+  private static let shortcutsAppIcon = applicationIcon(forBundleIdentifier: "com.apple.shortcuts")
+  private static let safariAppIcon = applicationIcon(forBundleIdentifier: "com.apple.Safari")
+
+  private static func applicationIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage? {
+    guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return nil }
+    return NSWorkspace.shared.icon(forFile: appURL.path)
+  }
 
   private let websiteSuggestions = [
     ("GitHub", "https://github.com"),
@@ -22,7 +47,7 @@ struct AppPickerSheet: View {
     ("TikTok", "https://tiktok.com"),
     ("LinkedIn", "https://linkedin.com"),
     ("ChatGPT", "https://chatgpt.com"),
-    ("Documente", "https://documenteclub.vercel.app"),
+    ("X", "https://x.com"),
   ]
 
   init(insertAt: Int? = nil) {
@@ -41,128 +66,302 @@ struct AppPickerSheet: View {
     return sorted.filter { $0.name.lowercased().contains(q) }
   }
 
+  private var filteredShortcuts: [String] {
+    let q = shortcutSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let sorted = store.shortcuts.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    if q.isEmpty { return sorted }
+    return sorted.filter { $0.lowercased().contains(q) }
+  }
+
+  private var pickerTabSelector: some View {
+    HStack(spacing: 4) {
+      pickerTabButton(
+        title: I18n.text("picker.apps", language: languageStore.selected),
+        selection: "Apps",
+        icon: Self.appsAppIcon,
+        fallbackSystemName: "square.grid.2x2.fill"
+      )
+      pickerTabButton(
+        title: I18n.text("picker.websites", language: languageStore.selected),
+        selection: "Website Links",
+        icon: Self.safariAppIcon,
+        fallbackSystemName: "safari.fill"
+      )
+      pickerTabButton(
+        title: I18n.text("picker.shortcuts", language: languageStore.selected),
+        selection: "Shortcuts",
+        icon: Self.shortcutsAppIcon,
+        fallbackSystemName: "bolt.fill"
+      )
+    }
+    .padding(6)
+    .frame(height: 84)
+    .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+  }
+
+  private func pickerTabButton(
+    title: String,
+    selection: String,
+    icon: NSImage?,
+    fallbackSystemName: String
+  ) -> some View {
+    let isSelected = selectedTab == selection
+    let isHovered = hoveredPickerTab == selection
+    return Button {
+      selectedTab = selection
+    } label: {
+      VStack(spacing: 4) {
+        Group {
+          if let icon {
+            Image(nsImage: icon)
+              .resizable()
+              .scaledToFit()
+          } else {
+            Image(systemName: fallbackSystemName)
+              .resizable()
+              .scaledToFit()
+              .padding(2)
+          }
+        }
+        .frame(width: 30, height: 30)
+
+        Text(title)
+          .font(.system(size: 15, weight: .semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
+      }
+      .frame(maxWidth: .infinity)
+      .frame(height: 72)
+      .background(
+        isSelected ? Color.white.opacity(0.13) : (isHovered ? Color.white.opacity(0.06) : Color.clear),
+        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(PickerTabButtonStyle())
+    .onHover { isHovering in
+      hoveredPickerTab = isHovering ? selection : nil
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(title)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
+  }
+
   var body: some View {
     ZStack {
       VStack(spacing: 0) {
-      HStack(spacing: 10) {
-        Picker(I18n.text("picker.type", language: languageStore.selected), selection: $selectedTab) {
-          Text(I18n.text("picker.apps", language: languageStore.selected)).tag("Apps")
-          Text(I18n.text("picker.websites", language: languageStore.selected)).tag("Website Links")
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .frame(maxWidth: .infinity)
-        .accessibilityLabel(I18n.text("picker.type", language: languageStore.selected))
+        HStack(spacing: 10) {
+          pickerTabSelector
+            .frame(maxWidth: .infinity)
 
-        Button { dismiss() } label: {
-          Image(systemName: "xmark")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: 28, height: 28)
-            .background(Color.white.opacity(0.10), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(I18n.text("picker.close", language: languageStore.selected))
-      }
-      .padding(.horizontal, 16)
-      .padding(.top, 16)
-      .padding(.bottom, 14)
-
-      Divider()
-
-      HStack(spacing: 12) {
-        Image(systemName: selectedTab == "Apps" ? "square.grid.2x2" : "globe")
-          .font(.system(size: 19, weight: .semibold))
-          .foregroundStyle(.white.opacity(0.92))
-          .frame(width: 42, height: 42)
-          .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        Text(I18n.text(selectedTab == "Apps" ? "picker.addApps" : "picker.addLinks", language: languageStore.selected))
-          .font(.system(size: 18, weight: .bold))
-          .lineLimit(1)
-        Spacer(minLength: 0)
-      }
-      .padding(.horizontal, 16)
-      .padding(.top, 16)
-      .padding(.bottom, 12)
-
-      if selectedTab == "Apps" {
-        HStack(alignment: .center, spacing: 10) {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-          Text(I18n.text("picker.library", language: languageStore.selected))
-            .font(.system(size: 16, weight: .semibold))
-          Spacer(minLength: 12)
-          HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
+          Button { dismiss() } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 12, weight: .semibold))
               .foregroundStyle(.secondary)
-            TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
-              .textFieldStyle(.plain)
-            if !search.isEmpty {
-              Button { search = "" } label: {
-                Image(systemName: "xmark.circle.fill")
-                  .foregroundStyle(.secondary)
-              }
-              .buttonStyle(.plain)
-            }
+              .frame(width: 28, height: 28)
+              .background(Color.white.opacity(0.10), in: Circle())
           }
-          .padding(.horizontal, 10)
-          .frame(width: 164, height: 32)
-          .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-          .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-              .stroke(Color.accentColor.opacity(0.8), lineWidth: 1.2)
-          )
+          .buttonStyle(.plain)
+          .accessibilityLabel(I18n.text("picker.close", language: languageStore.selected))
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
 
-        if store.isPinnedLimitReached {
-          Text(I18n.text("picker.limit", language: languageStore.selected))
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
+        Divider()
 
-        if store.installedLoading && !store.installedReady {
-          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if store.loading && !store.installedReady {
-          ProgressView(I18n.text("picker.loading", language: languageStore.selected))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if filteredApps.isEmpty {
-          ContentUnavailableView(
-            search.isEmpty ? I18n.text("picker.none", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
-            systemImage: "app.dashed",
-            description: Text(search.isEmpty ? I18n.text("picker.serverEmpty", language: languageStore.selected) : I18n.text("picker.searchDifferent", language: languageStore.selected))
-          )
-        } else {
-          ScrollView {
-            LazyVStack(spacing: 8) {
-              ForEach(filteredApps) { app in
-                appRow(app)
+        Group {
+          if selectedTab == "Apps" {
+            HStack(alignment: .center, spacing: 10) {
+              Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+              Text(I18n.text("picker.library", language: languageStore.selected))
+                .font(.system(size: 16, weight: .semibold))
+              Spacer(minLength: 12)
+              HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                  .foregroundStyle(.secondary)
+                TextField(I18n.text("picker.search", language: languageStore.selected), text: $search)
+                  .textFieldStyle(.plain)
+                  .focused($isSearchFocused)
+                if !search.isEmpty {
+                  Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                      .foregroundStyle(.secondary)
+                  }
+                  .buttonStyle(.plain)
+                }
               }
+              .padding(.horizontal, 10)
+              .frame(width: 164, height: 32)
+              .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+              .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                  .stroke(isSearchFocused ? Color.accentColor.opacity(0.75) : Color.white.opacity(0.14), lineWidth: 1)
+              )
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 12)
-          }
-          .scrollIndicators(.hidden)
-        }
-      } else {
-        websiteLinksView
-      }
-      }
+            .padding(.bottom, 10)
 
-      if showWebsiteNamePrompt {
+            if store.isPinnedLimitReached {
+              Text(I18n.text("picker.limit", language: languageStore.selected))
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+
+            if store.installedLoading && !store.installedReady {
+              ProgressView(I18n.text("picker.loading", language: languageStore.selected))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.loading && !store.installedReady {
+              ProgressView(I18n.text("picker.loading", language: languageStore.selected))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredApps.isEmpty {
+              ContentUnavailableView(
+                search.isEmpty ? I18n.text("picker.none", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
+                systemImage: "app.dashed",
+                description: Text(search.isEmpty ? I18n.text("picker.serverEmpty", language: languageStore.selected) : I18n.text("picker.searchDifferent", language: languageStore.selected))
+              )
+            } else {
+              ScrollView {
+                LazyVStack(spacing: 8) {
+                  ForEach(filteredApps) { app in
+                    appRow(app)
+                  }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+              }
+              .scrollIndicators(.hidden)
+            }
+          } else if selectedTab == "Website Links" {
+            websiteLinksView
+          } else {
+            shortcutsView
+          }
+        }
+        .padding(.top, 16)
+      }
+      .disabled(showWebsiteNamePrompt || showShortcutEmojiPrompt)
+      .accessibilityHidden(showWebsiteNamePrompt || showShortcutEmojiPrompt)
+
+      if showWebsiteNamePrompt || showShortcutEmojiPrompt {
         Color.black.opacity(0.48)
           .ignoresSafeArea()
-        websiteNamePrompt
+        if showShortcutEmojiPrompt {
+          shortcutEmojiPrompt
+        } else {
+          websiteNamePrompt
+        }
       }
     }
     .frame(width: 480, height: 620)
     .background(DokkeTheme.canvas)
+    .task(id: selectedTab) {
+      if selectedTab == "Shortcuts" { await store.loadShortcuts() }
+    }
+  }
+
+  private var shortcutsView: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 8) {
+        Image(systemName: "magnifyingglass")
+          .foregroundStyle(.secondary)
+        TextField(I18n.text("picker.shortcutSearch", language: languageStore.selected), text: $shortcutSearch)
+          .textFieldStyle(.plain)
+          .focused($isSearchFocused)
+        if !shortcutSearch.isEmpty {
+          Button { shortcutSearch = "" } label: {
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      .padding(.horizontal, 10)
+      .frame(height: 34)
+      .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+          .stroke(isSearchFocused ? Color.accentColor.opacity(0.75) : Color.white.opacity(0.14), lineWidth: 1)
+      )
+
+      if store.isPinnedLimitReached {
+        Text(I18n.text("picker.limit", language: languageStore.selected))
+          .font(.caption)
+          .foregroundStyle(.orange)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      if store.shortcutsLoading && !store.shortcutsReady {
+        ProgressView(I18n.text("picker.shortcutsLoading", language: languageStore.selected))
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if filteredShortcuts.isEmpty {
+        ContentUnavailableView(
+          shortcutSearch.isEmpty ? I18n.text("picker.shortcutNone", language: languageStore.selected) : I18n.text("picker.noResults", language: languageStore.selected),
+          systemImage: "bolt.slash",
+          description: Text(shortcutSearch.isEmpty
+            ? (store.lastError ?? I18n.text("picker.shortcutsEmpty", language: languageStore.selected))
+            : I18n.text("picker.searchDifferent", language: languageStore.selected))
+        )
+      } else {
+        ScrollView {
+          LazyVStack(spacing: 8) {
+            ForEach(filteredShortcuts, id: \.self) { shortcut in
+              shortcutRow(shortcut)
+            }
+          }
+          .padding(.bottom, 12)
+        }
+        .scrollIndicators(.hidden)
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.bottom, 12)
+  }
+
+  private func shortcutRow(_ shortcut: String) -> some View {
+    HStack(spacing: 10) {
+      Group {
+        if let appIcon = Self.shortcutsAppIcon {
+          Image(nsImage: appIcon)
+            .resizable()
+            .scaledToFit()
+        } else {
+          ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+              .fill(Color.accentColor.opacity(0.18))
+            Image(systemName: "square.stack.3d.up.fill")
+              .font(.system(size: 16, weight: .semibold))
+              .foregroundStyle(Color.accentColor)
+          }
+        }
+      }
+      .frame(width: 34, height: 34)
+      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+      Text(shortcut)
+        .lineLimit(1)
+      Spacer()
+      if store.isShortcutPinned(shortcut) {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 18, weight: .semibold))
+          .foregroundStyle(.green)
+          .accessibilityLabel(I18n.text("picker.added", language: languageStore.selected))
+      } else {
+        Button(I18n.text("picker.add", language: languageStore.selected)) {
+          beginShortcutAdd(shortcut)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(store.busyName == shortcut || store.isPinnedLimitReached || showShortcutEmojiPrompt)
+      }
+    }
+    .padding(.horizontal, 12)
+    .frame(maxWidth: .infinity, minHeight: 50)
+    .background(DokkeTheme.page.opacity(0.68), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
 
   private var websiteLinksView: some View {
@@ -288,6 +487,50 @@ struct AppPickerSheet: View {
     }
   }
 
+  private func beginShortcutAdd(_ name: String) {
+    store.lastError = nil
+    shortcutAddError = nil
+    pendingShortcutName = name
+    pendingShortcutEmoji = "🖱️"
+    showShortcutEmojiPrompt = true
+  }
+
+  private func confirmShortcutAdd() {
+    let name = pendingShortcutName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let emoji = pendingShortcutEmoji.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty, !emoji.isEmpty else { return }
+    Task {
+      let added = await store.addShortcut(name, emoji: emoji, at: insertAt)
+      if added {
+        shortcutAddError = nil
+        pendingShortcutName = ""
+        pendingShortcutEmoji = "🖱️"
+        isShortcutEmojiFocused = false
+        showShortcutEmojiPrompt = false
+        dismiss()
+      } else {
+        shortcutAddError = store.lastError ?? I18n.text("error.addShortcut", language: languageStore.selected)
+      }
+    }
+  }
+
+  private func cancelShortcutAdd() {
+    guard store.busyName != pendingShortcutName else { return }
+    pendingShortcutName = ""
+    pendingShortcutEmoji = "🖱️"
+    shortcutAddError = nil
+    isShortcutEmojiFocused = false
+    showShortcutEmojiPrompt = false
+  }
+
+  private func openShortcutEmojiPalette() {
+    isShortcutEmojiFocused = true
+    DispatchQueue.main.async {
+      (NSApp.keyWindow?.firstResponder as? NSTextView)?.selectAll(nil)
+      NSApp.orderFrontCharacterPalette(nil)
+    }
+  }
+
   private func cancelWebsiteAdd() {
     pendingWebsiteURL = ""
     pendingWebsiteTitle = ""
@@ -348,6 +591,97 @@ struct AppPickerSheet: View {
         .stroke(Color.white.opacity(0.20), lineWidth: 1)
     )
     .shadow(color: .black.opacity(0.28), radius: 22, y: 12)
+  }
+
+  private var shortcutEmojiPrompt: some View {
+    VStack(spacing: 18) {
+      HStack(spacing: 12) {
+        TextField("", text: $pendingShortcutEmoji)
+          .textFieldStyle(.plain)
+          .font(.system(size: 30))
+          .multilineTextAlignment(.center)
+          .frame(width: 48, height: 48)
+          .focused($isShortcutEmojiFocused)
+          .onAppear { isShortcutEmojiFocused = true }
+          .accessibilityLabel(I18n.text("picker.chooseEmoji", language: languageStore.selected))
+          .simultaneousGesture(TapGesture().onEnded { openShortcutEmojiPalette() })
+          .onChange(of: pendingShortcutEmoji) { _, value in
+            let selectedEmoji = String(value.suffix(1))
+            if selectedEmoji != value { pendingShortcutEmoji = selectedEmoji }
+          }
+
+        Rectangle()
+          .fill(Color.white.opacity(0.24))
+          .frame(width: 1, height: 24)
+
+        Button(action: openShortcutEmojiPalette) {
+          Image(systemName: "chevron.down")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 32, height: 40)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(I18n.text("picker.chooseEmoji", language: languageStore.selected))
+      }
+      .padding(.horizontal, 12)
+      .frame(height: 58)
+      .background(Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+      Text("\(I18n.text("picker.shortcutEmojiHint", language: languageStore.selected)) “\(pendingShortcutName)”")
+        .font(.system(size: 19, weight: .bold))
+        .multilineTextAlignment(.center)
+        .lineLimit(3)
+
+      if let error = shortcutAddError ?? store.lastError, !error.isEmpty {
+        Text(error)
+          .font(.caption)
+          .foregroundStyle(.red)
+          .multilineTextAlignment(.center)
+      }
+
+      HStack(spacing: 12) {
+        shortcutEmojiActionButton(
+          I18n.text("confirm.cancel", language: languageStore.selected),
+          prominent: false,
+          disabled: store.busyName == pendingShortcutName,
+          action: cancelShortcutAdd
+        )
+        shortcutEmojiActionButton(
+          I18n.text("picker.add", language: languageStore.selected),
+          prominent: true,
+          disabled: pendingShortcutEmoji.isEmpty || store.busyName != nil,
+          action: confirmShortcutAdd
+        )
+      }
+    }
+    .padding(24)
+    .frame(width: 360)
+    .background(DokkeTheme.canvas, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .stroke(Color.white.opacity(0.20), lineWidth: 1)
+    )
+    .shadow(color: .black.opacity(0.28), radius: 22, y: 12)
+  }
+
+  @ViewBuilder
+  private func shortcutEmojiActionButton(
+    _ title: String,
+    prominent: Bool,
+    disabled: Bool,
+    action: @escaping () -> Void
+  ) -> some View {
+    if prominent {
+      Button(action: action) { Text(title) }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(disabled)
+    } else {
+      Button(action: action) { Text(title) }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(disabled)
+    }
   }
 
   private func appRow(_ app: InstalledApp) -> some View {

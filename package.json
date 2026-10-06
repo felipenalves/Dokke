@@ -1,6 +1,6 @@
 {
   "name": "dokke",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "private": true,
   "type": "module",
   "portless": { "name": "dokke", "script": "start" },
@@ -8,7 +8,8 @@
     "start": "node server.js",
     "test": "node --test",
     "mac:install": "cd mac && ./install.sh",
-    "mac:open": "cd mac && ./install.sh --open"
+    "mac:open": "cd mac && ./install.sh --open",
+    "mac:dev": "bash mac/dev.sh"
   },
   "engines": {
     "node": ">=20"

@@ -19,7 +19,7 @@ For a no-terminal installation, open the [installation page](https://dokke.verce
 
 ### Mac — main host
 
-[Download Dokke for macOS](https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg), open the `.dmg`, drag Dokke to Applications, and launch it.
+[Open the latest Dokke release](https://github.com/felipenalves/Dokke/releases/latest) and choose the package for your Mac: `Dokke-macOS-apple-silicon-arm64.dmg` for Apple Silicon (M1, M2, M3, or M4), or `Dokke-macOS-intel-x86_64.dmg` for Intel. Open the `.dmg`, drag Dokke to Applications, and launch it.
 
 The Mac is the host: it runs the server and makes the dock available to other devices on the same network.
 
@@ -29,9 +29,13 @@ The Mac is the host: it runs the server and makes the dock available to other de
 
 [Download the APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) and install it. Then open Dokke on the Mac and use the URL and PIN shown in the **Connect** tab.
 
+To run Mac shortcuts remotely, connect through an HTTPS URL. The local HTTP connection remains available for other features.
+
 ### iPhone
 
 iPhone uses the browser PWA. Open the URL shown in the Mac app in Safari and choose **Add to Home Screen**. iPhone requires an HTTPS URL; the installation page describes the current path.
+
+Remote shortcuts require HTTPS on every device.
 
 > Windows is not available yet. The installation page will show a button when an installable version exists.
 

@@ -12,9 +12,15 @@ const scriptPath = path.join(projectRoot, 'mac', 'package-dmg.sh');
 const installScriptPath = path.join(projectRoot, 'mac', 'install.sh');
 const backgroundSvgPath = path.join(projectRoot, 'mac', 'dmg-background.svg');
 const backgroundFileName = 'dmg-background.png';
-const macOnly = process.platform === 'darwin' ? {} : { skip: 'DMG packaging requires macOS' };
+const skipDmgFixture = process.env.DOKKE_SKIP_DMG_FIXTURE === '1'
+  ? { skip: 'CI validates the built DMG after the general test suite' }
+  : {};
+const macOnly = process.platform === 'darwin'
+  ? skipDmgFixture
+  : { skip: 'DMG packaging requires macOS' };
 const expectedPublicFiles = [
   'dokke.apk',
+  'fonts',
   'icon-192-dark.png',
   'icon-192.png',
   'icon-512.png',
@@ -62,6 +68,17 @@ async function getFixture() {
   if (fixturePromise) return fixturePromise;
 
   fixturePromise = Promise.resolve().then(() => {
+    if (process.env.DOKKE_DMG_FIXTURE) {
+      const imagePath = path.resolve(projectRoot, process.env.DOKKE_DMG_FIXTURE);
+      assert.ok(fs.existsSync(imagePath), `built DMG fixture is missing: ${imagePath}`);
+      fixture = {
+        imagePath,
+        tempDir: null,
+        mountPoint: attach(imagePath)
+      };
+      return fixture;
+    }
+
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dokke-dmg-layout-'));
     const imagePath = path.join(tempDir, 'Dokke-layout-test.dmg');
     const result = run('bash', [scriptPath, imagePath], { cwd: projectRoot });
@@ -92,7 +109,7 @@ function dsStore(mountPoint) {
 test.after(() => {
   if (fixture) {
     detach(fixture.mountPoint);
-    fs.rmSync(fixture.tempDir, { recursive: true, force: true });
+    if (fixture.tempDir) fs.rmSync(fixture.tempDir, { recursive: true, force: true });
   }
 });
 
@@ -181,6 +198,10 @@ test('@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorado
   for (const app of appPaths) {
     const publicDir = path.join(app, 'Contents', 'Resources', 'Dokke', 'public');
     assert.deepEqual(fs.readdirSync(publicDir).sort(), expectedPublicFiles);
+    assert.deepEqual(fs.readdirSync(path.join(publicDir, 'fonts')).sort(), [
+      'Inter-Regular.otf',
+      'Inter-SemiBold.otf'
+    ]);
     assert.equal(fs.existsSync(path.join(publicDir, 'index.html.bak')), false);
     assert.equal(fs.readdirSync(publicDir).some((name) => /(?:\.bak|\.log)$/i.test(name)), false);
   }
@@ -188,9 +209,13 @@ test('@spec:AC-012 bundle e DMG não carregam backups, logs ou arquivos ignorado
 
 test('@spec:AC-013 install.sh usa allowlist pública explícita', () => {
   const script = fs.readFileSync(installScriptPath, 'utf8');
-  assert.match(script, /PUBLIC_FILES=\(/);
-  assert.match(script, /public_file/);
-  assert.doesNotMatch(script, /cp -R [^\n]*public/);
+  const assetsScript = fs.readFileSync(path.join(projectRoot, 'mac', 'copy-public-assets.sh'), 'utf8');
+  assert.match(script, /copy-public-assets\.sh/);
+  assert.match(assetsScript, /PUBLIC_FILES=\(/);
+  assert.match(assetsScript, /fonts\/Inter-Regular\.otf/);
+  assert.match(assetsScript, /fonts\/Inter-SemiBold\.otf/);
+  assert.doesNotMatch(assetsScript, /public\/mascot|usage\.js/);
+  assert.doesNotMatch(assetsScript, /cp -R .*public/);
 });
 
 test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Release', () => {
@@ -199,6 +224,13 @@ test('@spec:AC-343 install.sh verifica orçamento e runtime único no bundle Rel
   assert.match(script, /find .*node-bin\/node/);
   assert.match(script, /node_count.*-ne 1/);
   assert.match(script, /bundle_kib.*MAX_BUNDLE_SIZE_MB/);
+});
+
+test('pacote macOS não exige bundle de recursos vazio', () => {
+  const script = fs.readFileSync(installScriptPath, 'utf8');
+  const manifest = fs.readFileSync(path.join(projectRoot, 'mac', 'Package.swift'), 'utf8');
+  assert.doesNotMatch(manifest, /resources:\s*\[\.process\("Resources"\)\]/);
+  assert.doesNotMatch(script, /Dokke_Dokke\.bundle|RESOURCE_BUNDLE/);
 });
 
 test('builder do DMG não usa appdmg nem image-size vulneráveis', () => {

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 
 const DEFAULT = { schemaVersion: 2, revision: 0, pieces: [], pinned: [] };
+const DEFAULT_SHORTCUT_EMOJI = "🖱️";
 export const PINNED_PAGE_SIZE = 8;
 export const PINNED_MAX_PAGES = 5;
 export const MAX_DOCK_SLOTS = PINNED_PAGE_SIZE * PINNED_MAX_PAGES;
@@ -42,6 +43,14 @@ export class WebsiteValidationError extends Error {
     super(message);
     this.name = "WebsiteValidationError";
     this.code = "INVALID_WEBSITE";
+  }
+}
+
+export class ShortcutValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ShortcutValidationError";
+    this.code = "INVALID_SHORTCUT";
   }
 }
 
@@ -91,6 +100,34 @@ export function createWebsitePiece(title, rawUrl) {
   return { id, type: "website", title: websiteTitle(title, url), url };
 }
 
+function normalizeShortcutEmoji(rawEmoji) {
+  if (rawEmoji === undefined) return DEFAULT_SHORTCUT_EMOJI;
+  if (typeof rawEmoji !== "string") throw new ShortcutValidationError("emoji do atalho inválido");
+  const emoji = rawEmoji.trim();
+  const graphemeCount = emoji
+    ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(emoji)).length
+    : 0;
+  const isPresentedEmoji = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(emoji)
+    || /^\p{Regional_Indicator}{2}$/u.test(emoji)
+    || /^[#*0-9]\uFE0F?\u20E3$/u.test(emoji);
+  if (!emoji || emoji.length > 32 || CONTROL_CHARS.test(emoji) || graphemeCount !== 1 || !isPresentedEmoji) {
+    throw new ShortcutValidationError("emoji do atalho inválido");
+  }
+  return emoji;
+}
+
+/** Cria uma peça de atalho identificada pelo nome salvo no app Atalhos do Mac. */
+export function createShortcutPiece(rawName, rawEmoji) {
+  if (typeof rawName !== "string") throw new ShortcutValidationError("nome do atalho inválido");
+  const name = rawName.trim();
+  if (!name || name.length > 256 || CONTROL_CHARS.test(name)) {
+    throw new ShortcutValidationError("nome do atalho inválido");
+  }
+  const emoji = normalizeShortcutEmoji(rawEmoji);
+  const id = `shortcut:${createHash("sha256").update(name).digest("hex")}`;
+  return { id, type: "shortcut", name, emoji };
+}
+
 function normalizeAppPiece(piece) {
   const name = typeof piece === "string" ? piece.trim() : piece?.name?.trim();
   if (!name) return null;
@@ -103,6 +140,10 @@ export function normalizePiece(piece) {
   if (piece.type === "app") return normalizeAppPiece(piece);
   if (piece.type === "website") {
     try { return createWebsitePiece(piece.title, piece.url); }
+    catch { return null; }
+  }
+  if (piece.type === "shortcut") {
+    try { return createShortcutPiece(piece.name, piece.emoji); }
     catch { return null; }
   }
   return null;
@@ -194,6 +235,16 @@ export async function loadConfig(file) {
 
 export async function saveConfig(file, cfg) {
   const safe = normalizeConfig(cfg);
+  // Conserva as preferências legadas no arquivo para a branch arquivada, sem
+  // reintroduzi-las na configuração ativa nem nas respostas da API.
+  try {
+    const previous = JSON.parse(await readFile(file, "utf8"));
+    if (previous && typeof previous === "object" && !Array.isArray(previous)) {
+      for (const key of ["usage", "usageProvider"]) {
+        if (Object.hasOwn(previous, key)) safe[key] = previous[key];
+      }
+    }
+  } catch { /* arquivo novo ou ilegível: não há preferências para preservar */ }
   // tmp único por escrita: escritas concorrentes (kiosk + app Mac) não colidem
   const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   await writeFile(tmp, JSON.stringify(safe, null, 2));

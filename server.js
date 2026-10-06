@@ -24,13 +24,14 @@ function makeServer() {
   return createServer();
 }
 import { listAppProcesses, listInstalledApps, realIconService } from "./apps.js";
-import { activateApp, openWebsite } from "./actions.js";
+import { activateApp, openWebsite, listShortcuts, runShortcut } from "./actions.js";
 import {
   loadConfig,
   saveConfig,
   normalizePinned,
   normalizeConfig,
   createWebsitePiece,
+  createShortcutPiece,
   piecesToPinned,
   normalizePieces,
   materializePiecePositions,
@@ -46,7 +47,7 @@ import { connectOBS } from "./obs-ws.js";
 import { ensurePin, newPin, isLoopback, sessionCookie, tokenFromCookie, clearLegacyPinCookie, createSessionStore, createPinLocks, safeEqual, writePinFile } from "./auth.js";
 import { WebSocketServer } from "ws";
 
-const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".apk": "application/vnd.android.package-archive" };
+const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml", ".otf": "font/otf", ".apk": "application/vnd.android.package-archive" };
 const BODY_TOO_BIG = Symbol("BODY_TOO_BIG");
 const BODY_INVALID = Symbol("BODY_INVALID");
 /** Limite de body dos endpoints — reorder do dock com muitos apps passa fácil de 1KB. */
@@ -61,19 +62,66 @@ const PING_MIN_INTERVAL_MS = 1500;
 /** Detecta conexões WebSocket quebradas sem adicionar tráfego HTTP. */
 const WS_HEARTBEAT_MS = 30_000;
 
+/** Cloudflared termina HTTPS fora do Mac e conecta ao Dokke por loopback HTTP.
+ * Só confiamos no protocolo encaminhado quando o próprio proxy é local. */
+function isTrustedHttpsProxyRequest(req) {
+  if (!isLoopback(req.socket.remoteAddress)) return false;
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+    ?.split(",", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  return protocol === "https";
+}
+
+function isSecureRequest(req) {
+  return Boolean(req.socket.encrypted) || isTrustedHttpsProxyRequest(req);
+}
+
 /** Origin ausente é permitido para clientes nativos; Origin presente precisa
  * ser exatamente a origem que atendeu a conexão (protocolo + host + porta). */
 function sameOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try {
-    const protocol = req.socket.encrypted ? "https:" : "http:";
+    const protocol = isSecureRequest(req) ? "https:" : "http:";
     if (!req.headers.host) return false;
     const serverOrigin = new URL(`${protocol}//${req.headers.host}`).origin;
     return new URL(origin).origin === serverOrigin;
   } catch {
     return false;
   }
+}
+
+/** A listagem só é usada pelo picker macOS. O cabeçalho dedicado distingue a
+ * URLSession nativa de GETs induzidos por páginas, mesmo sem Fetch Metadata. */
+function trustedShortcutsPickerRequest(req) {
+  if (!isTrustedLoopbackRequest(req)) return false;
+  if (req.headers["x-dokke-client"] !== "dokke-macos-picker") return false;
+  if (!sameOrigin(req)) return false;
+  const fetchSite = req.headers["sec-fetch-site"];
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
+  return req.headers["sec-fetch-mode"] !== "no-cors";
+}
+
+/** Host também precisa apontar para loopback antes de confiar no socket local.
+ * Isso impede que DNS rebinding use um Host/Origin externo para herdar a
+ * exceção de autenticação do próprio Mac. */
+function requestHostIsLoopback(req) {
+  const host = req.headers.host;
+  if (typeof host !== "string" || /[\\/@?#\s]/.test(host)) return false;
+  try {
+    const url = new URL(`http://${host}`);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return false;
+    const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return hostname === "localhost" || hostname === "localhost." || isLoopback(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isTrustedLoopbackRequest(req) {
+  return isLoopback(req.socket.remoteAddress) && requestHostIsLoopback(req);
 }
 
 // versão publicada no GitHub (releases/latest) — stale-while-revalidate; nunca bloqueia o request
@@ -293,7 +341,7 @@ export function makeApp(deps = {}) {
   const {
     root = join(import.meta.dirname, "public"),
     appTools = { listAppProcesses, listInstalledApps },
-    actions = { activateApp, openWebsite },
+    actions = { activateApp, openWebsite, listShortcuts, runShortcut },
     obs = null,
     iconService = realIconService(),
     onStatusChange = null,
@@ -353,7 +401,7 @@ export function makeApp(deps = {}) {
       config: publicCfg(cfg),
     });
     const isSameOrder = (left, right) => left.length === right.length && left.every((id, i) => id === right[i]);
-    const configHasWebsites = cfg => cfg.pieces.some(piece => piece.type === "website");
+    const configHasNonAppPieces = cfg => cfg.pieces.some(piece => piece.type !== "app");
     const piecesResponse = (cfg, piece = null, added = undefined) => ({
       ok: true,
       ...(piece ? { piece } : {}),
@@ -396,9 +444,14 @@ export function makeApp(deps = {}) {
     const auth = deps.auth;
     const ipOf = req.socket.remoteAddress || "?";
     const authed = () =>
-      (trustLoopback && isLoopback(ipOf)) ||
+      (trustLoopback && isTrustedLoopbackRequest(req)) ||
       (!!auth && typeof auth.checkSession === "function" && auth.checkSession(tokenFromCookie(req.headers.cookie)));
     if (auth && url.pathname === "/api/auth" && req.method === "POST") {
+      if (isLoopback(ipOf) && !requestHostIsLoopback(req) && !isSecureRequest(req)) {
+        res.writeHead(403, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: false, error: "origem não permitida" }));
+        return;
+      }
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG || body === BODY_INVALID) {
           res.writeHead(400, JSON_HEADERS);
@@ -425,7 +478,7 @@ export function makeApp(deps = {}) {
                 "Content-Type": "application/json",
                 // dois Set-Cookie: sessão nova + apaga legado que carregava o PIN
                 "Set-Cookie": [
-                  sessionCookie(token, { secure: Boolean(req.socket.encrypted) }),
+                  sessionCookie(token, { secure: isSecureRequest(req) }),
                   clearLegacyPinCookie(),
                 ],
                 ...SEC_HEADERS,
@@ -443,7 +496,7 @@ export function makeApp(deps = {}) {
     }
     if (auth && url.pathname === "/api/pin") {
       // só o dono (loopback) lê/regenera — atacante na LAN não descobre o pin
-      if (!isLoopback(ipOf)) {
+      if (!isTrustedLoopbackRequest(req)) {
         res.writeHead(403, JSON_HEADERS);
         res.end(JSON.stringify({ ok: false, error: "acesso negado" }));
         return;
@@ -480,6 +533,23 @@ export function makeApp(deps = {}) {
         .catch(err => fail(res, err));
       return;
     }
+    if (url.pathname === "/api/shortcuts" && req.method === "GET") {
+      if (!trustedShortcutsPickerRequest(req)) {
+        res.writeHead(403, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: false, error: "Origin não permitido" }));
+        return;
+      }
+      Promise.resolve()
+        .then(() => actions.listShortcuts())
+        .then(shortcuts => {
+          if (!Array.isArray(shortcuts) || shortcuts.some(name => typeof name !== "string")) {
+            throw new TypeError("lista de atalhos inválida");
+          }
+          ok({ ok: true, shortcuts: [...new Set(shortcuts.map(name => name.trim()).filter(Boolean))] });
+        })
+        .catch(err => fail(res, err));
+      return;
+    }
     // POST = adiciona um; PUT = substitui a lista inteira (app Mac / bulk)
     if (url.pathname === "/api/config/pinned" && (req.method === "POST" || req.method === "PUT")) {
       readBody(req, res).then(body => {
@@ -504,7 +574,7 @@ export function makeApp(deps = {}) {
           withConfigLock(() => Promise.resolve()
             .then(() => readConfig())
             .then(cfg => {
-              if (configHasWebsites(cfg)) {
+              if (configHasNonAppPieces(cfg)) {
                 rejectMixedLegacy(cfg);
                 return null;
               }
@@ -601,14 +671,32 @@ export function makeApp(deps = {}) {
     if (url.pathname === "/api/config/pieces" && req.method === "POST") {
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
-        if (body === BODY_INVALID || body?.type !== "website") {
+        if (body === BODY_INVALID) {
           respondError(400, { code: "INVALID_WEBSITE", error: "peça de site inválida" });
           return;
         }
         let piece;
-        try { piece = createWebsitePiece(body.title, body.url); }
-        catch (err) {
-          respondError(400, { code: "INVALID_WEBSITE", error: err?.message || "URL inválida" });
+        if (body?.type === "website") {
+          try { piece = createWebsitePiece(body.title, body.url); }
+          catch (err) {
+            respondError(400, { code: "INVALID_WEBSITE", error: err?.message || "URL inválida" });
+            return;
+          }
+        } else if (body?.type === "shortcut") {
+          if (!trustedShortcutsPickerRequest(req)) {
+            respondError(403, {
+              code: "SHORTCUT_PICKER_REQUIRED",
+              error: "atalhos só podem ser adicionados pelo picker local do Mac",
+            });
+            return;
+          }
+          try { piece = createShortcutPiece(body.name, body.emoji); }
+          catch (err) {
+            respondError(400, { code: "INVALID_SHORTCUT", error: err?.message || "nome do atalho inválido" });
+            return;
+          }
+        } else {
+          respondError(400, { code: "INVALID_WEBSITE", error: "peça de site inválida" });
           return;
         }
         const positionResult = readPiecePosition(body);
@@ -616,7 +704,16 @@ export function makeApp(deps = {}) {
           respondError(400, { code: "INVALID_PIECE_POSITION", error: "posição inválida" });
           return;
         }
-        withConfigLock(() => Promise.resolve()
+        const shortcutAvailability = piece.type === "shortcut"
+          ? Promise.resolve().then(() => actions.listShortcuts()).then(shortcuts => {
+            if (!Array.isArray(shortcuts) || !shortcuts.includes(piece.name)) {
+              const err = new Error("atalho não encontrado no Mac");
+              err.code = "SHORTCUT_NOT_FOUND";
+              throw err;
+            }
+          })
+          : Promise.resolve();
+        shortcutAvailability.then(() => withConfigLock(() => Promise.resolve()
           .then(() => readConfig())
           .then(cfg => {
             const existing = cfg.pieces.find(current => current.id === piece.id);
@@ -645,8 +742,13 @@ export function makeApp(deps = {}) {
           .catch(err => {
             if (err?.code === PINNED_LIMIT_CODE) rejectPinnedLimit();
             else if (err?.code === "PIECE_SLOT_OCCUPIED") respondError(409, { code: err.code, error: err.message });
+            else if (err?.code === "SHORTCUT_NOT_FOUND") respondError(404, { code: err.code, error: err.message });
             else fail(res, err);
-          }));
+          })))
+          .catch(err => {
+            if (err?.code === "SHORTCUT_NOT_FOUND") respondError(404, { code: err.code, error: err.message });
+            else fail(res, err);
+          });
       });
       return;
     }
@@ -742,7 +844,7 @@ export function makeApp(deps = {}) {
       try { id = decodeURIComponent(pieceOpen[1]); }
       catch { respondError(400, { error: "ID inválido" }); return; }
       // Consome o corpo para manter o mesmo limite dos demais POSTs. O
-      // conteúdo é deliberadamente ignorado: a URL vem somente da peça
+      // conteúdo é deliberadamente ignorado: os dados vêm somente da peça
       // persistida no Mac, nunca do cliente remoto.
       readBody(req, res).then(body => {
         if (body === BODY_TOO_BIG) return;
@@ -753,6 +855,27 @@ export function makeApp(deps = {}) {
             if (!piece) {
               respondError(404, { code: "PIECE_NOT_FOUND", error: "peça não encontrada" });
               return null;
+            }
+            if (piece.type === "shortcut") {
+              if (!isTrustedLoopbackRequest(req) && !isSecureRequest(req)) {
+                respondError(403, {
+                  code: "HTTPS_REQUIRED",
+                  error: "a execução remota de atalhos exige uma conexão HTTPS",
+                });
+                return null;
+              }
+              let safe;
+              try { safe = createShortcutPiece(piece.name, piece.emoji); }
+              catch { respondError(409, { code: "INVALID_SHORTCUT", error: "atalho inválido" }); return null; }
+              return Promise.resolve().then(() => actions.runShortcut(safe.name))
+                .then(() => ok({ ok: true, piece: safe }))
+                .catch(err => {
+                  if (err?.code === "SHORTCUT_ALREADY_RUNNING") {
+                    respondError(409, { code: err.code, error: "atalho já está em execução" });
+                  } else {
+                    fail(res, err);
+                  }
+                });
             }
             if (piece.type !== "website") {
               respondError(409, { code: "PIECE_NOT_WEBSITE", error: "a peça não é um site" });
@@ -978,6 +1101,7 @@ export async function startServer(arg = {}) {
   });
   const handler = makeApp({
     ...opts,
+    dataDir,
     configFile: configFile ?? undefined,
     onStatusChange: () => feed.ping(),
     getDeviceCount: () => feed.clientCount(),
@@ -990,7 +1114,7 @@ export async function startServer(arg = {}) {
     server,
     verifyClient: (info) => {
       if (!sameOrigin(info.req)) return false;
-      if (opts.trustLoopback && isLoopback(info.req.socket.remoteAddress)) return true;
+      if (opts.trustLoopback && isTrustedLoopbackRequest(info.req)) return true;
       return !!opts.auth?.checkSession?.(tokenFromCookie(info.req.headers.cookie));
     },
   });

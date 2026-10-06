@@ -3,6 +3,7 @@ import Foundation
 enum DockPieceType: String, Hashable {
   case app
   case website
+  case shortcut
 }
 
 struct DockPiece: Identifiable, Hashable {
@@ -11,18 +12,20 @@ struct DockPiece: Identifiable, Hashable {
   let name: String?
   let title: String?
   let url: String?
+  let emoji: String?
   let position: Int
 
   static func app(_ name: String, position: Int = 0) -> DockPiece {
     DockPiece(id: "app:\(name)", type: .app, name: name, title: nil, url: nil, position: position)
   }
 
-  init(id: String, type: DockPieceType, name: String?, title: String?, url: String?, position: Int = 0) {
+  init(id: String, type: DockPieceType, name: String?, title: String?, url: String?, emoji: String? = nil, position: Int = 0) {
     self.id = id
     self.type = type
     self.name = name
     self.title = title
     self.url = url
+    self.emoji = emoji
     self.position = position
   }
 
@@ -40,17 +43,21 @@ struct DockPiece: Identifiable, Hashable {
             let url = json["url"] as? String,
             !title.isEmpty, !url.isEmpty else { return nil }
       self.init(id: id, type: type, name: nil, title: title, url: url, position: position)
+    case .shortcut:
+      guard let name = json["name"] as? String, !name.isEmpty else { return nil }
+      self.init(id: id, type: type, name: name, title: nil, url: nil, emoji: json["emoji"] as? String ?? "🖱️", position: position)
     }
   }
 
   func atPosition(_ position: Int) -> DockPiece {
-    DockPiece(id: id, type: type, name: name, title: title, url: url, position: position)
+    DockPiece(id: id, type: type, name: name, title: title, url: url, emoji: emoji, position: position)
   }
 
   var displayTitle: String {
     switch type {
     case .app: return name ?? "App"
     case .website: return title ?? url ?? "Site"
+    case .shortcut: return name ?? "Shortcut"
     }
   }
 

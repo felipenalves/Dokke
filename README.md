@@ -36,7 +36,7 @@ Para instalar sem terminal, abra a [página de instalação](https://dokke.verce
 
 ### Mac — host principal
 
-[Baixar Dokke para macOS](https://github.com/felipenalves/Dokke/releases/latest/download/Dokke-macOS.dmg) → abra o `.dmg` → arraste o Dokke para Aplicativos → abra o app.
+[Baixar os releases do Dokke](https://github.com/felipenalves/Dokke/releases/latest) e escolha o pacote para seu Mac: `Dokke-macOS-apple-silicon-arm64.dmg` para Apple Silicon (M1, M2, M3 ou M4) ou `Dokke-macOS-intel-x86_64.dmg` para Intel. Abra o `.dmg`, arraste o Dokke para Aplicativos e abra o app.
 
 O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros dispositivos na mesma rede.
 
@@ -48,9 +48,13 @@ O Mac é o host: ele executa o servidor e disponibiliza o dock para os outros di
 
 [Baixar o APK](https://github.com/felipenalves/Dokke/releases/latest/download/dokke.apk) e instalar. Depois, abra o Dokke no Mac e use o link e o PIN exibidos na aba **Sobre** para conectar o celular.
 
+Para acionar atalhos do Mac remotamente, conecte por uma URL HTTPS. A conexão HTTP local continua disponível para os demais recursos.
+
 ### iPhone
 
 O iPhone usa a PWA pelo navegador. Abra o link exibido na aba **Sobre** no Safari e escolha **Adicionar à Tela de Início**. O iPhone exige uma URL HTTPS; a página de instalação explica o caminho atual.
+
+Atalhos acionados remotamente exigem HTTPS em qualquer dispositivo.
 
 > Windows ainda não está disponível. O botão aparecerá na página quando houver uma versão instalável.
 

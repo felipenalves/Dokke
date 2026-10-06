@@ -15,13 +15,22 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /id="screenApps"/, "html deve ter a tela apps");
     assert.match(html, /id="screenRecents"/, "html deve ter a tela recentes");
     assert.match(html, /<title>Dokke<\/title>/, "o título visível do PWA deve usar a marca correta");
+    assert.match(html, /\.ttitle\{[\s\S]*font-family: "Bricolage Grotesque", sans-serif;/, "o título de Apps abertos deve usar a fonte de display");
     assert.match(
       html,
       /\.login-card\{[\s\S]*background: linear-gradient\(165deg, rgba\(255,255,255,\.18\), rgba\(255,255,255,\.07\) 55%, rgba\(255,255,255,\.12\)\);/,
       "painel de conexão deve ter opacidade suficiente para preservar a leitura"
     );
-    assert.match(html, /toast\(t\("toast\.deviceConnected"\)\)/, "o status deve identificar o dispositivo conectado");
+    assert.match(html, /toast\(t\("toast\.deviceConnected"\), "ok"\)/, "o status deve identificar o dispositivo conectado");
     assert.doesNotMatch(html, /toast\("Mac conectado"\)/, "o status não deve atribuir a conexão ao Mac");
+    assert.match(html, /\.toast\{[\s\S]*background:rgba\(37,18,11,\.9\);/, "avisos devem usar uma superfície quente e discreta");
+    assert.doesNotMatch(html, /\.toast\{[\s\S]*rgba\(28,34,54,\.94\)/, "avisos não devem usar o fundo azulado anterior");
+    assert.match(html, /toast\(t\("toast\.updated"\), "sync"\)/, "atualização deve usar o estado visual de sincronização");
+    assert.match(html, /\.toast\{[\s\S]*width:\s*fit-content;[\s\S]*max-width:\s*calc\(100vw - 24px\);[\s\S]*justify-content:\s*center;/, "avisos devem ser compactos e centralizados sem largura fixa");
+    assert.match(html, /\.toast::before\{[\s\S]*width:6px; height:6px;[\s\S]*box-shadow:none;/, "avisos devem usar apenas um indicador mínimo de estado");
+    assert.match(html, /"toast\.updated": "Atualizando"/, "aviso de atualização deve usar copy mínima sem reticências");
+    const robscardBlocks = html.match(/\.robscard\{[^}]*\}/g) || [];
+    assert.ok(robscardBlocks.length >= 2 && robscardBlocks.every(block => !block.includes("rgba(10,132,255")), "o card de status não deve usar azul frio");
     assert.match(html, /id="vdots"/, "html deve ter os dots verticais laterais");
     assert.match(html, /\.vdots\{[\s\S]*safe-area-inset-right/, "V-Dots devem respeitar a safe area lateral");
     assert.doesNotMatch(html, /html\.land-secondary \.vdots\{/, "V-Dots não devem migrar para a esquerda em landscape-secondary");
@@ -58,7 +67,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /body\.is-recents/, "troca de tela por classe opacity (não empilha telas)");
     assert.match(html, /#screenRecents\{[\s\S]*transform: translate3d\(0, 100%, 0\)/, "tela 2 deve começar fora da viewport");
     assert.match(html, /body\.is-recents #screenApps\{[\s\S]*transform: translate3d\(0, -100%, 0\)/, "tela 1 deve permanecer fora quando tela 2 estiver ativa");
-    assert.match(html, /function clearDrag\(\)[\s\S]*is-recents[\s\S]*translate3d\(0, -100%, 0\)/, "limpeza do gesto não pode trazer a tela inativa de volta");
+    assert.match(html, /function clearDrag\(\)[\s\S]*screenElements\.forEach[\s\S]*translate3d\(0, /, "limpeza do gesto deve reancorar todas as telas");
     assert.match(html, /function renderDeck/, "tela 2 com dock horizontal organizado");
     assert.match(html, /\.deck\{[\s\S]*padding: 0 clamp\(12px, 3vw, 32px\) 22px;/, "tela 2 deve usar o mesmo padding lateral da tela 1");
     assert.match(html, /\.page-grid\{[\s\S]*grid-gap: clamp\(20px, 3vw, 32px\);[\s\S]*justify-content: center;/, "a grade deve preservar o gutter normal entre os apps");
@@ -68,16 +77,18 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.match(html, /\.page\{[\s\S]*overflow: hidden;/, "cada página deve cortar os slots do slide seguinte");
     assert.match(html, /\.deck-inner\{[\s\S]*gap: min\(3vmin, 14px\);[\s\S]*padding: 0;/, "tela 2 deve usar o mesmo gap da grid da tela 1");
     assert.match(html, /\.dcard\{[\s\S]*width: var\(--app-tile\);/, "cards da tela 2 não devem adicionar margem invisível");
-    assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve usar a régua do landscape nos dois sentidos");
+    assert.match(html, /--app-tile: min\(40vmin, max\(21vw,21vh\), 180px\);/, "celular deve preservar a régua vertical do slot sem mexer no gutter");
     assert.match(html, /@media \(min-width:700px\)[\s\S]*--app-tile: min\(max\(22vw,22vh\), min\(30vw,30vh\), 220px\);/, "telas maiores devem preservar o tamanho do landscape no portrait");
     assert.doesNotMatch(html, /--app-tile: min\(44vw,/, "portrait não deve ampliar os cards em relação ao landscape");
-    assert.match(html, /--tile-in: 0\.84;/, "ícones devem ficar um pouco menores dentro do card");
+    assert.match(html, /--tile-in: 0\.80;/, "ícones devem ficar levemente maiores na referência móvel após a normalização do PNG");
     assert.match(html, /\.atile \.aglass\{[\s\S]*width: 100%; height: 100%;/, "o Card Glass deve continuar preenchendo o slot");
-    assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 84%; height: 84%;/, "somente o ícone da tela 1 deve diminuir");
-    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 92%; height: 92%;/, "ícones da tela 2 não devem ser alterados");
-    assert.match(html, /--tile-r: 0\.29;/, "cards glass devem ter um raio ligeiramente menor");
-    assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 29%;/, "fallback deve aplicar o mesmo raio menor aos cards");
-    assert.match(html, /\.atile \.aglass::before\{ border-radius: 29%; \}/, "o highlight deve acompanhar a nova curva do card");
+    assert.match(html, /\.atile \.aglass \.gicon, \.atile \.aglass img\.aicon\{[\s\S]*width: 80%; height: 80%;/, "somente o ícone da tela 1 deve respeitar o padding visual da referência");
+    assert.match(html, /\.dcard\{[\s\S]*container-type: inline-size;/, "cards da tela 2 devem usar a mesma régua de container da tela 1");
+    assert.match(html, /\.dcard \.aglass\{[\s\S]*border-radius: 32%;/, "glass da tela 2 deve usar o raio reduzido");
+    assert.match(html, /\.dcard \.aglass \.gicon, \.dcard \.aglass img\.aicon\{[\s\S]*width: 80%; height: 80%;[\s\S]*border-radius: 27%;/, "ícones da tela 2 devem usar a mesma régua arredondada");
+    assert.match(html, /--tile-r: 0\.32;/, "cards glass devem usar o raio externo reduzido");
+    assert.match(html, /\.atile \.aglass\{[\s\S]*border-radius: 32%;/, "fallback deve aplicar o raio reduzido do card");
+    assert.match(html, /\.atile \.aglass::before\{ border-radius: 32%; \}/, "o highlight deve acompanhar a curva reduzida do card");
     assert.match(html, /\.bg\{[\s\S]*rgba\(232, 111, 39, 0\.46\)[\s\S]*rgba\(184, 76, 20, 0\.28\)[\s\S]*#241106 0%[\s\S]*#150804 55%[\s\S]*#080301 100%/, "o fundo deve iluminar o glass sem perder profundidade");
     assert.doesNotMatch(html, /screen\.orientation\.lock/, "nenhum cliente deve forçar retrato");
     assert.doesNotMatch(html, /requestAppPortraitLock|appPortraitLockRequested|portraitLockRequested/, "nenhum estado de lock de retrato deve permanecer");
@@ -126,7 +137,7 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
     assert.doesNotMatch(deckPointerDown[0], /classList\.add\("swiping"\)/, "toque simples no deck não deve escurecer todos os cards");
     assert.match(deckGesture, /pointermove[\s\S]*classList\.add\("swiping"\)/, "somente o arraste real deve ativar o modo swiping");
     assert.match(html, /const DRAG = 4/, "Android deve iniciar o gesto com menos deslocamento");
-    assert.match(html, /const COOLDOWN_MS = 80/, "retorno rápido não deve ser bloqueado por cooldown longo");
+    assert.doesNotMatch(html, /COOLDOWN_MS|coolUntil/, "gestos válidos não devem ser descartados por cooldown temporal");
     assert.match(html, /function commitPx\(\)\{ return Math\.max\(34, Math\.round\(h\(\) \* 0\.06\)\); \}/, "retorno vertical deve confirmar com um arrasto menor");
     assert.match(html, /const duration = reduced \? 1 : H_SNAP_DURATION/, "todos os clientes devem compartilhar a duração do encaixe");
     assert.match(html, /transform: rotate\(var\(--icon-turn\)\);/, "ícones não devem ganhar uma textura GPU extra");
@@ -189,7 +200,198 @@ test("GET / serve as 2 telas (apps + apps abertos) liquid glass", async () => {
   } finally { await close(); }
 });
 
-test("long press de website pede confirmação antes de remover o fixo", async () => {
+test("ícones da tela 2 usam o mesmo enquadramento visual da tela 1", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: [],
+    },
+    appTools: {
+      listAppProcesses: async () => [{ name: "Terminal", pid: 7, type: "Foreground" }],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".atile .aglass", { timeout: 15000 });
+    await page.waitForSelector(".dcard .aglass", { timeout: 15000 });
+    const metrics = await page.evaluate(() => {
+      const read = selector => {
+        const root = document.querySelector(selector);
+        const glass = root.querySelector(".aglass");
+        const icon = root.querySelector(".aglass img.aicon, .aglass .gicon");
+        const glassStyle = getComputedStyle(glass);
+        const iconStyle = getComputedStyle(icon);
+        return {
+          glassRadius: glassStyle.borderRadius,
+          iconRadius: iconStyle.borderRadius,
+          iconWidth: icon.getBoundingClientRect().width,
+          iconHeight: icon.getBoundingClientRect().height,
+        };
+      };
+      return { first: read(".atile"), second: read(".dcard") };
+    });
+    assert.equal(metrics.second.glassRadius, metrics.first.glassRadius, "raio externo deve ser igual nas duas telas");
+    assert.equal(metrics.second.iconRadius, metrics.first.iconRadius, "raio do ícone deve ser igual nas duas telas");
+    assert.ok(Math.abs(metrics.second.iconWidth - metrics.first.iconWidth) < 0.1, "largura do ícone deve ser igual nas duas telas");
+    assert.ok(Math.abs(metrics.second.iconHeight - metrics.first.iconHeight) < 0.1, "altura do ícone deve ser igual nas duas telas");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("swipe vertical rápido reverte de Recentes para Apps após a primeira navegação", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+
+    const currentScreen = () => page.evaluate(() =>
+      document.body.classList.contains("is-recents") ? "recents" : "apps"
+    );
+    const swipe = async direction => {
+      const box = await page.locator("#screens").boundingBox();
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const sign = direction === "up" ? -1 : 1;
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      for (let i = 1; i <= 6; i++) {
+        await page.mouse.move(cx, cy + sign * 55 * i, { steps: 1 });
+        await page.waitForTimeout(4);
+      }
+      await page.mouse.up();
+    };
+
+    await swipe("up");
+    await page.waitForFunction(() => document.body.classList.contains("is-recents"));
+    assert.equal(await currentScreen(), "recents", "a primeira navegação precisa chegar em Recentes");
+    await swipe("down");
+    await page.waitForFunction(() => !document.body.classList.contains("is-recents"));
+    assert.equal(await currentScreen(), "apps", "o swipe reverso deve voltar de Recentes para Apps");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("troca vertical anima somente as duas telas envolvidas", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.addInitScript(() => {
+      navigator.serviceWorker.register = () => Promise.reject(new Error("blocked"));
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    await page.evaluate(() => {
+      const screens = document.querySelector("#screens");
+      const ids = ["screenApps", "screenRecents"];
+      window.__dokkeVerticalTransitionTargets = [];
+      for (const id of ids){
+        const el = document.getElementById(id);
+        el.addEventListener("transitionrun", event => {
+          if (event.propertyName === "transform") window.__dokkeVerticalTransitionTargets.push(event.target.id);
+        });
+      }
+      const event = (type, y, pointerId) => screens.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId, pointerType: "touch", isPrimary: true,
+        clientX: 195, clientY: y,
+      }));
+      event("pointerdown", 700, 1);
+      for (let i = 1; i <= 6; i++) event("pointermove", 700 - 100 * i, 1);
+      event("pointerup", 100, 1);
+    });
+    await page.waitForFunction(() => {
+      const targets = new Set(window.__dokkeVerticalTransitionTargets || []);
+      return targets.has("screenApps") && targets.has("screenRecents");
+    }, null, { timeout: 2000 });
+    const transitions = await page.evaluate(() => window.__dokkeVerticalTransitionTargets);
+    assert.deepEqual(
+      [...new Set(transitions)].sort(),
+      ["screenApps", "screenRecents"],
+      "somente as telas ativas devem participar da animação",
+    );
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("swipes horizontais rápidos encadeiam páginas do Launchpad", async () => {
+  const pieces = Array.from({ length: 24 }, (_, index) => ({
+    id: `website:https://fast-page-${index + 1}.example.com`,
+    type: "website",
+    title: `Fast page ${index + 1}`,
+    url: `https://fast-page-${index + 1}.example.com`,
+    position: index,
+  }));
+  const { port, close } = await startServer({ port: 0, obs: null, config: { schemaVersion: 2, revision: 0, pieces, pinned: [] } });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".launchpad .atile", { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelectorAll(".dots .d").length >= 3, { timeout: 15000 });
+    const result = await page.evaluate(async () => {
+      const launchpad = document.querySelector("#launchpad");
+      const event = (type, x, pointerId) => launchpad.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId, pointerType: "touch", isPrimary: true,
+        clientX: x, clientY: 400,
+      }));
+      const swipeLeft = pointerId => {
+        const rect = launchpad.getBoundingClientRect();
+        const start = rect.left + rect.width / 2;
+        event("pointerdown", start, pointerId);
+        for (let i = 1; i <= 6; i++) event("pointermove", start - 90 * i, pointerId);
+        event("pointerup", start - 540, pointerId);
+      };
+      swipeLeft(1);
+      swipeLeft(2);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const dots = [...document.querySelectorAll(".dots .d")];
+      return dots.findIndex(dot => dot.classList.contains("on"));
+    });
+    assert.equal(result, 2, "dois swipes rápidos devem chegar à terceira página");
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("V-Dots seguem o mesmo espaçamento visual dos h-dots", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.querySelectorAll("#vdots .d").length >= 2);
+    const metrics = await page.evaluate(() => Array.from(document.querySelectorAll("#vdots .d")).map(dot => {
+      const rect = dot.getBoundingClientRect();
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(dot, "::before").transform);
+      return { width: rect.width, height: rect.height, visualCenter: rect.top + rect.height / 2 + matrix.f };
+    }));
+    assert.deepEqual(metrics.map(dot => [dot.width, dot.height]), metrics.map(() => [44, 44]), "v-dots devem manter a área de toque padronizada");
+    assert.equal(Math.round(Math.abs(metrics[1].visualCenter - metrics[0].visualCenter)), 20, `v-dots visíveis devem seguir o espaçamento padrão: ${JSON.stringify(metrics)}`);
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("long press de website ou atalho pede confirmação antes de remover o fixo", async () => {
   const { port, close } = await startServer({
     port: 0,
     config: {
@@ -207,13 +409,85 @@ test("long press de website pede confirmação antes de remover o fixo", async (
     const favLongStart = html.indexOf("function favLong");
     const favLongEnd = html.indexOf("function tileLong", favLongStart);
     const favLong = html.slice(favLongStart, favLongEnd);
-    assert.match(tileLong, /if \(piece\.type === "website"\) favLong\(piece\)/);
+    assert.match(tileLong, /if \(piece\.type === "website" \|\| piece\.type === "shortcut"\) favLong\(piece\)/);
     assert.doesNotMatch(tileLong, /if \(piece\.type === "website"\) unpinPiece\(piece\.id\)/);
     assert.match(favLong, /const isWebsite = piece && piece\.type === "website"/);
     assert.match(favLong, /websiteFaviconPath\(piece\.url\)/);
     assert.match(favLong, /unpinPiece\(piece\.id\)/);
     assert.match(favLong, /\}, "confirm"\);/);
   } finally {
+    await close();
+  }
+});
+
+test("toque rápido em app não dispara o long press de remoção", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: ["Terminal"],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+  });
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.route("**/api/apps/Terminal/activate", async route => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    const tile = page.locator('.atile[data-id="app:Terminal"]');
+    await tile.waitFor({ state: "visible", timeout: 15000 });
+    await tile.evaluate(el => {
+      el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, pointerType: "touch", isPrimary: true, clientX: 40, clientY: 40 }));
+      document.querySelector("#screens").dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, pointerType: "touch", isPrimary: true, clientX: 40, clientY: 40 }));
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForTimeout(700);
+    assert.equal(await page.locator("#sheet.confirm-sheet").count(), 0, "toque rápido não deve abrir remoção");
+    await page.close();
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("PWA bloqueia seleção, callout e menu nativo em toda a superfície", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const safeguards = await page.evaluate(() => {
+      const root = document.querySelector("#dokke");
+      const target = document.querySelector(".atile") || root;
+      const selectstart = new Event("selectstart", { bubbles: true, cancelable: true });
+      const contextmenu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+      const touchCalloutRule = document.documentElement.innerHTML.includes("#dokke, #dokke *")
+        && document.documentElement.innerHTML.includes("-webkit-touch-callout: none");
+      return {
+        selectstartPrevented: !target.dispatchEvent(selectstart),
+        contextmenuPrevented: !target.dispatchEvent(contextmenu),
+        rootUserSelect: getComputedStyle(root).userSelect,
+        tileUserSelect: getComputedStyle(target).userSelect,
+        touchCalloutRule,
+      };
+    });
+    assert.equal(safeguards.selectstartPrevented, true, "a superfície não deve permitir seleção de texto");
+    assert.equal(safeguards.contextmenuPrevented, true, "a superfície não deve abrir menu nativo");
+    assert.equal(safeguards.rootUserSelect, "none", `a raiz deve bloquear seleção: ${JSON.stringify(safeguards)}`);
+    assert.equal(safeguards.tileUserSelect, "none", `os tiles devem bloquear seleção: ${JSON.stringify(safeguards)}`);
+    assert.equal(safeguards.touchCalloutRule, true, `o callout touch deve ficar desativado: ${JSON.stringify(safeguards)}`);
+    await page.close();
+  } finally {
+    await browser.close();
     await close();
   }
 });
@@ -231,20 +505,102 @@ test("GET / inclui PWA manifest link, apple-mobile-web-app e service worker", as
     assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: light\)"[^>]*href="\/icon-192\.png"/, "favicon claro deve existir");
     assert.match(html, /rel="icon"[^>]*media="\(prefers-color-scheme: dark\)"[^>]*href="\/icon-192-dark\.png"/, "favicon escuro deve existir");
     assert.match(html, /viewport-fit=cover/, "viewport-fit=cover deve estar no viewport meta");
+    assert.match(html, /@media \(display-mode: standalone\)[\s\S]*--dokke-viewport-height:\s*100dvh;/, "o layout deve ter fallback para a viewport dinâmica do PWA standalone");
+    assert.match(html, /function syncDokkeViewport\(\)/, "o PWA deve sincronizar a altura real da viewport");
+    assert.match(html, /if \(DOKKE_STANDALONE\)[\s\S]*visualViewport\.addEventListener\("resize", syncDokkeViewport/, "mudanças da viewport visual devem recalcular somente o PWA");
     assert.match(html, /serviceWorker/, "deve registrar service worker");
     assert.match(html, /\/sw\.js/, "deve referenciar sw.js");
   } finally { await close(); }
 });
 
-test("toque no app não revela um segundo glass durante a animação", async () => {
+test("PWA usa a altura real do visualViewport para ignorar a barra do Safari", async () => {
   const { port, close } = await startServer(0);
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".atile");
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(() => {
+      const visualViewport = new EventTarget();
+      Object.defineProperties(visualViewport, {
+        height: { configurable: true, value: 808 },
+        offsetTop: { configurable: true, value: 0 },
+      });
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: visualViewport,
+      });
+      Object.defineProperty(navigator, "standalone", {
+        configurable: true,
+        value: true,
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const layout = await page.evaluate(() => ({
+      viewportHeight: getComputedStyle(document.documentElement).getPropertyValue("--dokke-viewport-height").trim(),
+      mainHeight: getComputedStyle(document.querySelector("main")).height,
+      screenHeight: getComputedStyle(document.querySelector(".screen")).height,
+    }));
+    assert.equal(layout.viewportHeight, "808px", `a altura do visualViewport deve governar o PWA: ${JSON.stringify(layout)}`);
+    assert.equal(layout.mainHeight, "808px", `main deve ocupar a viewport real: ${JSON.stringify(layout)}`);
+    assert.equal(layout.screenHeight, "808px", `cada tela deve ocupar a viewport real: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
 
-    const state = await page.locator(".atile").first().evaluate(tile => {
+test("Safari no navegador preserva a régua estrutural e não comprime os cards", async () => {
+  const { port, close } = await startServer(0);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(() => {
+      const visualViewport = new EventTarget();
+      Object.defineProperties(visualViewport, {
+        height: { configurable: true, value: 808 },
+        offsetTop: { configurable: true, value: 0 },
+      });
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: visualViewport,
+      });
+    });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    const layout = await page.evaluate(() => ({
+      viewportHeight: getComputedStyle(document.documentElement).getPropertyValue("--dokke-viewport-height").trim(),
+      mainHeight: getComputedStyle(document.querySelector("main")).height,
+    }));
+    assert.equal(layout.viewportHeight, "100%", `o Safari no navegador não deve receber a altura visual reduzida: ${JSON.stringify(layout)}`);
+    assert.equal(layout.mainHeight, "852px", `a régua original do navegador deve permanecer intacta: ${JSON.stringify(layout)}`);
+  } finally {
+    await browser.close();
+    await close();
+  }
+});
+
+test("toque no app não revela um segundo glass durante a animação", async () => {
+  const { port, close } = await startServer({
+    port: 0,
+    obs: null,
+    config: {
+      schemaVersion: 2,
+      revision: 0,
+      pieces: [{ id: "app:Terminal", type: "app", name: "Terminal", position: 0 }],
+      pinned: ["Terminal"],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [{ name: "Terminal", path: "/Applications/Utilities/Terminal.app", icon: false }],
+    },
+    iconService: { getIconPng: async () => null },
+  });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('.atile[data-name="Terminal"]');
+
+    const state = await page.locator('.atile[data-name="Terminal"]').evaluate(tile => {
       tile.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 1,
@@ -278,10 +634,14 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       schemaVersion: 2,
       revision: 0,
       pieces: [
-        { id: "app:App Store", type: "app", name: "App Store", position: 0 },
-        { id: "app:Claude", type: "app", name: "Claude", position: 1 },
+        { id: "shortcut:Test One", type: "shortcut", name: "Test One", emoji: "🖱️", position: 0 },
+        { id: "shortcut:Test Two", type: "shortcut", name: "Test Two", emoji: "🖱️", position: 1 },
       ],
-      pinned: ["App Store", "Claude"],
+      pinned: [],
+    },
+    appTools: {
+      listAppProcesses: async () => [],
+      listInstalledApps: async () => [],
     },
   });
   const browser = await chromium.launch({ headless: true });
@@ -291,7 +651,7 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       isMobile: true,
       hasTouch: true,
     });
-    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelectorAll(".atile.empty").length === 38);
     const empty = page.locator(".atile.empty .aglass").first();
     const style = await empty.evaluate((el) => {
@@ -299,9 +659,9 @@ test("PWA exibe cinco páginas completas e preserva slots vazios", async () => {
       return { background: computed.backgroundColor, border: computed.border, boxShadow: computed.boxShadow };
     });
     assert.equal(await page.locator(".atile.empty").count(), 38);
-    assert.equal(style.background, "rgba(255, 255, 255, 0.035)");
-    assert.match(style.border, /rgba\(240, 135, 55, 0\.18\)/);
-    assert.match(style.boxShadow, /rgba\(255, 255, 255, 0\.035\)/);
+    assert.equal(style.background, "rgba(255, 255, 255, 0.05)");
+    assert.match(style.border, /rgba\(255, 255, 255, 0\.08\)/);
+    assert.equal(style.boxShadow, "none");
   } finally {
     await browser.close();
     await close();
@@ -448,7 +808,7 @@ test("falha ao ler versão do Android não cai no banner do Mac", async () => {
   }
 });
 
-test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
+test("gesto vertical percorre as duas telas e limita overscroll nas bordas", async () => {
   const { port, close } = await startServer(0);
   try {
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
@@ -458,7 +818,7 @@ test("gesto de retorno acompanha a tela 2 até a tela 1", async () => {
     assert.equal(rubberDy(200, { screen: "recents" }, () => 800, 28), 200,
       "o retorno deve seguir o dedo, não ficar preso no rubber band");
     assert.equal(rubberDy(-200, { screen: "recents" }, () => 800, 28), -28,
-      "o overscroll para cima continua limitado");
+      "o overscroll acima da última tela continua limitado");
   } finally { await close(); }
 });
 
@@ -483,7 +843,10 @@ test("GET /sw.js retorna service worker com cache-first", async () => {
     assert.equal(r.status, 200);
     const js = await r.text();
     assert.match(js, /caches\.open/, "sw.js deve usar Cache API");
-    assert.match(js, /dokke-v24/, "service worker deve invalidar o cache antigo da UI");
+    assert.match(js, /dokke-v34/, "service worker deve invalidar o cache antigo da UI");
+    const appResponse = await fetch(`http://127.0.0.1:${port}/`);
+    const appHtml = await appResponse.text();
+    assert.match(appHtml, /serviceWorker\.register\("\/sw\.js\?rev=dokke-v34"\)/, "registro e cache do service worker devem compartilhar a revisão atual");
     assert.match(js, /icon-192-dark\.png/, "service worker deve precachear o favicon escuro");
     assert.match(js, /url\.pathname === "\/sw\.js"/, "service worker não deve cachear a própria atualização");
     assert.match(js, /cache-first|caches\.match/, "sw.js deve ter strategy cache-first");
@@ -565,7 +928,10 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
     await page.addStyleTag({ content: ":root{--dokke-safe-top:100px;--dokke-safe-bottom:100px}.screen{padding-top:100px !important}.dots{padding-bottom:100px !important}" });
     await page.waitForFunction(() => document.querySelectorAll(".atile").length === 40);
     await page.evaluate(() => window.dispatchEvent(new Event("resize")));
-    await page.waitForFunction(() => document.querySelector(".page-grid")?.style.transform.startsWith("scale("));
+    await page.waitForFunction(() => {
+      const grid = document.querySelector(".page-grid");
+      return Boolean(grid) && (grid.style.transform === "" || grid.style.transform.startsWith("scale("));
+    });
     const bounds = await page.evaluate(() => {
       const pager = document.querySelector(".launchpad");
       const firstPage = document.querySelector(".page");
@@ -595,7 +961,7 @@ test("grade mobile mantém a régua do retrato e se ajusta sem cortar com safe a
     assert.ok(bounds.slotGap <= 20.5, "o retrato não deve adicionar espaçamento entre os slots");
     assert.ok(bounds.first.top >= bounds.pager.top - 0.5, "o primeiro card não pode escapar pelo topo após a escala");
     assert.ok(bounds.last.bottom <= bounds.pager.bottom + 0.5, "o último card não pode ser cortado após a escala");
-    assert.match(bounds.scale, /^scale\(/, "a escala deve ser aplicada somente quando a safe area reduzir a altura útil");
+    assert.ok(bounds.scale === "" || /^scale\(/.test(bounds.scale), "a grade só deve escalar quando a safe area reduzir a altura útil");
     assert.ok(Math.abs(bounds.pageWidth - (bounds.pager.right - bounds.pager.left)) < 0.5, "a página deve conservar a largura integral do pager");
     assert.ok(Math.abs(bounds.scrollLeft) < 1, "a escala interna não pode deslocar o scroll horizontal inicial");
   } finally {

@@ -196,6 +196,24 @@ private struct JiggleModifier: ViewModifier {
   }
 }
 
+private struct DockPieceActivationAccessibility: ViewModifier {
+  let isInteractive: Bool
+  let label: String
+  let action: () -> Void
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if isInteractive {
+      content
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default) { action() }
+    } else {
+      content
+    }
+  }
+}
+
 private struct HoverControlGlassModifier: ViewModifier {
   let isInteractive: Bool
 
@@ -455,7 +473,18 @@ struct DockIcon: View {
   @State private var isHovered = false
 
   private var name: String {
-    piece.type == .app ? (piece.name ?? piece.displayTitle) : piece.id
+    switch piece.type {
+    case .app: return piece.name ?? piece.displayTitle
+    case .website, .shortcut: return piece.id
+    }
+  }
+
+  private var removalLabelKey: String {
+    switch piece.type {
+    case .app: return "icon.removeApp"
+    case .website: return "icon.removeWebsite"
+    case .shortcut: return "icon.removeShortcut"
+    }
   }
 
   init(piece: DockPiece, allowsRemoval: Bool, isReordering: Bool = false) {
@@ -527,8 +556,8 @@ struct DockIcon: View {
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          .help(I18n.text(piece.type == .website ? "icon.removeWebsite" : "icon.removeApp", language: languageStore.selected))
-          .accessibilityLabel(I18n.text(piece.type == .website ? "icon.removeWebsite" : "icon.removeApp", language: languageStore.selected))
+          .help(I18n.text(removalLabelKey, language: languageStore.selected))
+          .accessibilityLabel(I18n.text(removalLabelKey, language: languageStore.selected))
           .frame(width: iconCardSize, height: iconCardSize)
           .zIndex(5)
         }
@@ -579,14 +608,29 @@ struct DockIcon: View {
     }
     .frame(width: iconCardSize, height: iconCardSize + 24)
     .contentShape(Rectangle())
+    .modifier(DockPieceActivationAccessibility(
+      isInteractive: piece.type != .app,
+      label: piece.displayTitle,
+      action: activatePiece
+    ))
     .onTapGesture {
-      guard piece.type == .website else { return }
-      Task { await store.openWebsite(piece.id) }
+      activatePiece()
     }
     .contextMenu {
       Button(I18n.text("icon.removeDock", language: languageStore.selected)) {
         Task { await store.unpin(name) }
       }
+    }
+  }
+
+  private func activatePiece() {
+    switch piece.type {
+    case .app:
+      break
+    case .website:
+      Task { await store.openWebsite(piece.id) }
+    case .shortcut:
+      Task { await store.openShortcut(piece.id) }
     }
   }
 
@@ -618,6 +662,8 @@ struct DockIcon: View {
     }
     case .website:
       websiteIconImage
+    case .shortcut:
+      shortcutIconImage
     }
   }
 
@@ -634,6 +680,22 @@ struct DockIcon: View {
       )
       .frame(width: 50, height: 50)
       .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+    .frame(width: 56, height: 56)
+  }
+
+  private var shortcutIconImage: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(LinearGradient(
+          colors: [Color(red: 0.40, green: 0.15, blue: 0.82), Color(red: 0.24, green: 0.07, blue: 0.59)],
+          startPoint: .topLeading,
+          endPoint: .bottomTrailing
+        ))
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(Color.white.opacity(0.16), lineWidth: 0.8)
+      Text(piece.emoji ?? "🖱️")
+        .font(.system(size: 32, weight: .semibold))
     }
     .frame(width: 56, height: 56)
   }

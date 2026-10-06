@@ -104,6 +104,35 @@ struct DockGridView: View {
         .frame(maxWidth: .infinity)
       }
     }
+    .overlay(alignment: .bottom) {
+      if let error = store.pieceActionError {
+        Text(error)
+          .font(.system(size: 12, weight: .semibold))
+          .multilineTextAlignment(.center)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: 380)
+          .foregroundStyle(.primary)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
+          .background(.ultraThinMaterial, in: Capsule())
+          .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+          .padding(.horizontal, 16)
+          .padding(.bottom, 48)
+          .accessibilityIdentifier("pieceActionError")
+          .transition(.move(edge: .bottom).combined(with: .opacity))
+      }
+    }
+    .animation(.easeOut(duration: 0.2), value: store.pieceActionError)
+    .task(id: store.pieceActionErrorRevision) {
+      guard store.pieceActionError != nil else { return }
+      do { try await Task.sleep(nanoseconds: 3_000_000_000) }
+      catch { return }
+      store.clearPieceActionError()
+    }
+    .onChange(of: store.pieceActionErrorRevision) { _, _ in
+      guard let error = store.pieceActionError else { return }
+      AccessibilityNotification.Announcement(error).post()
+    }
     .onChange(of: displayedPieces.count) { _, _ in
       currentPage = min(currentPageIndex, pageCount - 1)
     }
@@ -340,14 +369,12 @@ private struct AddSlotButton: View {
             )
             .frame(width: size, height: size)
 
-          if isHovered {
-            Image(systemName: "plus")
-              .font(.system(size: 18, weight: .semibold))
-              .foregroundStyle(.white.opacity(0.88))
-          }
+          Image(systemName: "plus")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.white.opacity(isHovered ? 0.94 : 0.72))
         }
 
-        Text(isHovered ? I18n.text("picker.add", language: languageStore.selected) : " ")
+        Text(I18n.text("picker.add", language: languageStore.selected))
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(.white.opacity(0.78))
           .frame(height: 13)

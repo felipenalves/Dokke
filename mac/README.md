@@ -20,6 +20,15 @@ cd mac
 ./package-dmg.sh      # gera um DMG com Dokke + atalho Aplicativos
 ```
 
+Para gerar pacotes locais das duas arquiteturas em `mac/dist`, use nomes separados:
+
+```sh
+DOKKE_TARGET_ARCH=arm64 ./mac/package-dmg.sh
+DOKKE_TARGET_ARCH=x86_64 DOKKE_NODE=/caminho/para/node-x86_64 ./mac/package-dmg.sh
+```
+
+O build Intel em um Mac Apple Silicon precisa de um runtime Node x86_64 disponível ou fornecido em `DOKKE_NODE`.
+
 O servidor embutido copia uma allowlist fixa de `public/`: `index.html`,
 `manifest.webmanifest`, `sw.js`, os ícones PWA, `version.json` e `dokke.apk`.
 Backups ignorados (`*.bak`), logs e saídas locais não entram no `.app` nem no
