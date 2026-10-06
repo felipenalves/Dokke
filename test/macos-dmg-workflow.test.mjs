@@ -91,7 +91,7 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.match(releaseWorkflow, /dokke\.apk/);
   assert.match(releaseWorkflow, /dump badging public\/dokke\.apk/);
   assert.match(releaseWorkflow, /keytool -printcert -jarfile/);
-  assert.match(releaseWorkflow, /apksigner verify --print-certs/);
+  assert.match(releaseWorkflow, /"\$\{apksigner\}" verify --print-certs/);
   assert.match(releaseWorkflow, /\(cd public && shasum -a 256 dokke\.apk > dokke\.apk\.sha256\)/);
   assert.doesNotMatch(releaseWorkflow, /shasum -a 256 public\/dokke\.apk > public\/dokke\.apk\.sha256/);
   assert.match(releaseWorkflow, /previous_version_code/);
@@ -108,6 +108,17 @@ test("macOS release is manually dispatched from main and validates a main tag", 
   assert.match(releaseWorkflow, /permissions:\n\s+contents:\s*write/);
   assert.match(releaseWorkflow, /gh release create/);
   assert.doesNotMatch(releaseWorkflow, /pull_request:/);
+});
+
+test("release workflow invokes the resolved apksigner binary for every signer check", () => {
+  const commands = releaseWorkflow
+    .split("\n")
+    .filter((line) => /apksigner.*verify --print-certs/.test(line));
+
+  assert.equal(commands.length, 6, "expected current and previous APK checks in both release jobs");
+  for (const command of commands) {
+    assert.match(command, /"\$\{apksigner\}" verify --print-certs/);
+  }
 });
 
 test("release workflow audits npm dependencies before tests and packaging", () => {
