@@ -114,10 +114,10 @@ jobs:
 
           keytool -printcert -jarfile public/dokke.apk >/dev/null
           keytool -printcert -jarfile "${previous_release_dir}/dokke.apk" >/dev/null
-          apksigner verify --print-certs public/dokke.apk >/dev/null
-          apksigner verify --print-certs "${previous_release_dir}/dokke.apk" >/dev/null
-          apk_signers="$(apksigner verify --print-certs public/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
-          previous_signers="$(apksigner verify --print-certs "${previous_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          "${apksigner}" verify --print-certs public/dokke.apk >/dev/null
+          "${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" >/dev/null
+          apk_signers="$("${apksigner}" verify --print-certs public/dokke.apk | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
+          previous_signers="$("${apksigner}" verify --print-certs "${previous_release_dir}/dokke.apk" | sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' | sort)"
 
           if [[ "${package_version}" != "${release_version}" \
              || "${android_version}" != "${release_version}" \
