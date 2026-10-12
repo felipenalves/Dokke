@@ -1,7 +1,10 @@
 # AGENTS.md — Dokke
 
-Estas regras complementam o `AGENTS.md` do repositório pai. O Dokke é um
-repositório aninhado e tem ciclo próprio de teste, release e publicação.
+Estas regras complementam o `AGENTS.md` do repositório pai. Neste workspace,
+`02-projetos/j5-dock/` tem uma raiz Git própria, que é o repositório canônico
+para mudanças do Dokke. O Git raiz Felipe.aiOS também rastreia os arquivos do
+diretório; mudanças aparecem nos dois índices, mas commits do Dokke pertencem ao
+repositório aninhado. O produto tem ciclo próprio de teste e release.
 
 ## Escopo
 
@@ -9,7 +12,9 @@ repositório aninhado e tem ciclo próprio de teste, release e publicação.
   Android, iPhone e navegador na rede local.
 - O Mac é o host; não transformar o J5 em daemon do Dokke nem deixar serviço
   permanente no Mac fora do fluxo existente do app.
-- Não misturar commits deste repositório com o monorepo pai.
+- Use a raiz Git desta pasta para commits do projeto; não duplique a mesma
+  mudança pelo Git pai. O repositório de releases `felipenalves/Dokke` é outra
+  superfície; este checkout não sincroniza mudanças para ele automaticamente.
 
 ## Desenvolvimento e verificação
 
